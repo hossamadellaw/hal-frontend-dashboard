@@ -195,6 +195,7 @@ jobs:
           git ls-files | cut -d/ -f1 | sort -u > /tmp/tracked_roots.txt
           cat > /tmp/allowed_roots.txt <<'EOF'
           .github
+          .gitignore
           LICENSE
           SECURITY.md
           THIRD-PARTY-NOTICES.txt
