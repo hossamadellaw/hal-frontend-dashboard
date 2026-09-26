@@ -1,0 +1,52 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 7,
+    "purpose": "Batch-7 (Runtime template shell/base structure §18) per-file verification inputs: paths, byte sizes and SHA-256 of the eight legacy theme sources migrated or dispositioned by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-15T20:29:09Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "67044a2fdb43d661f888904cdf8e2802445cef8960d89c31f688e7d2c1a0bdb1",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 8 of 8 sources match the batch-0 baseline byte-for-byte (page-dashboard.php 39615 bytes b3754a28132c52ac0027e11661ba6e6ad132481224bb01ff70a6f5e44adbe0e1; header-dashboard.php 793 bytes 4be998258017dd503bfbaf5ccb60c80120df17142b56202412744ebe90463510; footer-dashboard.php 548 bytes 6e1e82abf3be0d620e56a4e8ad649c86b215973775151365803d0dcddd3eae25; overview.php 14888 bytes 4ff7bbb89a2566ed8ea8b4e675f6c01372c2cefaeb75a07c69ae2e30bbfd4f96; posts.php 38502 bytes 955f262e0212bb96c3aa8f499cc45d5976169fe11013d5588bbe82914d3d3a9c; files.php 6124 bytes e29b734e20ba59e63a69b86f893e562d41c56f0fcef10bb481da9911d1ad3245; bookings.php 3235 bytes 9950d5fe1a149ab387e11fca5038f4766547ec92bf9ede98ed0ee890379c721c; profile.php 4620 bytes c9765b984be6403a67e824aac7749be6234463d7ae300a0d8d486b0ea7ecc081). No drift.",
+    "files": [
+        {
+            "path": "theme/page-dashboard.php",
+            "bytes": 39615,
+            "sha256": "b3754a28132c52ac0027e11661ba6e6ad132481224bb01ff70a6f5e44adbe0e1"
+        },
+        {
+            "path": "theme/header-dashboard.php",
+            "bytes": 793,
+            "sha256": "4be998258017dd503bfbaf5ccb60c80120df17142b56202412744ebe90463510"
+        },
+        {
+            "path": "theme/footer-dashboard.php",
+            "bytes": 548,
+            "sha256": "6e1e82abf3be0d620e56a4e8ad649c86b215973775151365803d0dcddd3eae25"
+        },
+        {
+            "path": "theme/template-parts/dashboard/overview.php",
+            "bytes": 14888,
+            "sha256": "4ff7bbb89a2566ed8ea8b4e675f6c01372c2cefaeb75a07c69ae2e30bbfd4f96"
+        },
+        {
+            "path": "theme/template-parts/dashboard/posts.php",
+            "bytes": 38502,
+            "sha256": "955f262e0212bb96c3aa8f499cc45d5976169fe11013d5588bbe82914d3d3a9c"
+        },
+        {
+            "path": "theme/template-parts/dashboard/files.php",
+            "bytes": 6124,
+            "sha256": "e29b734e20ba59e63a69b86f893e562d41c56f0fcef10bb481da9911d1ad3245"
+        },
+        {
+            "path": "theme/template-parts/dashboard/bookings.php",
+            "bytes": 3235,
+            "sha256": "9950d5fe1a149ab387e11fca5038f4766547ec92bf9ede98ed0ee890379c721c"
+        },
+        {
+            "path": "theme/template-parts/dashboard/profile.php",
+            "bytes": 4620,
+            "sha256": "c9765b984be6403a67e824aac7749be6234463d7ae300a0d8d486b0ea7ecc081"
+        }
+    ]
+}

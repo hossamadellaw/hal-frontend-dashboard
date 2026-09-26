@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hossamadellaw/hal-frontend-dashboard/blob/main/build/runtime-manifest.schema.json",
+  "title": "HAL Frontend Dashboard Runtime Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "product",
+    "version",
+    "release_sequence",
+    "release_id",
+    "tag",
+    "commit_sha",
+    "requires_wp",
+    "requires_php",
+    "loader_api_min",
+    "loader_api_max",
+    "loader_core_version",
+    "schema_version",
+    "archive_sha256",
+    "files"
+  ],
+  "properties": {
+    "schema": { "const": 1 },
+    "product": { "const": "hal-frontend-dashboard" },
+    "version": { "$ref": "#/$defs/version" },
+    "release_sequence": { "type": "integer", "minimum": 1 },
+    "release_id": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\+[a-f0-9]{40}$" },
+    "tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "commit_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "requires_wp": { "$ref": "#/$defs/platformVersion" },
+    "requires_php": { "$ref": "#/$defs/platformVersion" },
+    "loader_api_min": { "type": "integer", "minimum": 1 },
+    "loader_api_max": { "type": "integer", "minimum": 1 },
+    "loader_core_version": { "$ref": "#/$defs/version" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "archive_sha256": { "$ref": "#/$defs/sha256" },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^(?!/|[A-Za-z]:|.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)(?:\\.git|\\.github|Docs|docs|tests|node_modules)(?:/|$))[^\\u0000\\\\]+$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/sha256" },
+      "required": ["bootstrap.php"]
+    },
+    "next_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public_key", "fingerprint", "not_before"],
+      "properties": {
+        "public_key": { "type": "string", "minLength": 44, "maxLength": 44 },
+        "fingerprint": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "not_before": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "version": { "type": "string", "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$" },
+    "platformVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

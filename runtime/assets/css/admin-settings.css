@@ -1,0 +1,82 @@
+/**
+ * runtime/assets/css/admin-settings.css — واجهة Backend (الدفعة 3).
+ * معزولة تحت محدد الجذر .hal-fd-admin (screen id الخاص بالمشروع عبر
+ * hook_suffix) — لا تأثير في wp-admin العام.
+ */
+
+.hal-fd-admin .hal-fd-tabs {
+	margin-bottom: 16px;
+}
+
+.hal-fd-admin .hal-fd-card {
+	max-width: 860px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 20px 20px;
+	margin-top: 12px;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.hal-fd-admin .hal-fd-warning {
+	border-left: 4px solid #dba617;
+	background: #fff8e5;
+	padding: 8px 12px;
+	margin: 0 0 16px;
+}
+
+.hal-fd-admin .hal-fd-status th {
+	width: 220px;
+}
+
+.hal-fd-admin .hal-fd-badge {
+	display: inline-block;
+	padding: 1px 10px;
+	border-radius: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 11px;
+	letter-spacing: 0.04em;
+}
+
+.hal-fd-admin .hal-fd-badge--ok,
+.hal-fd-admin .hal-fd-badge--available {
+	background: #edfaef;
+	color: #116329;
+	border: 1px solid #11632933;
+}
+
+.hal-fd-admin .hal-fd-badge--blocked,
+.hal-fd-admin .hal-fd-badge--unknown {
+	background: #fcf0f1;
+	color: #8a2424;
+	border: 1px solid #8a242433;
+}
+
+.hal-fd-admin .hal-fd-secret {
+	margin: 18px 0 0;
+	padding-top: 12px;
+	border-top: 1px solid #e2e4e7;
+}
+
+.hal-fd-admin .hal-fd-secret h3 {
+	margin: 0 0 8px;
+}
+
+.hal-fd-admin .hal-fd-secret input[type="password"] {
+	min-width: 320px;
+}
+
+.hal-fd-admin .hal-fd-secret .button-link-delete {
+	color: #b32d2e;
+}
+
+.hal-fd-admin [aria-busy="true"] {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.hal-fd-admin .hal-fd-js-error {
+	margin-top: 8px;
+	color: #8a2424;
+}

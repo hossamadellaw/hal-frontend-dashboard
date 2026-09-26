@@ -1,0 +1,37 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 9,
+    "purpose": "Batch-9 (base assets and content modules §20) per-file verification inputs: paths, byte sizes and SHA-256 of the five legacy theme sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-17T17:04:19Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "4d95dee3e0be439441ea416748d6b90fa4cadada3e339eb33d934bb5878e81cb",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 5 of 5 sources match the batch-0 baseline byte-for-byte (dashboard.css 52372 bytes e566f258ab54d8ee4d8b2caf75d067b11cb36b3db3ca883b76ba740b705df722; dashboard.js 22725 bytes 8dd5a568c159818602ba2114f93ead2d363f8b89e75e54756b0f5ab47e886f1c; posts.js 8534 bytes 13882c91dd5079dc57b5596d64b795f4b8cdac9bf90641392281a43ea6c93ef0; uploads.js 8993 bytes 89e1840cc63694e53f19f9ea246c692ea03dcb566272b26d58698f42ee9c0da0; members.js 3674 bytes b64d13c95870033cf306fd80a5990414e1dff12905bf7eb05f51bbdfffb6d36c). No drift.",
+    "files": [
+        {
+            "path": "theme/assets/css/dashboard.css",
+            "bytes": 52372,
+            "sha256": "e566f258ab54d8ee4d8b2caf75d067b11cb36b3db3ca883b76ba740b705df722"
+        },
+        {
+            "path": "theme/assets/js/dashboard.js",
+            "bytes": 22725,
+            "sha256": "8dd5a568c159818602ba2114f93ead2d363f8b89e75e54756b0f5ab47e886f1c"
+        },
+        {
+            "path": "theme/assets/js/modules/posts.js",
+            "bytes": 8534,
+            "sha256": "13882c91dd5079dc57b5596d64b795f4b8cdac9bf90641392281a43ea6c93ef0"
+        },
+        {
+            "path": "theme/assets/js/modules/uploads.js",
+            "bytes": 8993,
+            "sha256": "89e1840cc63694e53f19f9ea246c692ea03dcb566272b26d58698f42ee9c0da0"
+        },
+        {
+            "path": "theme/assets/js/modules/members.js",
+            "bytes": 3674,
+            "sha256": "b64d13c95870033cf306fd80a5990414e1dff12905bf7eb05f51bbdfffb6d36c"
+        }
+    ]
+}

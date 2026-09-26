@@ -1,0 +1,47 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 8,
+    "purpose": "Batch-8 (remaining dashboard panels §19) per-file verification inputs: paths, byte sizes and SHA-256 of the seven legacy theme sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-17T16:28:33Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "5cd55d5dcaa149f9648f0193ef16e95e0699150a650a0aac0d01f5c1727012d3",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 7 of 7 sources match the batch-0 baseline byte-for-byte (seo.php 19904 bytes 76535356c4d45bfc8969073ca090ec99f6ba88d39fc371f119f208e7345d3e62; translations.php 5838 bytes 042c087d82726296beefbe4f54f5822ee47dd12cd02c0cd39f7b2d2f0d44c8a3; inbox.php 2814 bytes d8c7292106b61f06543ca892c9abda5d89b3044f9c2f0224bde005cc7e268e9c; finance.php 5119 bytes c033796f85e4a0601507808693b411b95c4392b6514e585263027e2be02fedab; store.php 4791 bytes 9ea6ec6ecc3d041024ec1dcb9b7625a089edfffa0188a4c7a219f6575a3d6bf3; admin.php 22298 bytes 2a720fd69e706f86f830d517585bbe47047433bdee8a4df8177a3acdb0e1d081; members.php 2960 bytes dcadec82c8f2cdba79492e6c7635e06bf95660d0699253bec92f6d726deed2e3). No drift.",
+    "files": [
+        {
+            "path": "theme/template-parts/dashboard/seo.php",
+            "bytes": 19904,
+            "sha256": "76535356c4d45bfc8969073ca090ec99f6ba88d39fc371f119f208e7345d3e62"
+        },
+        {
+            "path": "theme/template-parts/dashboard/translations.php",
+            "bytes": 5838,
+            "sha256": "042c087d82726296beefbe4f54f5822ee47dd12cd02c0cd39f7b2d2f0d44c8a3"
+        },
+        {
+            "path": "theme/template-parts/dashboard/inbox.php",
+            "bytes": 2814,
+            "sha256": "d8c7292106b61f06543ca892c9abda5d89b3044f9c2f0224bde005cc7e268e9c"
+        },
+        {
+            "path": "theme/template-parts/dashboard/finance.php",
+            "bytes": 5119,
+            "sha256": "c033796f85e4a0601507808693b411b95c4392b6514e585263027e2be02fedab"
+        },
+        {
+            "path": "theme/template-parts/dashboard/store.php",
+            "bytes": 4791,
+            "sha256": "9ea6ec6ecc3d041024ec1dcb9b7625a089edfffa0188a4c7a219f6575a3d6bf3"
+        },
+        {
+            "path": "theme/template-parts/dashboard/admin.php",
+            "bytes": 22298,
+            "sha256": "2a720fd69e706f86f830d517585bbe47047433bdee8a4df8177a3acdb0e1d081"
+        },
+        {
+            "path": "theme/template-parts/dashboard/members.php",
+            "bytes": 2960,
+            "sha256": "dcadec82c8f2cdba79492e6c7635e06bf95660d0699253bec92f6d726deed2e3"
+        }
+    ]
+}

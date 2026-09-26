@@ -1,0 +1,15 @@
+# Local-only project execution documentation. Never commit or package.
+/Docs/
+
+# Composer dependencies are generated only in isolated build staging.
+/vendor/
+
+# Local environment and transient build output.
+/.env
+/.env.*
+/*.log
+/build/tmp/
+
+# Authorized local audit/test workspace. Never commit or package.
+/.audit-work/
+/.local-execution/

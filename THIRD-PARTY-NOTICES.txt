@@ -1,0 +1,14 @@
+HAL Frontend Dashboard — Third-Party Notices
+=============================================
+
+This source repository locks the dependency below for later inclusion in
+the generated Runtime package. The dependency is not shipped in the root
+Carrier source tree.
+
+Plugin Update Checker
+---------------------
+Package: yahnis-elsts/plugin-update-checker
+Version: v5.7
+License: MIT
+Upstream: https://github.com/YahnisElsts/plugin-update-checker
+License text location in a built Runtime: runtime/vendor/yahnis-elsts/plugin-update-checker/license.txt

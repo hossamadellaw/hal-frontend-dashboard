@@ -1,0 +1,41 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 2,
+    "purpose": "Unresolved-acceptance-evidence item 1 (batch-2 closure delegation 2026-09-13): paths, byte sizes, SHA-256 and snapshot identity of the six legacy sources migrated by Batch 2. Generated at the closure round from the exclusive source path. CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-13T14:16:44Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "557a050dde34829f637fb91a8073420f415fabc0a99d01257208b74d773e4940",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
+    "files": [
+        {
+            "path": "mu-plugins/hossam-dashboard.php",
+            "bytes": 4837,
+            "sha256": "84d128c34740e5b05e6bfeb9d3812c65b7ded230b9e310db14fbdaeb60377fbc"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/core/setup.php",
+            "bytes": 26970,
+            "sha256": "1bb35302f023a4427e131eb20973438c43f5121ebaa6a11740d323b7019c60d4"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/core/i18n.php",
+            "bytes": 20346,
+            "sha256": "0c7d89a8a85120bd56c87c657caeaa2349500cd94248a4e0154b79c23a632b38"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/core/tables.php",
+            "bytes": 8232,
+            "sha256": "beca7d9486987285fb014c5621cb189614b76b2660e585c591fd7033f86ec85a"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/core/permissions.php",
+            "bytes": 4329,
+            "sha256": "e44d90df9bb41404ce3cfe7dc6da5d6bd78387d9b6a3765e2484758b43404cc3"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/core/notifications.php",
+            "bytes": 8487,
+            "sha256": "5d3e247354e2341ffc5feea76098f942d1a496e1484b258abd664b80ffdbdc3e"
+        }
+    ]
+}

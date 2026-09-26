@@ -1,0 +1,42 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 6,
+    "purpose": "Batch-6 (integrations/services AJAX §17) per-file verification inputs: paths, byte sizes and SHA-256 of the six legacy ajax sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-15T13:21:56Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "e48a0a98063529fa19c53e7ad25ddfa2a665c7e4aa795b0e280cadd8841490ca",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 5 of 6 sources match the batch-0 baseline byte-for-byte (appointments.php 8203 bytes e02de39405815daedf175468a71d0c7d2857a1196571c7d35349287c4bfd5cab; finance.php 12481 bytes d145398cb21193af6037d1c54c8aee0ef1aabc0c514d2ea197d050795151017e; members.php 3397 bytes c4624970e32c1be84671d7c88943227948624dc2fbbd2e03fb840c34b5ffda59; inbox.php 12358 bytes cb637cb115eb463b00bd7a654dc7fc40ceedf8e59fdb74568b1d873ad4e14c8e; store.php 5176 bytes 6206f16e306168fad7e10f75145f446c7d8e8506fe9d8e8ab55366ef476289aa). Drifted source(s): ai.php: batch-0 baseline 19813 bytes f935a2be4bdd74df102b9cd19247e491a9428401db015488a691ecaa14e86e82 -> current 23999 bytes 28254ae2bbafbde265360216d1cb8b6a1653d97c6121cbbdd9bf042a29cf5f30. Per §10.1 rule 1 the exclusive source path is authoritative; this snapshot records what was actually read (source evolved before its migration).",
+    "files": [
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/appointments.php",
+            "bytes": 8203,
+            "sha256": "e02de39405815daedf175468a71d0c7d2857a1196571c7d35349287c4bfd5cab"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/finance.php",
+            "bytes": 12481,
+            "sha256": "d145398cb21193af6037d1c54c8aee0ef1aabc0c514d2ea197d050795151017e"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/members.php",
+            "bytes": 3397,
+            "sha256": "c4624970e32c1be84671d7c88943227948624dc2fbbd2e03fb840c34b5ffda59"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/inbox.php",
+            "bytes": 12358,
+            "sha256": "cb637cb115eb463b00bd7a654dc7fc40ceedf8e59fdb74568b1d873ad4e14c8e"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/store.php",
+            "bytes": 5176,
+            "sha256": "6206f16e306168fad7e10f75145f446c7d8e8506fe9d8e8ab55366ef476289aa"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/ai.php",
+            "bytes": 23999,
+            "sha256": "28254ae2bbafbde265360216d1cb8b6a1653d97c6121cbbdd9bf042a29cf5f30"
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 5,
+    "purpose": "Batch-5 (content/files AJAX §16) per-file verification inputs: paths, byte sizes and SHA-256 of the three legacy ajax sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-15T02:15:59Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "246932dcc2ea5faa3c49af3953b5377481d30dc1cc6be3da8346ca62763697ed",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "All three sources match the batch-0 baseline inventory (build/source-inventory.json) byte-for-byte: posts.php 14531 bytes 3615445986960cc50b0fcb4a0b4188e918a293903d454a62e43139c1ac9a833a, uploads.php 7673 bytes a20943551068e8da7074a98af1947f3c9e278f18905a33c5bb39be5f76a5a541, seo.php 4427 bytes d13d1df78c981cb25cf85958db6950fc4def8519c352d0096898d2c141b077fb.",
+    "files": [
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/posts.php",
+            "bytes": 14531,
+            "sha256": "3615445986960cc50b0fcb4a0b4188e918a293903d454a62e43139c1ac9a833a"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/uploads.php",
+            "bytes": 7673,
+            "sha256": "a20943551068e8da7074a98af1947f3c9e278f18905a33c5bb39be5f76a5a541"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/ajax/seo.php",
+            "bytes": 4427,
+            "sha256": "d13d1df78c981cb25cf85958db6950fc4def8519c352d0096898d2c141b077fb"
+        }
+    ]
+}

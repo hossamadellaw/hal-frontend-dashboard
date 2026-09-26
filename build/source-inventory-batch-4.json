@@ -1,0 +1,52 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 4,
+    "purpose": "Batch-4 (adapters §15) per-file verification inputs: paths, byte sizes and SHA-256 of the eight legacy adapter sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-14T20:11:46Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "303186d1798f90291efa75e96518866ae8609125c304b386a88c58f7145d6060",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "adapters/ai.php differs from the batch-0 baseline inventory (21228 bytes -> current size below; source evolved 2026-09-06 before its migration); the other seven match the batch-0 baseline hashes. Per §10.1 rule 1 the exclusive source path is authoritative; this snapshot records what was actually read.",
+    "files": [
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/wordpress-posts.php",
+            "bytes": 16255,
+            "sha256": "5d5ca3d3840787e2cd824a667bd49e953905243f78dac96b9c5292e700890754"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/wordpress-uploads.php",
+            "bytes": 5002,
+            "sha256": "064c07748c02ca4ae6a10983c7b1832a59de01bd7aa7f3b1b8b78e115dda7457"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/woocommerce.php",
+            "bytes": 7508,
+            "sha256": "604d6c7762871d2ba3c38a81aa940708d172a4f2b4e3c162afb2b275d835e50e"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/wpml.php",
+            "bytes": 13550,
+            "sha256": "8788e115e375fc3b0801322fa07e00bf3d308011f39507a9594a72f0ec141213"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/amelia.php",
+            "bytes": 18105,
+            "sha256": "3f8bde7e92c0e4175b2e4d840944333be31d65eb2c98ea747ed42fe15cad3e3c"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/rankmath.php",
+            "bytes": 7812,
+            "sha256": "899d78cd66ab729a7b5afc06938a9b3d28640d8eda5c0145c5a86dbf2f1abd90"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/ultimatemember.php",
+            "bytes": 3736,
+            "sha256": "12be5514067e5b3742c06577abb1a571def2096b68228060668e01ea11a99af9"
+        },
+        {
+            "path": "mu-plugins/hossam-dashboard/adapters/ai.php",
+            "bytes": 21557,
+            "sha256": "0d853c7150960e950e2f31aefb680207d90b4f28dcd3f78faa5274d577c2a53f"
+        }
+    ]
+}

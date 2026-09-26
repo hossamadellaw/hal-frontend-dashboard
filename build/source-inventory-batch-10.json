@@ -1,0 +1,42 @@
+{
+    "schema": "hal-batch-source-inventory/v1",
+    "batch": 10,
+    "purpose": "Batch-10 (integration and AI JS modules §21) per-file verification inputs: paths, byte sizes and SHA-256 of the six legacy theme sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
+    "generated_utc": "2026-09-17T21:42:33Z",
+    "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
+    "snapshot_id": "ad0a81dff2501afafaccf8a367b6658ad9c3309cf419ccdacdabcc08cebfbba9",
+    "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
+    "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 6 of 6 sources match the batch-0 baseline byte-for-byte (bookings.js 4232 bytes 89784d5a096322adf0b3d410421faf5bdc000763906dc5023210320d799756fc; finance.js 10768 bytes 3392e72c3b5ccda3c1ea333a652aad2767c9ab766c94d6f35f9f9e33d10341bc; inbox.js 9144 bytes 10943d3cf597108e30278c14d4c676231b3e5e1edf0579cf8292d1cb07ed1b59; store.js 3915 bytes 13637f919fd6bc8a744f406fba365276e7189b0d31549e1bccc39c5eb8ff5993; translations.js 1642 bytes 0ffadab617716a156463e74da7e4eefcf49c782ba0554c69ce173a9020e03dcb; ai.js 7346 bytes 371b99a4eb92876dccade1d35f7ba162af53325c779c97cdaa66feff341c53da). No drift.",
+    "files": [
+        {
+            "path": "theme/assets/js/modules/bookings.js",
+            "bytes": 4232,
+            "sha256": "89784d5a096322adf0b3d410421faf5bdc000763906dc5023210320d799756fc"
+        },
+        {
+            "path": "theme/assets/js/modules/finance.js",
+            "bytes": 10768,
+            "sha256": "3392e72c3b5ccda3c1ea333a652aad2767c9ab766c94d6f35f9f9e33d10341bc"
+        },
+        {
+            "path": "theme/assets/js/modules/inbox.js",
+            "bytes": 9144,
+            "sha256": "10943d3cf597108e30278c14d4c676231b3e5e1edf0579cf8292d1cb07ed1b59"
+        },
+        {
+            "path": "theme/assets/js/modules/store.js",
+            "bytes": 3915,
+            "sha256": "13637f919fd6bc8a744f406fba365276e7189b0d31549e1bccc39c5eb8ff5993"
+        },
+        {
+            "path": "theme/assets/js/modules/translations.js",
+            "bytes": 1642,
+            "sha256": "0ffadab617716a156463e74da7e4eefcf49c782ba0554c69ce173a9020e03dcb"
+        },
+        {
+            "path": "theme/assets/js/modules/ai.js",
+            "bytes": 7346,
+            "sha256": "371b99a4eb92876dccade1d35f7ba162af53325c779c97cdaa66feff341c53da"
+        }
+    ]
+}

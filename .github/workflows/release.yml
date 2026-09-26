@@ -1,0 +1,794 @@
+name: Release
+
+# HAL Frontend Dashboard — signed Carrier + Runtime release pipeline.
+# LOCAL NOTE: action pins below use ONLY SHAs verifiable inside this
+# repository (the Git-Github reference workflow pins actions/checkout and
+# actions/upload-artifact to the SHAs reused here). No other third-party
+# action is used: artifact transfer between isolated jobs goes through the
+# preinstalled gh CLI (run: steps), which is first-party runner tooling and
+# needs no pin. Never invent a hash: any future action MUST be added with
+# its full commit SHA verified from a local source, or not at all.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+# A release must never be cancelled mid-flight by a newer push.
+concurrency:
+  group: hal-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Gates, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Gate 8.3 — tag shape and identity match
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "release:blocked:tag_shape_invalid ($TAG)" >&2
+            exit 1
+          fi
+          VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if ! git describe --exact-match --match 'v*' HEAD >/dev/null 2>&1; then
+            echo 'release:blocked:tag_not_on_head' >&2
+            exit 1
+          fi
+          if [[ "$(git cat-file -t "$TAG")" != "tag" ]]; then
+            echo 'release:blocked:tag_not_annotated' >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TAG" origin/main 2>/dev/null; then
+            echo 'release:blocked:tag_not_ancestor_of_main' >&2
+            exit 1
+          fi
+          HEADER="$(grep -m1 -oP '^ \* Version: \K.+' hal-frontend-dashboard.php | tr -d '\r')"
+          CONSTANT="$(grep -m1 -oP "HAL_FRONTEND_DASHBOARD_VERSION', '\K[^']+" hal-frontend-dashboard.php)"
+          STABLE="$(grep -m1 -oP '^Stable tag: \K.+' readme.txt | tr -d '\r')"
+          UPDATE_URI="$(grep -m1 -oP '^ \* Update URI: \K.+' hal-frontend-dashboard.php | tr -d '\r')"
+          for seen in "$HEADER" "$CONSTANT" "$STABLE"; do
+            if [[ "$seen" != "$VERSION" ]]; then
+              echo "release:blocked:identity_mismatch (tag=$VERSION header=$HEADER const=$CONSTANT stable=$STABLE)" >&2
+              exit 1
+            fi
+          done
+          if [[ "$UPDATE_URI" != "https://github.com/hossamadellaw/hal-frontend-dashboard" ]]; then
+            echo "release:blocked:update_uri_mismatch ($UPDATE_URI)" >&2
+            exit 1
+          fi
+          FULL_SHA="$(git rev-list -n 1 "$TAG")"
+          if [[ ! "$FULL_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'release:blocked:commit_sha_invalid' >&2
+            exit 1
+          fi
+          echo "full_sha=$FULL_SHA" >> "$GITHUB_OUTPUT"
+          echo "identity: version=$VERSION sha=$FULL_SHA"
+
+      - name: Gate 8.3 — release sequence above latest published
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.identity.outputs.version }}"
+          SEQ="$(tr -d '\r\n ' < build/release-sequence.txt)"
+          if [[ ! "$SEQ" =~ ^[1-9][0-9]*$ ]]; then
+            echo "release:blocked:sequence_not_positive_int ($SEQ)" >&2
+            exit 1
+          fi
+          if gh release view "v$VERSION" --json tagName >/dev/null 2>&1; then
+            echo "release:blocked:tag_release_exists (reruns must not replace assets: ship a new patch)" >&2
+            exit 1
+          fi
+          LATEST="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')"
+          if [[ -n "$LATEST" && "$LATEST" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            LATEST_V="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+            HIGHER="$(printf '%s\n%s\n' "$LATEST_V" "$VERSION" | sort -V | tail -n 1)"
+            if [[ "$HIGHER" != "$VERSION" || "$HIGHER" == "$LATEST_V" ]]; then
+              echo "release:blocked:version_not_above_latest ($VERSION <= $LATEST_V)" >&2
+              exit 1
+            fi
+          fi
+          if [[ -n "$LATEST" ]]; then
+            SEQ_DIR="$RUNNER_TEMP/hal-seq" && rm -rf "$SEQ_DIR" && mkdir -p "$SEQ_DIR"
+            if ! gh release download "$LATEST" --pattern runtime-manifest.json --dir "$SEQ_DIR" --clobber >/dev/null 2>&1; then
+              echo "release:blocked:sequence_unverifiable (cannot fetch $LATEST manifest)" >&2
+              exit 1
+            fi
+            SEQ_OK="$(SEQ="$SEQ" php -r '$m = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); $old = (int) ($m["release_sequence"] ?? 0); $new = (int) getenv("SEQ"); echo ($old >= 1 && $new > $old) ? "yes" : "no";' "$SEQ_DIR/runtime-manifest.json")"
+            if [[ "$SEQ_OK" != "yes" ]]; then
+              echo "release:blocked:sequence_not_above_published ($SEQ <= published sequence)" >&2
+              exit 1
+            fi
+          fi
+          echo "sequence: $SEQ above latest release $LATEST"
+
+      - name: Gate 8.3 — composer validate, locked install, audit, licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --strict --no-check-publish
+          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
+          composer audit --locked --no-dev
+          php -r '
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            $names = [];
+            foreach (array_merge($lock["packages"] ?? [], $lock["packages-dev"] ?? []) as $p) { $names[] = $p["name"] . " " . $p["version"]; }
+            $notices = file_get_contents("THIRD-PARTY-NOTICES.txt");
+            foreach ($names as $n) {
+              if (strpos($notices, explode(" ", $n)[0]) === false) { fwrite(STDERR, "release:blocked:license_notice_missing ($n)\n"); exit(1); }
+            }
+            $composer = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (!empty($composer["scripts"]) || !empty($composer["allow-plugins"])) {
+              fwrite(STDERR, "release:blocked:composer_scripts_or_plugins_present\n"); exit(1);
+            }
+            echo "composer: " . count($names) . " locked packages covered by THIRD-PARTY-NOTICES.txt\n";
+          '
+          test ! -d vendor/yahnis-elsts/plugin-update-checker || echo 'puc locked copy present for runtime/vendor staging'
+
+      - name: Gate 8.3 — php -l and node --check
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files '*.php' | while read -r f; do php -l "$f" >/dev/null || exit 1; done
+          echo 'php -l: all tracked PHP files pass'
+          git ls-files '*.js' | while read -r f; do node --check "$f" || exit 1; done
+          echo 'node --check: all tracked JS files pass'
+
+      - name: Gate 8.3 — full local test run
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in tests/php/*-test.php; do
+            echo "== php $t"
+            php -d extension=sodium "$t" || exit 1
+          done
+          for t in tests/js/*.test.js; do
+            echo "== node $t"
+            node "$t" || exit 1
+          done
+          for v in 7.0 7.1; do
+            echo "== AI contract matrix: WordPress $v"
+            HAL_WP_TARGET="$v" php -d extension=sodium tests/php/integration-health-test.php || exit 1
+          done
+
+      - name: Gate 8.3 — leakage scan, Docs ban, scope freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)Docs/' ; then
+            echo 'release:blocked:docs_in_git_index' >&2
+            exit 1
+          fi
+          # release.yml holds the literal pattern below, so it excludes itself;
+          # any other file matching is a genuine leak.
+          if grep -rInE --exclude-dir=.git --exclude-dir=node_modules --exclude='release.yml' \
+            -e 'BEGIN [A-Z ]*PRIVATE KEY' -e 'ghp_[A-Za-z0-9]+' -e 'github_pat_' \
+            -e 'xox[bpas]-' -e 'AKIA[0-9A-Z]{16}' . ; then
+            echo 'release:blocked:secret_leakage' >&2
+            exit 1
+          fi
+          if grep -rInE --include='*.php' --include='*.js' --include='*.json' \
+            -e 'D:\\' -e '/home/[a-z]' hal-frontend-dashboard.php includes mu-loader runtime tests build ; then
+            echo 'release:blocked:local_path_leakage' >&2
+            exit 1
+          fi
+          git ls-files | cut -d/ -f1 | sort -u > /tmp/tracked_roots.txt
+          cat > /tmp/allowed_roots.txt <<'EOF'
+          .github
+          LICENSE
+          SECURITY.md
+          THIRD-PARTY-NOTICES.txt
+          build
+          composer.json
+          composer.lock
+          hal-frontend-dashboard.php
+          includes
+          mu-loader
+          readme.txt
+          runtime
+          tests
+          EOF
+          if ! diff -u /tmp/allowed_roots.txt /tmp/tracked_roots.txt; then
+            echo 'release:blocked:scope_freeze (new top-level path needs a Change Request)' >&2
+            exit 1
+          fi
+          echo 'gates: leakage/Docs/scope pass'
+
+      - name: Build 8.4 — runtime staging, no-drift shared files, vendor
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.identity.outputs.version }}"
+          STAGE="$RUNNER_TEMP/hal-stage"
+          RUNTIME="$STAGE/runtime"
+          rm -rf "$STAGE"
+          mkdir -p "$RUNTIME/infrastructure" "$RUNTIME/vendor"
+          cp -a runtime/. "$RUNTIME/"
+          rm -rf "$RUNTIME/vendor"
+          mkdir -p "$RUNTIME/vendor"
+          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php; do
+            cp -a "includes/$f" "$RUNTIME/infrastructure/$f"
+          done
+          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php; do
+            if ! cmp -s "includes/$f" "runtime/infrastructure/$f"; then
+              echo "release:blocked:infrastructure_drift ($f differs from includes/ source)" >&2
+              exit 1
+            fi
+            if ! cmp -s "includes/$f" "$RUNTIME/infrastructure/$f"; then
+              echo "release:blocked:staging_copy_failed ($f)" >&2
+              exit 1
+            fi
+          done
+          if [[ ! -f includes/class-installer.php ]]; then
+            echo 'release:blocked:installer_missing' >&2
+            exit 1
+          fi
+          cp -a vendor/yahnis-elsts "$RUNTIME/vendor/"
+          cp -a vendor/autoload.php vendor/composer "$RUNTIME/vendor/"
+          if [[ -e "$RUNTIME/vendor/bin" ]]; then
+            echo 'release:blocked:vendor_bin_leaked' >&2
+            exit 1
+          fi
+          php -r '
+            $root = $argv[1];
+            $src = file_get_contents($root . "/bootstrap.php");
+            if (!preg_match_all("/require_once\\s+\\\$hal_runtime_root\\s*\\.\\s*[\\x27\\x22]([^\\x27\\x22]+)[\\x27\\x22]/", $src, $m) || 0 === count($m[1])) {
+              fwrite(STDERR, "release:blocked:require_graph (no bootstrap targets found)\n"); exit(1);
+            }
+            foreach ($m[1] as $rel) {
+              if (!is_file($root . "/" . $rel)) { fwrite(STDERR, "release:blocked:require_graph ($rel missing)\n"); exit(1); }
+            }
+            echo "require graph: " . count($m[1]) . " bootstrap targets present\n";
+          ' "$RUNTIME"
+          echo "HAL_STAGE=$STAGE" >> "$GITHUB_ENV"
+          echo "HAL_RUNTIME=$RUNTIME" >> "$GITHUB_ENV"
+
+      - name: Build 8.4 — deterministic runtime zip, manifest bytes, digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.identity.outputs.version }}"
+          FULL_SHA="${{ steps.identity.outputs.full_sha }}"
+          SEQ="$(tr -d '\r\n ' < build/release-sequence.txt)"
+          export TZ=UTC
+          EPOCH="$(git log -1 --format=%ct "$FULL_SHA")"
+          ( cd "$HAL_RUNTIME" && find . -exec touch -h -d "@$EPOCH" {} + )
+          ( cd "$HAL_RUNTIME" && find . -mindepth 1 | LC_ALL=C sort | zip -X -9 -q -r "$RUNNER_TEMP/runtime-$VERSION.zip" -@ )
+          ( cd "$RUNNER_TEMP" && sha256sum "runtime-$VERSION.zip" > "runtime-$VERSION.zip.sha256" )
+          ARCHIVE_SHA="$(cut -d' ' -f1 < "$RUNNER_TEMP/runtime-$VERSION.zip.sha256")"
+          php -r '
+            [$runtime, $version, $sha, $seq, $fullSha, $out] = array_slice($argv, 1);
+            $files = [];
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($runtime, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $item) {
+              if ($item->isDir() || $item->isLink()) continue;
+              $rel = str_replace("\\", "/", substr($item->getPathname(), strlen($runtime) + 1));
+              $files[$rel] = hash_file("sha256", $item->getPathname());
+            }
+            ksort($files, SORT_STRING);
+            $manifest = [
+              "schema" => 1, "product" => "hal-frontend-dashboard", "version" => $version,
+              "release_sequence" => (int) $seq, "release_id" => "$version+$fullSha", "tag" => "v$version",
+              "commit_sha" => $fullSha, "requires_wp" => "7.0", "requires_php" => "8.3",
+              "loader_api_min" => 1, "loader_api_max" => 1, "loader_core_version" => $version,
+              "schema_version" => "1", "archive_sha256" => $sha, "files" => $files,
+            ];
+            $raw = str_replace("\r\n", "\n", json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) . "\n";
+            if (str_contains($raw, "\xEF\xBB\xBF") || str_contains($raw, "\r")) { fwrite(STDERR, "manifest encoding invalid\n"); exit(1); }
+            file_put_contents($out, $raw);
+            echo "runtime manifest: " . count($files) . " files\n";
+          ' "$HAL_RUNTIME" "$VERSION" "$ARCHIVE_SHA" "$SEQ" "$FULL_SHA" "$RUNNER_TEMP/runtime-manifest.json"
+          ( cd "$RUNNER_TEMP" && sha256sum runtime-manifest.json > runtime-manifest.json.sha256 )
+
+      - name: Build 8.5 — carrier staging (interim tree), deterministic zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.identity.outputs.version }}"
+          export TZ=UTC
+          EPOCH="$(git log -1 --format=%ct "${{ steps.identity.outputs.full_sha }}")"
+          CARRIER="$RUNNER_TEMP/hal-carrier/hal-frontend-dashboard"
+          rm -rf "$RUNNER_TEMP/hal-carrier"
+          mkdir -p "$CARRIER/includes" "$CARRIER/mu-loader" "$CARRIER/payload"
+          cp -a hal-frontend-dashboard.php readme.txt LICENSE THIRD-PARTY-NOTICES.txt "$CARRIER/"
+          cp -a includes/. "$CARRIER/includes/"
+          cp -a mu-loader/hal-frontend-dashboard.php mu-loader/loader-core.php "$CARRIER/mu-loader/"
+          cp -a "$RUNNER_TEMP/runtime-$VERSION.zip" "$CARRIER/payload/runtime-$VERSION.zip"
+          cp -a "$RUNNER_TEMP/runtime-manifest.json" "$CARRIER/payload/runtime-manifest.json"
+          if [[ -e "$CARRIER/vendor" ]]; then
+            echo 'release:blocked:carrier_root_vendor' >&2
+            exit 1
+          fi
+          # The interim tree ships WITHOUT carrier-manifest.json: the payload
+          # signature does not exist yet, and the manifest is frozen later
+          # (assemble job) only after that signature is injected — otherwise
+          # the published Carrier would fail its own inventory check.
+          ( cd "$RUNNER_TEMP/hal-carrier" && find . -exec touch -h -d "@$EPOCH" {} + )
+          ( cd "$RUNNER_TEMP/hal-carrier" && find . -mindepth 1 | LC_ALL=C sort | zip -X -9 -q -r "$RUNNER_TEMP/hal-frontend-dashboard-$VERSION.zip" -@ )
+          ( cd "$RUNNER_TEMP" && sha256sum "hal-frontend-dashboard-$VERSION.zip" > "hal-frontend-dashboard-$VERSION.zip.sha256" )
+          echo "HAL_CARRIER=$CARRIER" >> "$GITHUB_ENV"
+
+      - name: Gate 8.3 — staged package lint, licenses, path classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do php -l "$f" >/dev/null || exit 1; done < <(find "$HAL_RUNTIME" "$HAL_CARRIER" -name '*.php' -type f)
+          echo 'staged lint: all package PHP files pass'
+          while IFS= read -r f; do node --check "$f" || exit 1; done < <(find "$HAL_RUNTIME" "$HAL_CARRIER" -name '*.js' -type f)
+          echo 'staged lint: all package JS files pass'
+          php -r '
+            $runtime = getenv("HAL_RUNTIME");
+            $carrier = getenv("HAL_CARRIER");
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            foreach (($lock["packages-dev"] ?? array()) as $p) {
+              if (is_dir($runtime . "/vendor/" . $p["name"])) { fwrite(STDERR, "release:blocked:vendor_dev_leaked (" . $p["name"] . ")\n"); exit(1); }
+            }
+            foreach (($lock["packages"] ?? array()) as $p) {
+              $dir = $runtime . "/vendor/" . $p["name"];
+              if (!is_dir($dir)) { fwrite(STDERR, "release:blocked:vendor_package_missing (" . $p["name"] . ")\n"); exit(1); }
+              $has_license = false;
+              foreach (scandir($dir) as $entry) {
+                if (preg_match("/^(LICENSE|LICENCE|COPYING|NOTICE)/i", $entry)) { $has_license = true; break; }
+              }
+              if (!$has_license) { fwrite(STDERR, "release:blocked:vendor_license_text_missing (" . $p["name"] . ")\n"); exit(1); }
+            }
+            echo "vendor licenses: " . count($lock["packages"]) . " locked packages ship license texts, no dev packages staged\n";
+            $allowed_runtime_top = array("bootstrap.php", "infrastructure", "vendor", "core", "adapters", "ajax", "templates", "admin", "settings", "security", "integrations", "health", "assets");
+            $allowed_runtime_ext = array("php", "css", "js");
+            $rit = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($runtime, FilesystemIterator::SKIP_DOTS));
+            foreach ($rit as $item) {
+              if ($item->isDir() || $item->isLink()) { continue; }
+              $rel = str_replace("\\", "/", substr($item->getPathname(), strlen($runtime) + 1));
+              if (strpos($rel, "vendor/") === 0) { continue; }
+              $top = explode("/", $rel)[0];
+              if (!in_array($top, $allowed_runtime_top, true)) { fwrite(STDERR, "release:blocked:runtime_path_unclassified ($rel)\n"); exit(1); }
+              if (!in_array(strtolower(pathinfo($rel, PATHINFO_EXTENSION)), $allowed_runtime_ext, true)) { fwrite(STDERR, "release:blocked:runtime_extension_unclassified ($rel)\n"); exit(1); }
+            }
+            $allowed_carrier_dirs = array("includes", "mu-loader", "payload");
+            $allowed_carrier_ext = array("php", "txt", "json", "sig", "zip");
+            $allowed_carrier_basenames = array("LICENSE");
+            $cit = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($carrier, FilesystemIterator::SKIP_DOTS));
+            foreach ($cit as $item) {
+              if ($item->isDir() || $item->isLink()) { continue; }
+              $rel = str_replace("\\", "/", substr($item->getPathname(), strlen($carrier) + 1));
+              $parts = explode("/", $rel);
+              if (count($parts) > 1 && !in_array($parts[0], $allowed_carrier_dirs, true)) { fwrite(STDERR, "release:blocked:carrier_path_unclassified ($rel)\n"); exit(1); }
+              $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
+              if ("" === $ext && !in_array(basename($rel), $allowed_carrier_basenames, true)) { fwrite(STDERR, "release:blocked:carrier_extension_unclassified ($rel)\n"); exit(1); }
+              if ("" !== $ext && !in_array($ext, $allowed_carrier_ext, true)) { fwrite(STDERR, "release:blocked:carrier_extension_unclassified ($rel)\n"); exit(1); }
+            }
+            echo "path classification: runtime + carrier trees fully classified\n";
+          '
+
+      - name: Independent re-verify (tool independent of the build steps)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.identity.outputs.version }}"
+          php -r '
+            foreach (["Docs/", "tests/", ".github/", ".git/", "node_modules/", ".env"] as $banned) {
+              foreach ([$argv[1], $argv[2]] as $zipPath) {
+                $zip = new ZipArchive();
+                if ($zip->open($zipPath) !== true) { fwrite(STDERR, "reopen failed: $zipPath\n"); exit(1); }
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                  $name = $zip->getNameIndex($i);
+                  foreach ([$banned] as $b) { if (stripos($name, $b) !== false) { fwrite(STDERR, "banned path $b in $zipPath: $name\n"); exit(1); } }
+                }
+                $zip->close();
+              }
+            }
+            $zip = new ZipArchive();
+            $zip->open($argv[1]);
+            $roots = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+              $seg = explode("/", $zip->getNameIndex($i))[0];
+              if ($seg === "" || $seg === ".") continue; // zip clients may prefix entries with ./
+              $roots[$seg] = true;
+            }
+            $zip->close();
+            if (array_keys($roots) !== ["hal-frontend-dashboard"]) { fwrite(STDERR, "carrier root invalid\n"); exit(1); }
+            echo "re-verify: roots, bans, reopen pass\n";
+          ' "$RUNNER_TEMP/hal-frontend-dashboard-$VERSION.zip" "$RUNNER_TEMP/runtime-$VERSION.zip"
+          ( cd "$RUNNER_TEMP" && sha256sum -c "hal-frontend-dashboard-$VERSION.zip.sha256" && sha256sum -c "runtime-$VERSION.zip.sha256" )
+          ( cd "$RUNNER_TEMP" && sha256sum -c runtime-manifest.json.sha256 )
+          test ! -s <(unzip -l "$RUNNER_TEMP/hal-frontend-dashboard-$VERSION.zip" | grep -iE 'docs/|\.log$|\.env') || {
+            echo 'release:blocked:carrier_zip_banned_content' >&2; exit 1; }
+
+      - name: Export pinned public key for the publish gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            $src = file_get_contents("includes/class-package-verifier.php");
+            if (!preg_match("/PUBLIC_KEY_BASE64\s*=\s*\x27([A-Za-z0-9+\/=]+)\x27/", $src, $m)) { fwrite(STDERR, "pinned key not found\n"); exit(1); }
+            $key = base64_decode($m[1], true);
+            if ($key === false || strlen($key) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) { fwrite(STDERR, "pinned key invalid\n"); exit(1); }
+            file_put_contents(getenv("RUNNER_TEMP") . "/hal-pubkey.b64", $m[1] . "\n");
+            echo "pinned public key exported (" . strlen($key) . " bytes)\n";
+          '
+          ( cd "$RUNNER_TEMP" && sha256sum hal-pubkey.b64 > hal-pubkey.b64.sha256 )
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hal-build-${{ steps.identity.outputs.version }}
+          path: |
+            ${{ runner.temp }}/hal-frontend-dashboard-*.zip
+            ${{ runner.temp }}/hal-frontend-dashboard-*.zip.sha256
+            ${{ runner.temp }}/runtime-*.zip
+            ${{ runner.temp }}/runtime-*.zip.sha256
+            ${{ runner.temp }}/runtime-manifest.json
+            ${{ runner.temp }}/runtime-manifest.json.sha256
+            ${{ runner.temp }}/hal-pubkey.b64
+            ${{ runner.temp }}/hal-pubkey.b64.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+  sign:
+    name: Sign raw manifest bytes
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+    environment: release-signing
+    steps:
+      # No checkout, no Composer/npm, no repo scripts and no third-party
+      # code in this job: artifacts arrive via the preinstalled gh CLI
+      # (first-party runner tooling), which is stricter isolation than
+      # fetching them through an action. The pinned upload-artifact step
+      # at the end is the same official-action exception the update-system
+      # doc grants for artifact transfer, reusing the locally verified SHA.
+      - name: Download build artifacts (gh CLI, no third-party code)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/hal-sign" && mkdir -p "$RUNNER_TEMP/hal-sign"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-build-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-sign"
+          ls -la "$RUNNER_TEMP/hal-sign"
+
+      - name: Re-hash digests before signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hal-sign"
+          sha256sum -c runtime-manifest.json.sha256
+
+      - name: Sign raw manifest bytes (Ed25519 detached, base64)
+        shell: bash
+        env:
+          HAL_SIGNING_KEY_B64: ${{ secrets.HAL_RELEASE_SIGNING_KEY_B64 }}
+        run: |
+          set +x
+          set -euo pipefail
+          echo "::add-mask::$HAL_SIGNING_KEY_B64"
+          if [[ ! "$HAL_SIGNING_KEY_B64" =~ ^[A-Za-z0-9+/=]+$ ]]; then
+            echo 'release:blocked:signing_key_shape' >&2
+            exit 1
+          fi
+          umask 077
+          KEY_FILE="$(mktemp "$RUNNER_TEMP/hal-key.XXXXXX")"
+          cleanup() { rm -f "$KEY_FILE"; }
+          trap cleanup EXIT INT TERM
+          printf '%s' "$HAL_SIGNING_KEY_B64" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          unset HAL_SIGNING_KEY_B64
+          cd "$RUNNER_TEMP/hal-sign"
+          php /dev/stdin "$KEY_FILE" runtime-manifest.sig <<'PHP'
+            <?php
+            $key = base64_decode(trim(file_get_contents($argv[1])), true);
+            if ($key === false || strlen($key) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) { fwrite(STDERR, "key invalid\n"); exit(1); }
+            $manifest = "runtime-manifest.json";
+            $raw = file_get_contents($manifest);
+            $sig = sodium_crypto_sign_detached($raw, $key);
+            file_put_contents($argv[2], base64_encode($sig) . "\n");
+            if (!sodium_crypto_sign_verify_detached($sig, $raw, sodium_crypto_sign_publickey_from_secretkey($key))) {
+              fwrite(STDERR, "self-verify failed: $manifest\n"); exit(1);
+            }
+            echo "signed: $manifest (" . strlen($raw) . " raw bytes)\n";
+            sodium_memzero($key);
+          PHP
+          sha256sum runtime-manifest.sig | tee sig.sha256
+
+      - name: Upload signatures
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hal-signatures-${{ needs.build.outputs.version }}
+          path: |
+            ${{ runner.temp }}/hal-sign/runtime-manifest.sig
+            ${{ runner.temp }}/hal-sign/sig.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+  assemble:
+    name: Assemble carrier tree, freeze manifest
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      # No secrets in this job: it injects the signed payload manifest and
+      # freezes carrier-manifest.json from the resulting tree, but never
+      # touches the signing key. Artifact transfer goes through the
+      # preinstalled gh CLI (first-party runner tooling), which needs
+      # actions:read; contents:read covers only the pinned tag checkout
+      # below (tag timestamp for the deterministic zip — no repo code is
+      # executed). The pinned upload-artifact step at the end is the same
+      # official-action exception the update-system doc grants for
+      # artifact transfer, reusing the locally verified SHA.
+      - name: Download interim carrier and runtime signature (gh CLI, no third-party code)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/hal-asm" && mkdir -p "$RUNNER_TEMP/hal-asm"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-build-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-asm"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-signatures-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-asm"
+          ls -la "$RUNNER_TEMP/hal-asm"
+
+      - name: Checkout tagged source (pinned; tag timestamp for deterministic zip only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.build.outputs.version }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Inject payload signature, freeze carrier-manifest.json, deterministic zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          ASM="$RUNNER_TEMP/hal-asm"
+          WORK="$RUNNER_TEMP/hal-assemble" && rm -rf "$WORK" && mkdir -p "$WORK/tree"
+          unzip -q "$ASM/hal-frontend-dashboard-$VERSION.zip" -d "$WORK/tree"
+          cp "$ASM/runtime-manifest.sig" "$WORK/tree/hal-frontend-dashboard/payload/runtime-manifest.sig"
+          php -r '
+            [$carrier] = array_slice($argv, 1);
+            $files = [];
+            $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($carrier, FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $item) {
+              if ($item->isDir() || $item->isLink()) continue;
+              $rel = str_replace("\\", "/", substr($item->getPathname(), strlen($carrier) + 1));
+              if ($rel === "carrier-manifest.json" || $rel === "carrier-manifest.sig") continue;
+              $files[$rel] = hash_file("sha256", $item->getPathname());
+            }
+            ksort($files, SORT_STRING);
+            $manifest = [
+              "schema" => 1, "product" => "hal-frontend-dashboard", "version" => $argv[2],
+              "plugin_basename" => "hal-frontend-dashboard/hal-frontend-dashboard.php", "files" => $files,
+            ];
+            file_put_contents($carrier . "/carrier-manifest.json",
+              str_replace("\r\n", "\n", json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) . "\n");
+            echo "carrier manifest: " . count($files) . " files\n";
+          ' "$WORK/tree/hal-frontend-dashboard" "$VERSION"
+          cp "$WORK/tree/hal-frontend-dashboard/carrier-manifest.json" "$WORK/carrier-manifest.json"
+          ( cd "$WORK" && sha256sum carrier-manifest.json > carrier-manifest.json.sha256 && sha256sum -c carrier-manifest.json.sha256 )
+          export TZ=UTC
+          EPOCH="$(git log -1 --format=%ct "v$VERSION")"
+          ( cd "$WORK/tree" && find . -exec touch -h -d "@$EPOCH" {} + )
+          ( cd "$WORK/tree" && find . -mindepth 1 | LC_ALL=C sort | zip -X -9 -q -r "$WORK/hal-frontend-dashboard-$VERSION.assembled.zip" -@ )
+          sha256sum "$WORK/hal-frontend-dashboard-$VERSION.assembled.zip" > "$WORK/hal-frontend-dashboard-$VERSION.assembled.zip.sha256"
+
+      - name: Upload assembled carrier tree
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hal-assembled-${{ needs.build.outputs.version }}
+          path: |
+            ${{ runner.temp }}/hal-assemble/hal-frontend-dashboard-*.assembled.zip
+            ${{ runner.temp }}/hal-assemble/hal-frontend-dashboard-*.assembled.zip.sha256
+            ${{ runner.temp }}/hal-assemble/carrier-manifest.json
+            ${{ runner.temp }}/hal-assemble/carrier-manifest.json.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+  sign-carrier:
+    name: Sign carrier manifest bytes
+    needs: [build, assemble]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+    environment: release-signing
+    steps:
+      # No checkout, no Composer/npm, no repo scripts and no third-party
+      # code in this job: artifacts arrive via the preinstalled gh CLI
+      # (first-party runner tooling). The pinned upload-artifact step
+      # at the end is the same official-action exception the update-system
+      # doc grants for artifact transfer, reusing the locally verified SHA.
+      - name: Download assembled carrier artifacts (gh CLI, no third-party code)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/hal-carrier-sign" && mkdir -p "$RUNNER_TEMP/hal-carrier-sign"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-assembled-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-carrier-sign"
+          ls -la "$RUNNER_TEMP/hal-carrier-sign"
+
+      - name: Re-hash digest before signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/hal-carrier-sign"
+          sha256sum -c carrier-manifest.json.sha256
+
+      - name: Sign raw manifest bytes (Ed25519 detached, base64)
+        shell: bash
+        env:
+          HAL_SIGNING_KEY_B64: ${{ secrets.HAL_RELEASE_SIGNING_KEY_B64 }}
+        run: |
+          set +x
+          set -euo pipefail
+          echo "::add-mask::$HAL_SIGNING_KEY_B64"
+          if [[ ! "$HAL_SIGNING_KEY_B64" =~ ^[A-Za-z0-9+/=]+$ ]]; then
+            echo 'release:blocked:signing_key_shape' >&2
+            exit 1
+          fi
+          umask 077
+          KEY_FILE="$(mktemp "$RUNNER_TEMP/hal-key.XXXXXX")"
+          cleanup() { rm -f "$KEY_FILE"; }
+          trap cleanup EXIT INT TERM
+          printf '%s' "$HAL_SIGNING_KEY_B64" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          unset HAL_SIGNING_KEY_B64
+          cd "$RUNNER_TEMP/hal-carrier-sign"
+          php /dev/stdin "$KEY_FILE" carrier-manifest.sig <<'PHP'
+            <?php
+            $key = base64_decode(trim(file_get_contents($argv[1])), true);
+            if ($key === false || strlen($key) !== SODIUM_CRYPTO_SIGN_SECRETKEYBYTES) { fwrite(STDERR, "key invalid\n"); exit(1); }
+            $manifest = "carrier-manifest.json";
+            $raw = file_get_contents($manifest);
+            $sig = sodium_crypto_sign_detached($raw, $key);
+            file_put_contents($argv[2], base64_encode($sig) . "\n");
+            if (!sodium_crypto_sign_verify_detached($sig, $raw, sodium_crypto_sign_publickey_from_secretkey($key))) {
+              fwrite(STDERR, "self-verify failed: $manifest\n"); exit(1);
+            }
+            echo "signed: $manifest (" . strlen($raw) . " raw bytes)\n";
+            sodium_memzero($key);
+          PHP
+          sha256sum carrier-manifest.sig | tee carrier-sig.sha256
+
+      - name: Upload carrier signature
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hal-carrier-signatures-${{ needs.build.outputs.version }}
+          path: |
+            ${{ runner.temp }}/hal-carrier-sign/carrier-manifest.sig
+            ${{ runner.temp }}/hal-carrier-sign/carrier-sig.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+  publish:
+    name: Draft, re-download verify, publish
+    needs: [build, sign, assemble, sign-carrier]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      # Owner decision 2026-09-25 (UPDATE §8.2): actions:read for artifact
+      # download only; gh run download cannot work without it.
+      actions: read
+    steps:
+      - name: Download build and signature artifacts (gh CLI)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/hal-pub" && mkdir -p "$RUNNER_TEMP/hal-pub"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-build-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-pub"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-signatures-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-pub"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-assembled-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-pub"
+          gh run download "$GITHUB_RUN_ID" --repo hossamadellaw/hal-frontend-dashboard --name "hal-carrier-signatures-${{ needs.build.outputs.version }}" --dir "$RUNNER_TEMP/hal-pub"
+          ls -la "$RUNNER_TEMP/hal-pub"
+
+      - name: Checkout tagged source (pinned; verifier reuse only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.build.outputs.version }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Repackage final carrier (inject signatures, re-verify exact bytes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          PUB="$RUNNER_TEMP/hal-pub"
+          WORK="$RUNNER_TEMP/hal-final" && rm -rf "$WORK" && mkdir -p "$WORK/tree"
+          unzip -q "$PUB/hal-frontend-dashboard-$VERSION.assembled.zip" -d "$WORK/tree"
+          cp "$PUB/carrier-manifest.sig" "$WORK/tree/hal-frontend-dashboard/carrier-manifest.sig"
+          export TZ=UTC
+          EPOCH="$(git log -1 --format=%ct "v$VERSION")"
+          ( cd "$WORK/tree" && find . -exec touch -h -d "@$EPOCH" {} + )
+          ( cd "$WORK/tree" && find . -mindepth 1 | LC_ALL=C sort | zip -X -9 -q -r "$WORK/hal-frontend-dashboard-$VERSION.zip" -@ )
+          ( cd "$WORK" && sha256sum "hal-frontend-dashboard-$VERSION.zip" > "hal-frontend-dashboard-$VERSION.zip.sha256" )
+          php -d extension=sodium -r '
+            define("ABSPATH", "/tmp/hal-verify/");
+            require "includes/class-package-verifier.php";
+            $verifier = new HAL_Frontend_Dashboard_Package_Verifier();
+            $carrier = $argv[1];
+            $tree = $argv[2];
+            $verifier->verify_carrier_archive($carrier);
+            echo "final carrier: archive+signature+inventory valid\n";
+            $runtimes = glob($tree . "/hal-frontend-dashboard/payload/runtime-*.zip");
+            if (count($runtimes) !== 1) { fwrite(STDERR, "final payload cardinality invalid\n"); exit(1); }
+            $verifier->verify_runtime_archive(
+              $runtimes[0],
+              $tree . "/hal-frontend-dashboard/payload/runtime-manifest.json",
+              $tree . "/hal-frontend-dashboard/payload/runtime-manifest.sig"
+            );
+            echo "final payload: runtime archive+signature+inventory valid\n";
+          ' "$WORK/hal-frontend-dashboard-$VERSION.zip" "$WORK/tree"
+          echo "HAL_FINAL=$WORK" >> "$GITHUB_ENV"
+
+      - name: Final verify and publish immutable release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.build.outputs.version }}"
+          PUB="$RUNNER_TEMP/hal-pub"
+          FINAL="$RUNNER_TEMP/hal-final"
+          ( cd "$FINAL" && sha256sum -c "hal-frontend-dashboard-$VERSION.zip.sha256" )
+          ( cd "$PUB" && sha256sum -c hal-pubkey.b64.sha256 )
+          php -r '
+            $key = base64_decode(trim(file_get_contents($argv[1] . "/hal-pubkey.b64")), true);
+            if ($key === false || strlen($key) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) { fwrite(STDERR, "pinned key invalid\n"); exit(1); }
+            foreach ([[$argv[1] . "/runtime-manifest.json", $argv[1] . "/runtime-manifest.sig"], [$argv[1] . "/carrier-manifest.json", $argv[1] . "/carrier-manifest.sig"]] as [$manifest, $sig]) {
+              $raw = file_get_contents($manifest);
+              $signature = base64_decode(trim(file_get_contents($sig)), true);
+              if ($signature === false || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES) { fwrite(STDERR, "sig shape invalid: $sig\n"); exit(1); }
+              if (!sodium_crypto_sign_verify_detached($signature, $raw, $key)) { fwrite(STDERR, "sig verify failed: $manifest\n"); exit(1); }
+              echo "publish gate: $manifest signature valid over " . strlen($raw) . " raw bytes\n";
+            }
+          ' "$PUB"
+          TAG="v$VERSION"
+          ASSET="hal-frontend-dashboard-$VERSION.zip"
+          ( cd "$FINAL" && gh release create "$TAG" --draft --title "$TAG" \
+            --notes "HAL Frontend Dashboard $TAG. Verify: sha256 $(cut -d' ' -f1 < "$ASSET.sha256"), runtime $(cut -d' ' -f1 < "$PUB/runtime-$VERSION.zip.sha256")." \
+            "$ASSET#$ASSET" "$ASSET.sha256" "$PUB/runtime-manifest.json" "$PUB/runtime-manifest.sig" )
+          DL="$RUNNER_TEMP/hal-redl" && rm -rf "$DL" && mkdir -p "$DL"
+          gh release download "$TAG" --dir "$DL" --pattern "$ASSET"
+          if ! cmp -s "$DL/$ASSET" "$FINAL/$ASSET"; then
+            echo 'release:blocked:redownload_mismatch' >&2
+            gh release delete "$TAG" --yes --cleanup-tag=false || true
+            exit 1
+          fi
+          if [[ "$(cut -d' ' -f1 < "$FINAL/$ASSET.sha256")" != "$(sha256sum "$DL/$ASSET" | cut -d' ' -f1)" ]]; then
+            echo 'release:blocked:redownload_hash_mismatch' >&2
+            gh release delete "$TAG" --yes --cleanup-tag=false || true
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false
+          echo "published immutable release $TAG"
