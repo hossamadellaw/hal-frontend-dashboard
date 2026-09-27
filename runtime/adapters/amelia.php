@@ -109,8 +109,10 @@ if ( ! function_exists( 'hossam_amelia_table_exists' ) ) {
 		if ( ! in_array( $table_suffix, $allowed_tables, true ) ) {
 			return false;
 		}
-		if ( array_key_exists( $table_suffix, $cache ) ) {
-			return $cache[ $table_suffix ];
+		$blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$key = $blog . "\0" . $table_suffix;
+		if ( array_key_exists( $key, $cache ) ) {
+			return $cache[ $key ];
 		}
 
 		global $wpdb;
@@ -122,9 +124,9 @@ if ( ! function_exists( 'hossam_amelia_table_exists' ) ) {
 			hossam_amelia_log_database_failure( 'table_check' );
 		}
 
-		$cache[ $table_suffix ] = $table === $found;
+		$cache[ $key ] = $table === $found;
 
-		return $cache[ $table_suffix ];
+		return $cache[ $key ];
 	}
 }
 

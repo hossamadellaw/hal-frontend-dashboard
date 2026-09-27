@@ -59,23 +59,25 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 	 * @return array<string,int>|WP_Error
 	 */
 	function hossam_ai_get_runtime_profile() {
-		static $has_snapshot = false;
-		static $snapshot     = null;
+		// Per-blog snapshot (multisite isolation): a filter callback may
+		// legitimately vary by blog; single-site behavior is identical
+		// (one constant key).
+		static $snapshots = array();
+		$blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
 
-		if ( $has_snapshot ) {
-			return $snapshot;
+		if ( array_key_exists( $blog, $snapshots ) ) {
+			return $snapshots[ $blog ];
 		}
 
 		$profile = defined( 'HOSSAM_AI_RUNTIME_PROFILE' ) ? HOSSAM_AI_RUNTIME_PROFILE : null;
 		$profile = apply_filters( 'hossam_ai_runtime_profile', $profile );
 
 		if ( ! is_array( $profile ) ) {
-			$snapshot = new WP_Error(
+			$snapshots[ $blog ] = new WP_Error(
 				'hossam_ai_runtime_profile_unavailable',
 				__( 'AI assistance is unavailable in this environment.', 'astra-child' )
 			);
-			$has_snapshot = true;
-			return $snapshot;
+			return $snapshots[ $blog ];
 		}
 
 		$bounds = [
@@ -89,44 +91,40 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 			'direct_key_timeout'  => [ 5, 300 ],
 		];
 		$normalized = [];
-
 		foreach ( $bounds as $key => [ $minimum, $maximum ] ) {
 			if ( ! array_key_exists( $key, $profile )
 				|| is_bool( $profile[ $key ] )
 				|| false === filter_var( $profile[ $key ], FILTER_VALIDATE_INT ) ) {
-				$snapshot = new WP_Error(
+				$snapshots[ $blog ] = new WP_Error(
 					'hossam_ai_runtime_profile_invalid',
 					__( 'AI assistance is unavailable in this environment.', 'astra-child' )
 				);
-				$has_snapshot = true;
-				return $snapshot;
+				return $snapshots[ $blog ];
 			}
 
 			$value = (int) $profile[ $key ];
 			if ( $value < $minimum || $value > $maximum ) {
-				$snapshot = new WP_Error(
+				$snapshots[ $blog ] = new WP_Error(
 					'hossam_ai_runtime_profile_invalid',
 					__( 'AI assistance is unavailable in this environment.', 'astra-child' )
 				);
-				$has_snapshot = true;
-				return $snapshot;
+				return $snapshots[ $blog ];
 			}
+
 			$normalized[ $key ] = $value;
 		}
 
 		$maximum_timeout = max( $normalized['wp_ai_client_timeout'], $normalized['direct_key_timeout'] );
 		if ( $normalized['processing_deadline'] < $maximum_timeout + 30 ) {
-			$snapshot = new WP_Error(
+			$snapshots[ $blog ] = new WP_Error(
 				'hossam_ai_runtime_profile_invalid',
 				__( 'AI assistance is unavailable in this environment.', 'astra-child' )
 			);
-			$has_snapshot = true;
-			return $snapshot;
+			return $snapshots[ $blog ];
 		}
 
-		$snapshot     = $normalized;
-		$has_snapshot = true;
-		return $snapshot;
+		$snapshots[ $blog ] = $normalized;
+		return $snapshots[ $blog ];
 	}
 }
 

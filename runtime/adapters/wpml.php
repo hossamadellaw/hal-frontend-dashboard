@@ -32,12 +32,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! function_exists('hossam_wpml_url') ) {
     function hossam_wpml_url( string $slug, string $fallback = '' ): string {
         static $cache = [];
-        if ( isset($cache[$slug]) ) return $cache[$slug];
+        $blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+        $key = $blog . "\0" . $slug;
+        if ( isset($cache[$key]) ) return $cache[$key];
         $page = get_page_by_path( $slug );
         $url  = $page
             ? apply_filters( 'wpml_permalink', get_permalink( $page->ID ), null, true, null )
             : home_url( $fallback ?: '/' . $slug . '/' );
-        return $cache[$slug] = (string) $url;
+        return $cache[$key] = (string) $url;
     }
 }
 if ( ! function_exists('hossam_wpml_all_paths') ) {
@@ -73,9 +75,10 @@ if ( ! function_exists('hossam_dashboard_url') ) {
      * يعيد جذر الموقع الآمن، دون البحث عن صفحة بالـslug.
      */
     function hossam_dashboard_url(): string {
-        static $cache = null;
-        if ( null !== $cache ) {
-            return $cache;
+        static $cache = [];
+        $blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+        if ( array_key_exists( $blog, $cache ) ) {
+            return $cache[ $blog ];
         }
         $page_id = absint( get_option( 'hal_frontend_dashboard_page_id', 0 ) );
         if ( $page_id > 0 ) {
@@ -83,18 +86,20 @@ if ( ! function_exists('hossam_dashboard_url') ) {
             if ( $post instanceof WP_Post && 'page' === $post->post_type && in_array( $post->post_status, array( 'publish', 'private' ), true ) ) {
                 $permalink = get_permalink( $page_id );
                 if ( is_string( $permalink ) && '' !== $permalink ) {
-                    return $cache = hossam_wpml_permalink( $permalink );
+                    return $cache[ $blog ] = hossam_wpml_permalink( $permalink );
                 }
             }
         }
-        return $cache = home_url( '/' );
+        return $cache[ $blog ] = home_url( '/' );
     }
 }
 if ( ! function_exists('hossam_wpml_url_by_id') ) {
     function hossam_wpml_url_by_id( int $post_id ): string {
         static $cache = [];
-        if ( isset( $cache[$post_id] ) ) return $cache[$post_id];
-        return $cache[$post_id] = (string) apply_filters( 'wpml_permalink', get_permalink( $post_id ), null, true, null );
+        $blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+        $key = $blog . "\0" . $post_id;
+        if ( isset( $cache[$key] ) ) return $cache[$key];
+        return $cache[$key] = (string) apply_filters( 'wpml_permalink', get_permalink( $post_id ), null, true, null );
     }
 }
 
