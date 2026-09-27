@@ -1120,9 +1120,14 @@ if ('' === $puc_root || !is_file($puc_root . 'load-v5p7.php')) {
 } else {
 if ('vendor' === $puc_from) {
     $installed = json_decode((string) @file_get_contents($PROJECT . '/vendor/composer/installed.json'), true);
+    // Composer 1 (bare list) and Composer 2 (packages key) shapes; the
+    // reference may live top-level or nested under source/dist.
+    $installed_pkgs = is_array($installed) && isset($installed[0]) ? $installed : ($installed['packages'] ?? array());
     $puc_ref = '';
-    foreach (array_merge($installed['packages'] ?? array(), array()) as $pkg) {
-        if ('yahnis-elsts/plugin-update-checker' === ($pkg['name'] ?? '')) { $puc_ref = (string) ($pkg['reference'] ?? ''); break; }
+    foreach ($installed_pkgs as $pkg) {
+        if (!is_array($pkg) || 'yahnis-elsts/plugin-update-checker' !== ($pkg['name'] ?? '')) { continue; }
+        $puc_ref = (string) ($pkg['reference'] ?? $pkg['source']['reference'] ?? $pkg['dist']['reference'] ?? '');
+        break;
     }
     b11c_check(
         'B11C-PUC-LOCKED-REF',
@@ -1328,17 +1333,31 @@ file_put_contents($gate_ok_rt . '/bootstrap.php', "<?php\n");
 file_put_contents($gate_ok_rt . '/core/a.php', "<?php\n");
 @mkdir($gate_ok_rt . '/vendor/yahnis-elsts/plugin-update-checker', 0777, true);
 $cache_zip = new ZipArchive();
-$cache_zip->open('C:/Users/kanli/AppData/Local/Composer/files/yahnis-elsts/plugin-update-checker/c2ec7b4449eab6f6e947928001f2c4143ed5450c.zip');
-$cache_top = '';
-for ($gi = 0; $gi < $cache_zip->numFiles; $gi++) {
-    $gn = $cache_zip->getNameIndex($gi);
-    if ('' === $cache_top && false !== strpos($gn, '/')) { $cache_top = substr($gn, 0, strpos($gn, '/') + 1); }
+if (is_file($puc_cache) && true === $cache_zip->open($puc_cache)) {
+    $cache_top = '';
+    for ($gi = 0; $gi < $cache_zip->numFiles; $gi++) {
+        $gn = $cache_zip->getNameIndex($gi);
+        if ('' === $cache_top && false !== strpos($gn, '/')) { $cache_top = substr($gn, 0, strpos($gn, '/') + 1); }
+    }
+    foreach (array('composer.json', 'license.txt') as $vf) {
+        $bytes = $cache_zip->getFromName($cache_top . $vf);
+        if (is_string($bytes)) { file_put_contents($gate_ok_rt . '/vendor/yahnis-elsts/plugin-update-checker/' . $vf, $bytes); }
+    }
+    $cache_zip->close();
+} else {
+    // CI/normal: seed the fake vendor tree from the composer-installed
+    // locked copy (same lock the release build job installs).
+    $seed_pkg = $PROJECT . '/vendor/yahnis-elsts/plugin-update-checker';
+    if (is_file($seed_pkg . '/composer.json')) {
+        copy($seed_pkg . '/composer.json', $gate_ok_rt . '/vendor/yahnis-elsts/plugin-update-checker/composer.json');
+    }
+    foreach ((array) @scandir($seed_pkg) as $entry) {
+        if (is_string($entry) && 1 === preg_match('/^(LICENSE|LICENCE|COPYING|NOTICE)/i', $entry)
+            && is_file($seed_pkg . '/' . $entry)) {
+            copy($seed_pkg . '/' . $entry, $gate_ok_rt . '/vendor/yahnis-elsts/plugin-update-checker/' . $entry);
+        }
+    }
 }
-foreach (array('composer.json', 'license.txt') as $vf) {
-    $bytes = $cache_zip->getFromName($cache_top . $vf);
-    if (is_string($bytes)) { file_put_contents($gate_ok_rt . '/vendor/yahnis-elsts/plugin-update-checker/' . $vf, $bytes); }
-}
-$cache_zip->close();
 @mkdir($gate_ok_car . '/includes', 0777, true);
 @mkdir($gate_ok_car . '/mu-loader', 0777, true);
 @mkdir($gate_ok_car . '/payload', 0777, true);
