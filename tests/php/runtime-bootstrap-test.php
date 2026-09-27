@@ -42,6 +42,7 @@ if ( PHP_SAPI !== 'cli' ) {
 $mode = isset( $argv[1] ) ? (string) $argv[1] : 'main';
 $project = dirname( __DIR__, 2 );
 $ws_root = $project . '/.local-execution/batch-11';
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 @mkdir( $ws_root, 0777, true );
 
 if ( in_array( $mode, array( 'admin', 'puc' ), true ) && ! defined( 'WP_ADMIN' ) ) {
@@ -292,7 +293,7 @@ function hal_b11_report( string $mode ): void {
 
 function hal_b11_spawn( string $mode ): bool {
 	$php = PHP_BINARY;
-	$command = array( $php, '-d', 'extension=sodium', __FILE__, $mode );
+	$command = array_merge( hal_php_argv( $php, array(), array( 'sodium' ) ), array( __FILE__, $mode ) );
 	$stdout_file = (string) tempnam( sys_get_temp_dir(), 'b11out' );
 	$stderr_file = (string) tempnam( sys_get_temp_dir(), 'b11err' );
 	$descriptors = array(

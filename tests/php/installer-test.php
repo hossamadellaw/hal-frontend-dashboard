@@ -34,6 +34,7 @@ if ( PHP_SAPI !== 'cli' ) {
 $mode = isset( $argv[1] ) ? (string) $argv[1] : 'main';
 $project = dirname( __DIR__, 2 );
 $ws_root = $project . '/.local-execution/batch-7/closure/installer-' . getmypid();
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 @mkdir( $ws_root, 0777, true );
 
 if ( 'disallow' === $mode && ! defined( 'DISALLOW_FILE_MODS' ) ) {
@@ -547,7 +548,7 @@ hal_in_check(
 
 /* I9 — permission subprocess (DISALLOW_FILE_MODS). */
 $php = PHP_BINARY;
-$cmd = array( $php, '-d', 'extension_dir=' . ini_get( 'extension_dir' ), '-d', 'extension=sodium', '-d', 'extension=zip', __FILE__, 'disallow' );
+$cmd = array_merge( hal_php_argv( $php, array( '-d', 'extension_dir=' . ini_get( 'extension_dir' ) ), array( 'sodium', 'zip' ) ), array( __FILE__, 'disallow' ) );
 $stdout_file = $ws_root . '/inout-' . bin2hex( random_bytes( 8 ) ) . '.txt';
 $stderr_file = $ws_root . '/inerr-' . bin2hex( random_bytes( 8 ) ) . '.txt';
 $proc = proc_open( $cmd, array( 0 => array( 'pipe', 'r' ), 1 => array( 'file', $stdout_file, 'w' ), 2 => array( 'file', $stderr_file, 'w' ) ), $pipes );

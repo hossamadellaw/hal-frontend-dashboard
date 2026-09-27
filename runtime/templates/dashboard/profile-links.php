@@ -11,9 +11,9 @@
  *   - يستقبل: array فارغًا افتراضيًا + معرّف المستخدم الحالي من
  *     get_current_user_id() (لا من مدخلات الطلب).
  *   - كل عنصر صالح: id نصي ثابت فريد (الأول يفوز) + label نصي غير فارغ
- *     بلا HTML + url مطلق http/https + eligible === true حرفيًا +
- *     order صحيح اختياري (الافتراضي 100؛ الأصغر أولًا، وثبات الإدخال
- *     عند التساوي).
+ *     بلا HTML + url مطلق http/https بمضيف بلا مسافات + eligible === true حرفيًا +
+ *     order صحيح اختياري (الغائب وحده = 100؛ الموجود غير الصحيح، بما فيه
+ *     null، يُتخطى ولا يُعوَّض؛ الأصغر أولًا، وثبات الإدخال عند التساوي).
  *   - ناتج غير مصفوفة = قائمة فارغة. المخالف يُتخطى وحده.
  *   - ظهور الرابط لا يمنح صلاحية: الصفحة الهدف تتحقق بنفسها.
  *   - الحدود: روابط فقط في هذا الموضع — لا panels ولا نماذج ولا حفظ
@@ -55,7 +55,11 @@ if ( ! function_exists( 'hossam_profile_link_url_allowed' ) ) {
 		if ( 'http' !== $scheme && 'https' !== $scheme ) {
 			return false;
 		}
-		return '' !== (string) ( $parts['host'] ?? '' );
+		$host = (string) ( $parts['host'] ?? '' );
+		if ( '' === $host || 1 === preg_match( '/\s/', $host ) ) {
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -95,10 +99,14 @@ if ( ! function_exists( 'hossam_profile_links' ) ) {
 			if ( ! array_key_exists( 'eligible', $item ) || true !== $item['eligible'] ) {
 				continue;
 			}
-			$order = $item['order'] ?? 100;
-			if ( ! is_int( $order ) ) {
-				$order = 100;
-			}
+		$order = null;
+		if ( ! array_key_exists( 'order', $item ) ) {
+			$order = 100;
+		} elseif ( ! is_int( $item['order'] ) ) {
+			continue; // present-but-invalid order (incl. null): skip, never default
+		} else {
+			$order = $item['order'];
+		}
 			$seen[ $id ] = true;
 			$accepted[] = array(
 				'id'    => $id,

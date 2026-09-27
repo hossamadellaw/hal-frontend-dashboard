@@ -46,6 +46,7 @@ if ('' === $LEGACY_ROOT || !is_dir($LEGACY_ROOT)) {
 
 $PROJECT = dirname(__DIR__, 2);
 $WS = $PROJECT . '/.local-execution/batch-12/cutover';
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 @mkdir($WS . '/tmp', 0777, true);
 
 $GLOBALS['B12C_PASS'] = 0;
@@ -315,13 +316,13 @@ function b12c_run_snippet(string $name, string $snippet): string {
     global $WS, $PHP83;
     $file = $WS . '/' . $name . '.php';
     file_put_contents($file, $snippet);
-    /* Workflow parity: preflight requires ext-sodium + ext-zip; the 8.3
-       install carries them unloaded, so enable from its own ext dir. */
+    /* Workflow parity: preflight requires ext-sodium + ext-zip. Flags are
+       filtered (kept only when the child runtime lacks them). */
     $extDir = rtrim(dirname((string) $PHP83), "/\\") . DIRECTORY_SEPARATOR . 'ext';
-    $flags = is_dir($extDir)
-        ? ' -d ' . escapeshellarg('extension_dir=' . $extDir) . ' -d extension=sodium -d extension=zip'
-        : '';
-    $cmd = escapeshellarg($PHP83) . $flags . ' ' . escapeshellarg($file) . ' 2>&1';
+    $base = is_dir($extDir) ? array('-d', 'extension_dir=' . $extDir) : array();
+    $argv = hal_php_argv((string)$PHP83, $base, array('sodium','zip'));
+    $argv[] = $file;
+    $cmd = implode(' ', array_map('escapeshellarg', $argv)) . ' 2>&1';
     $out = array(); $code = 0;
     exec($cmd, $out, $code);
     return $code . ':' . implode("\n", $out);

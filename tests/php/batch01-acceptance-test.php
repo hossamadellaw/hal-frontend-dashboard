@@ -129,6 +129,7 @@ if ( ! str_starts_with( $hal_ext_dir, '/' ) && ! preg_match( '/^[A-Za-z]:/D', $h
 	$hal_ext_dir = PHP_ROOT . DIRECTORY_SEPARATOR . $hal_ext_dir;
 }
 define( 'HAL_TEST_EXT_DIR', is_dir( $hal_ext_dir ) ? $hal_ext_dir : (string) realpath( $hal_ext_dir ) );
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 $GLOBALS['HAL_TEST_REMOTE_CALLS'] = array();
 $GLOBALS['HAL_TEST_SKIPS']        = array();
 $GLOBALS['HAL_TEST_ACTIONS_DONE'] = array();
@@ -932,11 +933,9 @@ $win_state = $win_mu . '/hal-frontend-dashboard/state';
 $win_signal = $win_ws . '/window-open.flag';
 file_put_contents( $win_signal, '1' );
 $win_fixture = __DIR__ . '/../../.audit-work/batch-0-1/interrupt-window-fixture.php';
-$win_cmd = array( PHP_BINARY, '-n',
-	'-d', 'extension_dir=' . HAL_TEST_EXT_DIR,
-	'-d', 'extension=sodium',
-	$win_fixture, $win_mu, '5.0.0+' . str_repeat( 'c', 40 ), $win_signal,
-);
+	$win_cmd = array_merge( hal_php_argv( PHP_BINARY, array( '-n', '-d', 'extension_dir=' . ( getenv( 'HAL_PHP_EXT_DIR' ) ?: ini_get( 'extension_dir' ) ) ), array( 'sodium' ) ), array(
+		$win_fixture, $win_mu, '5.0.0+' . str_repeat( 'c', 40 ), $win_signal,
+	) );
 $win_attempts = 0;
 $win_killed_at_window = false;
 $win_timeout_at = microtime( true ) + 60;
@@ -1352,11 +1351,9 @@ $w4_driver_src = (string) file_get_contents( $act_driver );
 // Parameterize the driver output markers via env (driver echoes generic markers).
 file_put_contents( $w4_driver, $w4_driver_src );
 $w4_run = static function () use ( $php, $w4_driver, $win_act_mu, $win_act_plugin, $w4_public_b64, $w4_fingerprint ): string {
-	$w4_cmd = array( $php, '-n',
-		'-d', 'extension_dir=' . HAL_TEST_EXT_DIR,
-		'-d', 'extension=sodium', '-d', 'extension=zip',
+	$w4_cmd = array_merge( hal_php_argv( $php, array( '-n', '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ), array( 'sodium', 'zip' ) ), array(
 		$w4_driver, hal_win_path( $win_act_mu . '/' ), hal_win_path( $win_act_plugin . '/hal-frontend-dashboard.php' ),
-	);
+	) );
 	$w4_env = array_merge( getenv(), array(
 		'HAL_ACT_PUBLIC_KEY' => $w4_public_b64,
 		'HAL_ACT_FINGERPRINT' => $w4_fingerprint,
@@ -1486,11 +1483,9 @@ copy( $w6_plugin . '/mu-loader/loader-core.php', $w6_mu . '/hal-frontend-dashboa
 copy( $act_health_requester, $w6_mu . '/.health-request-driver.php' );
 
 $w6_run = static function () use ( $php, $w4_driver, $w6_mu, $w6_plugin, $w4_public_b64, $w4_fingerprint ): string {
-	$w6_cmd = array( $php, '-n',
-		'-d', 'extension_dir=' . HAL_TEST_EXT_DIR,
-		'-d', 'extension=sodium', '-d', 'extension=zip',
+	$w6_cmd = array_merge( hal_php_argv( $php, array( '-n', '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ), array( 'sodium', 'zip' ) ), array(
 		$w4_driver, hal_win_path( $w6_mu . '/' ), hal_win_path( $w6_plugin . '/hal-frontend-dashboard.php' ),
-	);
+	) );
 	$w6_env = array_merge( getenv(), array(
 		'HAL_ACT_PUBLIC_KEY' => $w4_public_b64,
 		'HAL_ACT_FINGERPRINT' => $w4_fingerprint,
@@ -1627,11 +1622,9 @@ file_put_contents( $act_plugin . '/carrier-manifest.sig', base64_encode( sodium_
 
 $act_run = static function () use ( $php, $act_driver, $act_mu, $act_plugin, $act_public_b64, $act_fingerprint ): string {
 	// proc_open with an explicit env array — no shell quoting pitfalls.
-	$act_cmd = array( $php, '-n',
-		'-d', 'extension_dir=' . HAL_TEST_EXT_DIR,
-		'-d', 'extension=sodium', '-d', 'extension=zip',
+	$act_cmd = array_merge( hal_php_argv( $php, array( '-n', '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ), array( 'sodium', 'zip' ) ), array(
 		$act_driver, hal_win_path( $act_mu . '/' ), hal_win_path( $act_plugin . '/hal-frontend-dashboard.php' ),
-	);
+	) );
 	$act_env = array_merge( getenv(), array(
 		'HAL_ACT_PUBLIC_KEY' => $act_public_b64,
 		'HAL_ACT_FINGERPRINT' => $act_fingerprint,

@@ -56,6 +56,7 @@ if ( '' !== $hal_ext_dir && ! is_dir( $hal_ext_dir ) ) {
 	$hal_ext_dir = (string) realpath( $hal_ext_dir );
 }
 define( 'HAL_TEST_EXT_DIR', is_dir( $hal_ext_dir ) ? $hal_ext_dir : (string) $hal_ext_dir );
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 
 $project = dirname( __DIR__, 2 );
 
@@ -648,13 +649,11 @@ function b4_require_runtime(): void {
 function b4_run_mode( string $mode, array $args = array() ): void {
 	$php     = PHP_BINARY;
 	$script  = __FILE__;
-	$command = array( $php );
-	$command[] = '-d';
-	$command[] = 'extension_dir=' . HAL_TEST_EXT_DIR;
-	$command[] = '-d';
-	$command[] = 'extension=sodium';
-	$command[] = '-d';
-	$command[] = 'extension=zip';
+	$command = hal_php_argv(
+		$php,
+		array( '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ),
+		array( 'sodium', 'zip' )
+	);
 	$command[] = $script;
 	$command[] = $mode;
 	foreach ( $args as $arg ) {

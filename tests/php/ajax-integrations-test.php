@@ -652,13 +652,11 @@ function b6_require_runtime(): void {
 function b6_run_mode( string $mode, array $args = array() ): void {
 	$php     = PHP_BINARY;
 	$script  = __FILE__;
-	$command = array( $php );
-	$command[] = '-d';
-	$command[] = 'extension_dir=' . HAL_TEST_EXT_DIR;
-	$command[] = '-d';
-	$command[] = 'extension=sodium';
-	$command[] = '-d';
-	$command[] = 'extension=zip';
+	$command = hal_php_argv(
+		$php,
+		array( '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ),
+		array( 'sodium', 'zip' )
+	);
 	$command[] = $script;
 	$command[] = $mode;
 	foreach ( $args as $arg ) {
@@ -2556,6 +2554,7 @@ if ( ! defined( 'HAL_TEST_EXT_DIR' ) ) {
 	}
 	define( 'HAL_TEST_EXT_DIR', is_dir( $hal_ext_dir ) ? $hal_ext_dir : (string) $hal_ext_dir );
 }
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 $mode = isset( $argv[1] ) ? (string) $argv[1] : 'main';
 switch ( $mode ) {
 	case 'main':

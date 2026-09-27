@@ -18,6 +18,9 @@
  *         while valid entries still render.
  *   PL6 — UM absent allows eligible links; disabled feature hides the panel
  *         and never invokes providers.
+ *   PL7 — advisory hardening 2026-09-27: non-array provider output, invalid
+ *         order (skipped, missing still 100), malformed host (spaces),
+ *         rejected-then-valid same id.
  *
  * Usage: php tests/php/profile-links-test.php (exit 0 = all pass)
  */
@@ -278,6 +281,103 @@ pl_check(
     '' === trim($html) && 0 === $calls,
     'disabled ultimate_member_profile hides the panel and never invokes providers',
     'output bytes: ' . strlen($html) . '; provider calls: ' . $calls
+);
+
+/* ── PL7a: non-array provider output → no section, no fatal ── */
+
+pl_reset();
+add_filter(
+    'hal_frontend_dashboard_profile_links',
+    static function (array $links) { return 'not-an-array-output'; },
+    10,
+    1
+);
+$html = pl_render_panel();
+pl_check(
+    'PL7a-non-array-output',
+    false === strpos($html, 'Additional links'),
+    'a non-array provider result yields no links section and no fatal',
+    'non-array output leaked: ' . substr($html, 0, 200)
+);
+
+/* ── PL7b: invalid order skipped, missing still defaults to 100 ── */
+
+pl_reset();
+add_filter(
+    'hal_frontend_dashboard_profile_links',
+    static function (array $links): array {
+        $links[] = array('id' => 'demo.noorder', 'label' => 'NoOrder', 'url' => 'https://example.test/n', 'eligible' => true);
+        $links[] = array('id' => 'demo.nullorder', 'label' => 'NullOrd', 'url' => 'https://example.test/x', 'eligible' => true, 'order' => null);
+        $links[] = array('id' => 'demo.strorder', 'label' => 'StrOrd', 'url' => 'https://example.test/x', 'eligible' => true, 'order' => '5');
+        $links[] = array('id' => 'demo.floatorder', 'label' => 'FloatOrd', 'url' => 'https://example.test/x', 'eligible' => true, 'order' => 1.5);
+        $links[] = array('id' => 'demo.negorder', 'label' => 'NegOrd', 'url' => 'https://example.test/g', 'eligible' => true, 'order' => -3);
+        return $links;
+    },
+    10,
+    1
+);
+$html = pl_render_panel();
+$pos_no = strpos($html, '>NoOrder</a>');
+$pos_neg = strpos($html, '>NegOrd</a>');
+pl_check(
+    'PL7b-order-shape',
+    false !== $pos_no && false !== $pos_neg && $pos_neg < $pos_no
+        && false === strpos($html, 'NullOrd')
+        && false === strpos($html, 'StrOrd')
+        && false === strpos($html, 'FloatOrd'),
+    'null/string/float orders are skipped while missing order defaults to 100 after the valid negative order',
+    'order shaping broken: ' . substr($html, (int) strpos($html, 'Additional links'), 300)
+);
+
+/* ── PL7c: malformed host (spaces) rejected, valid survives ── */
+
+pl_reset();
+pl_check(
+    'PL7c-url-allowed-unit',
+    false === hossam_profile_link_url_allowed('https://exa mple.test/x')
+        && true === hossam_profile_link_url_allowed('https://example.test/ok'),
+    'a host containing spaces is rejected while a clean URL is allowed, with no network involved',
+    'url gate misbehaves'
+);
+add_filter(
+    'hal_frontend_dashboard_profile_links',
+    static function (array $links): array {
+        $links[] = array('id' => 'demo.good', 'label' => 'Good', 'url' => 'https://example.test/good', 'eligible' => true);
+        $links[] = array('id' => 'demo.spacehost', 'label' => 'SpaceHost', 'url' => 'https://exa mple.test/x', 'eligible' => true);
+        return $links;
+    },
+    10,
+    1
+);
+$html = pl_render_panel();
+pl_check(
+    'PL7c-space-host-render',
+    false !== strpos($html, '>Good</a>') && false === strpos($html, 'SpaceHost'),
+    'the spaced-host entry never renders while the valid entry does',
+    'spaced host leaked into output'
+);
+
+/* ── PL7d: rejected-then-valid same id → valid wins, id not burned ── */
+
+pl_reset();
+add_filter(
+    'hal_frontend_dashboard_profile_links',
+    static function (array $links): array {
+        $links[] = array('id' => 'demo.same', 'label' => 'Bad', 'url' => 'https://exa mple.test/x', 'eligible' => true);
+        $links[] = array('id' => 'demo.same', 'label' => 'Good', 'url' => 'https://example.test/good', 'eligible' => true);
+        return $links;
+    },
+    10,
+    1
+);
+$html = pl_render_panel();
+pl_check(
+    'PL7d-rejected-id-reusable',
+    false !== strpos($html, '>Good</a>')
+        && false === strpos($html, '>Bad</a>')
+        && 1 === substr_count($html, '>Good</a>'),
+    'a rejected entry does not burn its id: the later valid same-id entry renders exactly once',
+    'same-id handling broken: ' . substr($html, (int) strpos($html, 'Additional links'), 300)
 );
 
 /* ── Report ── */

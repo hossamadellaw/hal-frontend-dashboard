@@ -58,6 +58,7 @@ if ( PHP_SAPI !== 'cli' ) {
 }
 
 define( 'HAL_TEST_EXT_DIR', (string) ( getenv( 'HAL_PHP_EXT_DIR' ) ?: ini_get( 'extension_dir' ) ) );
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 $GLOBALS['B7_PROJECT'] = dirname( __DIR__, 2 );
 
 /* ════════════════════════════════════════════════════════════════
@@ -867,13 +868,11 @@ function b7_spawn_mode( string $mode ): bool {
 	}
 	$php      = PHP_BINARY;
 	$script   = __FILE__;
-	$command  = array( $php );
-	$command[] = '-d';
-	$command[] = 'extension_dir=' . HAL_TEST_EXT_DIR;
-	$command[] = '-d';
-	$command[] = 'extension=sodium';
-	$command[] = '-d';
-	$command[] = 'extension=zip';
+	$command  = hal_php_argv(
+		$php,
+		array( '-d', 'extension_dir=' . HAL_TEST_EXT_DIR ),
+		array( 'sodium', 'zip' )
+	);
 	$command[] = $script;
 	$command[] = $mode;
 	/* stdout/stderr go to temp FILES, not pipes: the subprocess writes

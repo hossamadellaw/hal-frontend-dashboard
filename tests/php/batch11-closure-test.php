@@ -44,6 +44,7 @@ if (!extension_loaded('sodium') || !class_exists('ZipArchive')) {
 $PROJECT = dirname(__DIR__, 2);
 $GLOBALS['B11C_PROJECT'] = $PROJECT;
 $WS = $PROJECT . '/.local-execution/batch-11-closure';
+require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (no product code, no assertions)
 @mkdir($WS, 0777, true);
 
 $GLOBALS['B11C_PASS'] = 0;
@@ -1207,9 +1208,10 @@ if (2 === count($signer_bodies)) {
         $body_file = $sign_wd . '/signer-' . md5($sig_name) . '.php';
         file_put_contents($body_file, $body . "\n");
         $manifest_file = ('runtime-manifest.sig' === $sig_name) ? 'runtime-manifest.json' : 'carrier-manifest.json';
-        // Same argv contract as the workflow: $argv[1]=key file, $argv[2]=sig out
-        // (CI runners carry ext-sodium like the build job, hence the flag).
-        $cmd = 'php -d extension=sodium ' . escapeshellarg($body_file) . ' ' . escapeshellarg($sign_wd . '/hal-key') . ' ' . escapeshellarg($sig_name);
+        // Same argv contract as the workflow: $argv[1]=key file, $argv[2]=sig out.
+        // Extension flags are filtered (kept only when the child runtime
+        // lacks them), so runners with built-in sodium stay warning-free.
+        $cmd = implode( ' ', array_map( 'escapeshellarg', array_merge( hal_php_argv( 'php', array(), array( 'sodium' ) ), array( $body_file, $sign_wd . '/hal-key', $sig_name ) ) ) );
         $prev_cwd = getcwd();
         chdir($sign_wd);
         exec($cmd, $sign_out, $sign_code);
