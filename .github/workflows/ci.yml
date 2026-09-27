@@ -41,6 +41,10 @@ jobs:
         run: |
           set -euo pipefail
           php -v
+          echo '--- DIAG php -m ---'; php -m | sort | tr '\n' ' '; echo
+          echo '--- DIAG ini ---'; php --ini | head -8
+          echo '--- DIAG ext dir ---'; ls "$(php -r 'echo ini_get("extension_dir");')" | head -40
+          echo '--- DIAG sodium pkgs ---'; dpkg -l 2>/dev/null | grep -i sodium | head -5; true
           # Strict-stderr harnesses fail on ANY startup warning, and the
           # secret-store suites need real sodium (not a stub). Runners ship
           # no sodium.so, so provide it: apt package when available,
