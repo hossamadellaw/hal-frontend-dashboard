@@ -1168,6 +1168,10 @@ function b5_mode_posts( string $project ): void {
 	$log_file = $project . '/.local-execution/batch-5/error-log-capture.txt';
 	if ( file_exists( $log_file ) ) {
 		unlink( $log_file );
+	} else {
+		// Fresh checkouts lack the gitignored run-space: error_log() to a
+		// missing directory fails silently to stderr, so create it first.
+		@mkdir( dirname( $log_file ), 0777, true );
 	}
 	ini_set( 'error_log', $log_file );
 	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );

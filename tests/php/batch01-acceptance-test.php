@@ -932,7 +932,52 @@ $win_state = $win_mu . '/hal-frontend-dashboard/state';
 // promotion record, proc_terminate() the moment it vanishes.
 $win_signal = $win_ws . '/window-open.flag';
 file_put_contents( $win_signal, '1' );
-$win_fixture = __DIR__ . '/../../.audit-work/batch-0-1/interrupt-window-fixture.php';
+	$win_fixture = __DIR__ . '/../../.audit-work/batch-0-1/interrupt-window-fixture.php';
+	// The window fixture is generated here (not shipped, not committed):
+	// fresh checkouts lack the gitignored .audit-work tree, and the child
+	// below cannot run without it. Content is the long-standing fixture,
+	// embedded verbatim.
+	@mkdir( dirname( $win_fixture ), 0777, true );
+	file_put_contents( $win_fixture, <<<'FIXTURE'
+<?php
+/**
+ * Interruption-window fixture (B1-WINDOW): a promotion run in a child
+ * process that the parent kills at the exact window between the verified
+ * unlink(state/promotion.json) and the write of committed.json.
+ *
+ * The health callback signals the parent that the window is opening
+ * (health is the last step before history/status/record-delete/committed).
+ * The parent hot-polls the promotion record and issues proc_terminate()
+ * the moment it disappears — committed.json is the next filesystem write
+ * after that delete, so the kill lands inside the window.
+ */
+define( 'ABSPATH', getenv( 'HAL_TEST_ABSPATH' ) ?: 'C:\\hal-fixture\\' );
+
+$mu_dir = $argv[1];
+$release_id = $argv[2];
+$signal_file = $argv[3];
+$project_root = dirname( __DIR__, 2 ); // .audit-work/batch-0-1 → project root
+
+require $project_root . '/includes/class-release-manager.php';
+
+$manager = new HAL_Frontend_Dashboard_Release_Manager( $mu_dir );
+$manager->promote_runtime(
+	array(
+		'release_id'       => $release_id,
+		'version'          => '5.0.0',
+		'release_sequence' => 5,
+		'archive_sha256'   => str_repeat( 'c', 64 ),
+	),
+	static function () use ( $signal_file ): bool {
+		@unlink( $signal_file ); // signal: window about to open
+		return true;
+	},
+	'loader-1.0.0'
+);
+echo 'PROMOTED-NORMAL';
+
+FIXTURE
+	);
 	$win_cmd = array_merge( hal_php_argv( PHP_BINARY, array( '-n', '-d', 'extension_dir=' . ( getenv( 'HAL_PHP_EXT_DIR' ) ?: ini_get( 'extension_dir' ) ) ), array( 'sodium' ) ), array(
 		$win_fixture, $win_mu, '5.0.0+' . str_repeat( 'c', 40 ), $win_signal,
 	) );
