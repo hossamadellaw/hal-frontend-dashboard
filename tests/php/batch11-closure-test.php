@@ -50,6 +50,7 @@ require_once __DIR__ . '/lib-hal-php-flags.php'; // test-launcher flag filter (n
 $GLOBALS['B11C_PASS'] = 0;
 $GLOBALS['B11C_FAIL'] = 0;
 $GLOBALS['B11C_FAILS'] = array();
+$GLOBALS['B11C_SKIP'] = 0;
 
 function b11c_check(string $id, bool $ok, string $pass, string $fail): void {
     if ($ok) {
@@ -60,6 +61,18 @@ function b11c_check(string $id, bool $ok, string $pass, string $fail): void {
         $GLOBALS['B11C_FAILS'][] = "$id: $fail";
         echo "FAIL [$id] $fail\n";
     }
+}
+
+/**
+ * Loud skip (never a PASS): used ONLY when neither the dev-machine composer
+ * cache nor a composer-installed locked vendor copy of PUC is available
+ * (e.g. offline runners). The REAL locked v5.7 bytes cannot be fabricated,
+ * so the PUC section is deferred to runs with one of those sources.
+ * Skipped is not passed.
+ */
+function b11c_skip(string $id, string $reason): void {
+    $GLOBALS['B11C_SKIP']++;
+    echo "SKIP [$id] $reason\n";
 }
 
 function b11c_rmdir(string $dir): void {
@@ -1064,32 +1077,67 @@ if (false === $linked) {
     @unlink($link_path);
 }
 
-/* ════════════════ PUC: REAL locked v5.7 (cache ref 275a96a) ════════════════ */
+/* ════════════════ PUC: REAL locked v5.7 (cache ref 275a96a, else locked vendor) ════════════════ */
 
 $puc_cache = 'C:/Users/kanli/AppData/Local/Composer/files/yahnis-elsts/plugin-update-checker/c2ec7b4449eab6f6e947928001f2c4143ed5450c.zip';
 $puc_stage = $WS . '/puc-v5.7';
 $puc_top = '';
-$zip = new ZipArchive();
-if (true === $zip->open($puc_cache)) {
-    for ($i = 0; $i < $zip->numFiles; $i++) {
-        $name = $zip->getNameIndex($i);
-        if ('' === $puc_top && false !== strpos($name, '/')) {
-            $puc_top = substr($name, 0, strpos($name, '/') + 1);
+$puc_root = '';
+$puc_from = '';
+if (is_file($puc_cache)) {
+    $zip = new ZipArchive();
+    if (true === $zip->open($puc_cache)) {
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if ('' === $puc_top && false !== strpos($name, '/')) {
+                $puc_top = substr($name, 0, strpos($name, '/') + 1);
+            }
+            if (false === strpos($name, '/load-v5p7.php') && 'load-v5p7.php' !== basename($name)) {
+                continue;
+            }
         }
-        if (false === strpos($name, '/load-v5p7.php') && 'load-v5p7.php' !== basename($name)) {
-            continue;
-        }
+        $zip->extractTo($WS . '/puc-extract');
+        $zip->close();
     }
-    $zip->extractTo($WS . '/puc-extract');
-    $zip->close();
+    $puc_root = $WS . '/puc-extract/' . $puc_top;
+    $puc_from = 'cache';
 }
-$puc_root = $WS . '/puc-extract/' . $puc_top;
-b11c_check(
-    'B11C-PUC-LOCKED-REF',
-    '' !== $puc_top && 0 === strpos($puc_top, 'YahnisElsts-plugin-update-checker-275a96a'),
-    'staged PUC top dir matches the locked git ref 275a96a (v5.7)',
-    'top: ' . $puc_top
-);
+if ('' === $puc_root || !is_file($puc_root . 'load-v5p7.php')) {
+    // CI/normal: composer-installed locked copy (same composer.lock bytes
+    // the release build job installs). The locked git ref is proven from
+    // vendor/composer/installed.json instead of a zip top-dir name.
+    $puc_vendor_load = $PROJECT . '/vendor/yahnis-elsts/plugin-update-checker/load-v5p7.php';
+    if (is_file($puc_vendor_load)) {
+        $puc_root = dirname($puc_vendor_load) . '/';
+        $puc_from = 'vendor';
+        $puc_top = '';
+    }
+}
+if ('' === $puc_root || !is_file($puc_root . 'load-v5p7.php')) {
+    foreach (array('B11C-PUC-LOCKED-REF', 'B11C-PUC-REAL-CONSTANTS', 'B11C-PUC-REAL-REGEX-WIRED', 'B11C-PUC-REAL-ASSET-MATRIX', 'B11C-PUC-REAL-STRATEGIES') as $skipped_id) {
+        b11c_skip($skipped_id, 'no composer cache zip and no locked vendor copy — REAL locked v5.7 bytes unavailable, deferred to runs with one of those sources');
+    }
+} else {
+if ('vendor' === $puc_from) {
+    $installed = json_decode((string) @file_get_contents($PROJECT . '/vendor/composer/installed.json'), true);
+    $puc_ref = '';
+    foreach (array_merge($installed['packages'] ?? array(), array()) as $pkg) {
+        if ('yahnis-elsts/plugin-update-checker' === ($pkg['name'] ?? '')) { $puc_ref = (string) ($pkg['reference'] ?? ''); break; }
+    }
+    b11c_check(
+        'B11C-PUC-LOCKED-REF',
+        0 === strpos($puc_ref, '275a96a'),
+        'locked vendor copy records git ref 275a96a (v5.7) in installed.json',
+        'installed.json reference: ' . $puc_ref
+    );
+} else {
+    b11c_check(
+        'B11C-PUC-LOCKED-REF',
+        '' !== $puc_top && 0 === strpos($puc_top, 'YahnisElsts-plugin-update-checker-275a96a'),
+        'staged PUC top dir matches the locked git ref 275a96a (v5.7)',
+        'top: ' . $puc_top
+    );
+}
 require $puc_root . 'load-v5p7.php';
 $api_class = 'YahnisElsts\\PluginUpdateChecker\\v5p7\\Vcs\\GitHubApi';
 b11c_check(
@@ -1154,6 +1202,7 @@ b11c_check(
     'real locked strategy map collapses to latest-release only; missing yields no update (no tag/branch fallback)',
     'strategy restriction broken against real constants'
 );
+} // end PUC available (else: the five PUC checks above were skipped)
 
 /* ════════════════ SIGNER: the ACTUAL workflow command (item 2) ════════════════ */
 
@@ -1694,7 +1743,7 @@ if (!is_dir($vstage)) {
 
 /* ════════════════ Report ════════════════ */
 
-echo 'B11C RESULT: ' . $GLOBALS['B11C_PASS'] . ' pass, ' . $GLOBALS['B11C_FAIL'] . " fail (PHP " . PHP_VERSION . ")\n";
+echo 'B11C RESULT: ' . $GLOBALS['B11C_PASS'] . ' pass, ' . $GLOBALS['B11C_SKIP'] . ' skipped (no PUC source — REAL bytes unavailable, never passed), ' . $GLOBALS['B11C_FAIL'] . " fail (PHP " . PHP_VERSION . ")\n";
 if ($GLOBALS['B11C_FAIL'] > 0) {
     echo "Failures:\n" . implode("\n", $GLOBALS['B11C_FAILS']) . "\n";
     exit(1);
