@@ -410,12 +410,23 @@ b12c_check(
 
 /* ════════════════ KEEP — B12-5 ════════════════ */
 
-$keepLocal = is_dir($PROJECT . '/Docs') && is_dir($PROJECT . '/.audit-work');
+/* gitignored-or-absent probe: protected paths stay out of git so no
+   update/rollback can delete them from history; on fresh checkouts their
+   absence is by design, not deletion. */
+function b12c_ignored_or_absent(string $rel): bool {
+    global $PROJECT;
+    if (!file_exists($PROJECT . '/' . $rel)) { return true; }
+    $out = array(); $code = 1;
+    @exec('git check-ignore -q ' . escapeshellarg($rel) . ' 2>&1', $out, $code);
+    return 0 === $code;
+}
+
+$keepLocal = b12c_ignored_or_absent('Docs') && b12c_ignored_or_absent('.audit-work');
 if (!$B12C_LEGACY) {
     b12c_check(
         'B12C-KEEP-REFS',
         $keepLocal,
-        'Docs/ and .audit-work/ still present — nothing deleted (legacy markers skipped: root absent)',
+        'Docs/ and .audit-work/ protected (present or gitignored — absent on fresh checkouts by design, never tracked)',
         'a local protected reference is missing'
     );
     b12c_skip(
@@ -562,9 +573,9 @@ foreach (array_merge(b12c_product_php(), array($PROJECT . '/hal-frontend-dashboa
         }
     }
 }
-$rootVendor = is_dir($PROJECT . '/vendor');
+$rootVendor = is_dir($PROJECT . '/vendor') && !b12c_ignored_or_absent('vendor');
 $runtimePng = b12c_files_recursive($PROJECT . '/runtime', 'png');
-if ($rootVendor) { $pkgOk = false; $pkgMiss[] = 'root vendor/ present'; }
+if ($rootVendor) { $pkgOk = false; $pkgMiss[] = 'root vendor/ present and tracked'; }
 if (0 !== count($runtimePng)) { $pkgOk = false; $pkgMiss[] = 'png under runtime/'; }
 b12c_check(
     'B12C-PKG-CLASSIFY',
