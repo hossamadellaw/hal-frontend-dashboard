@@ -36,6 +36,24 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Runner PHP extensions (sodium functional, startup silent)
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -v
+          # Strict-stderr harnesses fail on ANY startup warning, and the
+          # secret-store suites need real sodium (not a stub): install the
+          # .so, then silence startup duplication noise only (runtime
+          # errors still display). No product or harness code is touched.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-sodium || sudo apt-get install -y -qq php8.3-sodium
+          INI="$(php -r 'echo php_ini_loaded_file();')"
+          echo 'display_startup_errors=Off' | sudo tee -a "$INI" >/dev/null
+          php -d extension=sodium -r 'exit(extension_loaded("sodium") ? 0 : 1);'
+          php -r 'exit(class_exists("ZipArchive") ? 0 : 1);'
+          php -d extension=sodium -d extension=zip -r 'echo "extensions clean\n";' 2> /tmp/ext-err.txt
+          test ! -s /tmp/ext-err.txt
+
       - name: Composer validate, locked install, audit, licenses
         shell: bash
         run: |
