@@ -8,17 +8,17 @@ name: Checks
 # (same pin as release.yml); everything else is shell + preinstalled
 # runner tooling (php, node, composer).
 
-# TRIGGER NOTE (honest, 2026-09-27): this mirror is workflow_dispatch-only
-# until ONE of the following is owner-approved, because ubuntu-latest
-# runners compile sodium STATICALLY into php while every harness invokes
-# `php -d extension=sodium`, which then always emits an "Unable to load"
-# startup warning that strict-stderr harnesses (e.g. ajax-content P-C500P)
-# correctly reject — proven over runs 36311795437/36311967978/36312078292/
-# 36312256633/36312527905, no product or harness file touched. Options:
-# (a) owner Change Request to reopen affected harnesses; (b) windows-php
-# supply-chain decision replicating the proven-local reference env.
-# Binding the main ruleset to Checks contexts before green would be theater.
+# TRIGGER NOTE (2026-09-27): automatic triggers restored after the first
+# fully-green run (36326433458) proved the suite on ubuntu-latest; the main
+# ruleset now binds the `Build and test` check. Manual dispatch retained
+# for evidence runs.
 on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions: {}
