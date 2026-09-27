@@ -1539,6 +1539,19 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 function b2s_run_mode( string $mode, array $args = array(), bool $with_sodium = true ): void {
 	$php     = PHP_BINARY;
 	$script  = __FILE__;
+	if ( ! $with_sodium ) {
+		// Absence premise check: `-n` drops ini extensions, but a
+		// statically-built sodium survives it. When the bare child still
+		// provides sodium, absence is untestable in this runtime — SKIP
+		// loudly (never PASS), per the standing absence-proof rule.
+		$probe_out = array();
+		$probe_code = 1;
+		exec( escapeshellarg( $php ) . ' -n -r ' . escapeshellarg( 'echo extension_loaded("sodium") ? "S1" : "S0";' ) . ' 2>&1', $probe_out, $probe_code );
+		if ( 0 === $probe_code && false !== strpos( implode( "\n", $probe_out ), 'S1' ) ) {
+			echo 'SKIP [MODE-' . strtoupper( str_replace( '-', '_', $mode ) ) . '] static sodium build: absence untestable in this runtime (not a pass)' . "\n";
+			return;
+		}
+	}
 	$command = array( $php );
 	if ( $with_sodium ) {
 		$command = hal_php_argv(
