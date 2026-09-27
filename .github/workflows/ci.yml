@@ -42,11 +42,23 @@ jobs:
           set -euo pipefail
           php -v
           # Strict-stderr harnesses fail on ANY startup warning, and the
-          # secret-store suites need real sodium (not a stub): install the
-          # .so, then silence startup duplication noise only (runtime
-          # errors still display). No product or harness code is touched.
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq php-sodium || sudo apt-get install -y -qq php8.3-sodium
+          # secret-store suites need real sodium (not a stub). Runners ship
+          # no sodium.so, so provide it: apt package when available,
+          # otherwise compile the upstream pecl extension from source.
+          # No product or harness code is touched.
+          if ! php -m | grep -qi '^sodium$'; then
+            sudo apt-get update -qq
+            if apt-cache show php-sodium >/dev/null 2>&1; then
+              sudo apt-get install -y -qq php-sodium
+            elif apt-cache show php8.3-sodium >/dev/null 2>&1; then
+              sudo apt-get install -y -qq php8.3-sodium
+            else
+              sudo apt-get install -y -qq libsodium-dev php-dev php-pear make
+              sudo pecl install -f libsodium
+            fi
+          fi
+          # Silence startup duplication noise only (runtime errors still
+          # display) so on-demand -d extension= loading stays warning-free.
           INI="$(php -r 'echo php_ini_loaded_file();')"
           echo 'display_startup_errors=Off' | sudo tee -a "$INI" >/dev/null
           php -d extension=sodium -r 'exit(extension_loaded("sodium") ? 0 : 1);'
