@@ -127,9 +127,10 @@ jobs:
             echo 'checks:blocked:docs_in_git_index' >&2
             exit 1
           fi
-          # ci.yml holds the literal pattern below, so it excludes itself;
-          # any other file matching is a genuine leak.
-          if grep -rInE --exclude-dir=.git --exclude-dir=node_modules --exclude='ci.yml' \
+          # ci.yml holds the literal pattern below, so it excludes itself (like
+          # release.yml excludes itself in the release gate); any other file
+          # matching is a genuine leak.
+          if grep -rInE --exclude-dir=.git --exclude-dir=node_modules --exclude='ci.yml' --exclude='release.yml' \
             -e 'BEGIN [A-Z ]*PRIVATE KEY' -e 'ghp_[A-Za-z0-9]+' -e 'github_pat_' \
             -e 'xox[bpas]-' -e 'AKIA[0-9A-Z]{16}' . ; then
             echo 'checks:blocked:secret_leakage' >&2
