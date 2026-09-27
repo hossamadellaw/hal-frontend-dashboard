@@ -41,10 +41,9 @@ jobs:
         run: |
           set -euo pipefail
           php -v
-          echo '--- DIAG php -m ---'; php -m | sort | tr '\n' ' '; echo
-          echo '--- DIAG ini ---'; php --ini | head -8
-          echo '--- DIAG ext dir ---'; ls "$(php -r 'echo ini_get("extension_dir");')" | head -40
-          echo '--- DIAG sodium pkgs ---'; dpkg -l 2>/dev/null | grep -i sodium | head -5; true
+          echo '--- STATIC TEST (no ini) ---'; php -n -m | grep -i -E '^(sodium|zip)$' || echo 'NOT-STATIC(or absent)';
+          echo '--- SO FILES ---'; ls "$(php -r 'echo ini_get("extension_dir");')" | grep -i -E 'sodium|zip' || echo 'NO-SO-FILES';
+          echo '--- ALTERNATIVES ---'; ls /usr/bin/php* /usr/local/bin/php* 2>/dev/null; update-alternatives --list php 2>/dev/null || true
           # Strict-stderr harnesses fail on ANY startup warning, and the
           # secret-store suites need real sodium (not a stub). Runners ship
           # no sodium.so, so provide it: apt package when available,
