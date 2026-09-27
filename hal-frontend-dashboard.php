@@ -24,9 +24,14 @@ define( 'HAL_FRONTEND_DASHBOARD_REPOSITORY_URL', 'https://github.com/hossamadell
 /**
  * Run the installer only when WordPress activates the Carrier.
  *
+ * WordPress passes $network_wide on multisite; it is forwarded so a
+ * network activation provisions every current site (single shared
+ * Runtime release, per-site setup).
+ *
+ * @param bool $network_wide
  * @return void
  */
-function hal_frontend_dashboard_activate() {
+function hal_frontend_dashboard_activate( $network_wide = false ) {
 	$installer_file = HAL_FRONTEND_DASHBOARD_PLUGIN_DIR . 'includes/class-installer.php';
 
 	if ( ! is_readable( $installer_file ) ) {
@@ -39,7 +44,7 @@ function hal_frontend_dashboard_activate() {
 		throw new RuntimeException( 'HAL Frontend Dashboard installer is invalid.' );
 	}
 
-	HAL_Frontend_Dashboard_Installer::activate();
+	HAL_Frontend_Dashboard_Installer::activate( true === $network_wide );
 }
 
 register_activation_hook( __FILE__, 'hal_frontend_dashboard_activate' );

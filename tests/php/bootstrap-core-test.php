@@ -581,6 +581,9 @@ function hal_test_main(): void {
 		array( 'action', 'wp_enqueue_scripts', 999 ),
 		array( 'filter', 'body_class', 10 ),
 		array( 'action', 'wp', 10 ),
+		// Simple Multisite (approved scope): setup.php registers the
+		// late-joined-site provisioner here, before tables.php init hooks.
+		array( 'action', 'wp_initialize_site', 10 ),
 		array( 'action', 'init', 5 ),
 		array( 'action', 'init', 10 ),
 		array( 'action', 'init', 10 ),
@@ -668,7 +671,7 @@ function hal_test_main(): void {
 	hal_test_check(
 		'A4',
 		$actual_events === $expected_events,
-		'exact load-time event sequence matches (69 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the batch-7 infrastructure template_include filter)',
+		'exact load-time event sequence matches (70 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the batch-7 infrastructure template_include filter + the multisite wp_initialize_site provisioner)',
 		'event sequence mismatch — ' . $event_detail
 	);
 

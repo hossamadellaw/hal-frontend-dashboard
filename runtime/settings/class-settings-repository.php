@@ -54,8 +54,16 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 */
 	const BRANDING_ALLOWED_MIME = array( 'image/png', 'image/jpeg', 'image/webp' );
 
-	/** @var array<string,mixed>|null */
-	private static $cache = null;
+	/** @var array<int,array<string,mixed>> per-blog cache (multisite isolation) */
+	private static $cache = array();
+
+	/**
+	 * مفتاح الكاش الحالي: رقم المدونة عند توفره، وإلا سياق واحد.
+	 * على Single Site يبقى السلوك مطابقًا تمامًا (مفتاح ثابت واحد).
+	 */
+	private static function cache_blog_id(): int {
+		return function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+	}
 
 	/**
 	 * الحالة الكاملة بعد الدمج مع defaults والتحقق من schema.
@@ -63,8 +71,9 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string}
 	 */
 	public static function get_all(): array {
-		if ( null !== self::$cache ) {
-			return self::$cache;
+		$blog = self::cache_blog_id();
+		if ( isset( self::$cache[ $blog ] ) ) {
+			return self::$cache[ $blog ];
 		}
 		$stored = get_option( self::OPTION_NAME, array() );
 		$stored = is_array( $stored ) ? $stored : array();
@@ -83,13 +92,13 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$ai_preference = (string) $stored['ai_preference'];
 		}
 
-		self::$cache = array(
+		self::$cache[ $blog ] = array(
 			'schema_version'         => self::SCHEMA_VERSION,
 			'features'               => $features,
 			'branding_attachment_id' => $attachment_id > 0 ? $attachment_id : 0,
 			'ai_preference'          => $ai_preference,
 		);
-		return self::$cache;
+		return self::$cache[ $blog ];
 	}
 
 	/**
@@ -248,9 +257,10 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 
 	/**
 	 * إبطال كاش الطلب — يستدعى بعد الحفظ ويتاح للمستهلكين عند حاجة
-	 * إعادة قراءة قسرية (قرار قدرة واحد، §8.3).
+	 * إعادة قراءة قسرية (قرار قدرة واحد، §8.3). يمسح كل المدونات:
+	 * الكتابة لمدونة لا يجوز أن تُبقي قراءة قديمة لأي مدونة.
 	 */
 	public static function invalidate_cache(): void {
-		self::$cache = null;
+		self::$cache = array();
 	}
 }

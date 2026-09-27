@@ -205,12 +205,22 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Update_Bridge', false ) ) {
 		if ( version_compare( $new_version, $installed_version, '<=' ) ) {
 			return $update;
 		}
-			$package = self::item_field( $item, 'package' );
-			if ( ! self::is_puc_shaped_package( $package, $new_version ) ) {
+		$package = self::item_field( $item, 'package' );
+		if ( ! self::is_puc_shaped_package( $package, $new_version ) ) {
+			return $update;
+		}
+		// Simple Multisite: the shared Carrier update is a network-level
+		// decision. A logged-in user without the network capability never
+		// gets it auto-applied; system contexts (cron/CLI, no user) keep
+		// the network-owned automation. Single-site behavior unchanged.
+		if ( function_exists( 'is_multisite' ) && is_multisite() ) {
+			$uid = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+			if ( 0 !== $uid && !( function_exists( 'current_user_can' ) && current_user_can( 'manage_network' ) ) ) {
 				return $update;
 			}
-			return true;
 		}
+		return true;
+	}
 
 	/**
 	 * upgrader_pre_download: verify the Carrier ZIP (streams only, no

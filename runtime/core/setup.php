@@ -689,3 +689,24 @@ add_action( 'wp', function(): void {
     remove_action( 'astra_footer',       'astra_footer_markup' );
     remove_action( 'astra_content_top',  'astra_breadcrumb_markup' );
 } );
+
+// Simple Multisite: provision late-joined sites idempotently. The hook
+// fires only on multisite; the provisioner loads lazily here (never from
+// the Carrier) so single-site load order is untouched. Callback resolves
+// at do_action time, after bootstrap has defined the release context.
+add_action( 'wp_initialize_site', function( $site ): void {
+    if ( ! defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT' ) ) {
+        return;
+    }
+    $id = is_object( $site ) && isset( $site->blog_id ) ? (int) $site->blog_id : (int) $site;
+    if ( $id < 1 ) {
+        return;
+    }
+    // The includes/ copy (activation time) and this infrastructure copy
+    // (late-joined sites) must never collide in one process: load only
+    // when no copy is already present (established shared-source pattern).
+    if ( ! class_exists( 'HAL_Frontend_Dashboard_Site_Provisioner', false ) ) {
+        require_once HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT . 'infrastructure/class-site-provisioner.php';
+    }
+    HAL_Frontend_Dashboard_Site_Provisioner::ensure_site_for_blog( $id );
+} );
