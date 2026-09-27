@@ -227,10 +227,10 @@ jobs:
           cp -a runtime/. "$RUNTIME/"
           rm -rf "$RUNTIME/vendor"
           mkdir -p "$RUNTIME/vendor"
-          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php; do
+          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php class-site-provisioner.php; do
             cp -a "includes/$f" "$RUNTIME/infrastructure/$f"
           done
-          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php; do
+          for f in class-package-verifier.php class-release-manager.php class-update-bridge.php class-health-check.php class-template-controller.php class-site-provisioner.php; do
             if ! cmp -s "includes/$f" "runtime/infrastructure/$f"; then
               echo "release:blocked:infrastructure_drift ($f differs from includes/ source)" >&2
               exit 1

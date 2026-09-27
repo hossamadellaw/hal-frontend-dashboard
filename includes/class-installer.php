@@ -16,12 +16,17 @@ defined( 'ABSPATH' ) || exit;
 
 	/** علامة meta داخلية تميّز الصفحة المنشأة للمشروع (لا slug). */
 	const PAGE_META_KEY = '_hal_frontend_dashboard_page';
-	public static function activate(): void {
+	public static function activate( bool $network_wide = false ): void {
 		self::preflight();
 
 		require_once __DIR__ . '/class-package-verifier.php';
 		require_once __DIR__ . '/class-release-manager.php';
 		require_once __DIR__ . '/class-health-check.php';
+		// Shared source (§6.1): skip when the runtime infrastructure copy
+		// is already present in this process (no duplicate declaration).
+		if ( ! class_exists( 'HAL_Frontend_Dashboard_Site_Provisioner', false ) ) {
+			require_once __DIR__ . '/class-site-provisioner.php';
+		}
 
 		$plugin_root = defined( 'HAL_FRONTEND_DASHBOARD_PLUGIN_DIR' ) ? HAL_FRONTEND_DASHBOARD_PLUGIN_DIR : dirname( __DIR__ ) . DIRECTORY_SEPARATOR;
 		$payload = $plugin_root . 'payload' . DIRECTORY_SEPARATOR;
@@ -77,8 +82,16 @@ defined( 'ABSPATH' ) || exit;
 		}
 
 		self::install_root_anchor_last( $plugin_root . 'mu-loader' . DIRECTORY_SEPARATOR . 'hal-frontend-dashboard.php' );
-		self::grant_default_capability();
-		self::ensure_dashboard_page();
+		// Per-site provisioning (idempotent): every current site on a
+		// network-wide activation, else the current site only. The shared
+		// release/loader/anchor above run once for the whole network.
+		if ( $network_wide && function_exists( 'is_multisite' ) && is_multisite() && function_exists( 'get_sites' ) ) {
+			foreach ( get_sites( array( 'fields' => 'ids', 'number' => 0 ) ) as $blog_id ) {
+				HAL_Frontend_Dashboard_Site_Provisioner::ensure_site_for_blog( (int) $blog_id );
+			}
+		} else {
+			HAL_Frontend_Dashboard_Site_Provisioner::ensure_site();
+		}
 
 		$current = $manager->read_pointer( 'active.json' );
 		$current_loader = $manager->read_pointer( 'loader-active.json' );
@@ -108,109 +121,28 @@ defined( 'ABSPATH' ) || exit;
 	}
 
 	/**
-	 * §7.2.9 / قاعدة تسليم الدفعة 3: منح capability إدارة HAL الافتراضي
-	 * لدور administrator بشكل idempotent بعد اكتمال التثبيت البنيوي
-	 * (root anchor). فحوص الـruntime تستخدم الـcapability فقط ولا تفحص
-	 * أسماء الأدوار (قرار المالك §2.3). البيئات المعزولة بلا roles API
-	 * (harnesses) تُتخطى بأمان — WordPress الحقيقي يملك get_role دائمًا.
+	 * Delegating wrapper (reflective harness compatibility): the logic
+	 * lives in HAL_Frontend_Dashboard_Site_Provisioner. See its docblock
+	 * for the §7.2.9/batch-3 delivery rule. Loads the shared source on
+	 * demand so reflection-only contexts (installer file alone) work.
 	 */
 	private static function grant_default_capability(): void {
-		if ( ! function_exists( 'get_role' ) ) {
-			return;
+		if ( ! class_exists( 'HAL_Frontend_Dashboard_Site_Provisioner', false ) ) {
+			require_once __DIR__ . '/class-site-provisioner.php';
 		}
-		$role = get_role( 'administrator' );
-		if ( $role instanceof WP_Role && ! $role->has_cap( 'manage_hal_frontend_dashboard' ) ) {
-			$role->add_cap( 'manage_hal_frontend_dashboard' );
-		}
+		HAL_Frontend_Dashboard_Site_Provisioner::grant_default_capability();
 	}
 
 	/**
-	 * §7.2 بند 9 و§7.5: تسجيل/ربط صفحة Dashboard idempotently.
-	 * - مسؤول الموقع يثبت Page ID الـlegacy صراحةً في خيار
-	 *   hal_frontend_dashboard_page_id عبر WordPress Options API قبل activation.
-	 *   الخيار غير الصفري يُقبل فقط إذا أشار إلى WP_Post/page/publish|private؛
-	 *   القيمة غير الصالحة تفشل دون إنشاء صفحة ثانية.
-	 * - الخيار الصالح يُعاد (مسار ترقية legacy: لا صفحة ثانية أبدًا).
-	 * - وإلا: إنشاء صفحة مملوكة جديدة بعلامة meta داخلية، مع التحقق من
-	 *   نتيجة wp_insert_post() ثم إعادة قراءتها ثم تخزين الخيار.
-	 * - لا اختطاف slug: لا بحث عن أي صفحة موجودة — التكرار في slug
-	 *   يحسمه WordPress نفسه عند الإنشاء.
-	 * - أي تعذر → RuntimeException قبل إعلان الجاهزية (لا redirect عام).
+	 * Delegating wrapper (reflective harness compatibility): the logic
+	 * lives in HAL_Frontend_Dashboard_Site_Provisioner. See its docblock
+	 * for the §7.2/§7.5 contract. Loads the shared source on demand.
 	 */
 	private static function ensure_dashboard_page(): void {
-		$stored = function_exists( 'get_option' ) ? (int) get_option( self::PAGE_ID_OPTION, 0 ) : 0;
-		if ( $stored > 0 ) {
-			if ( ! self::is_usable_dashboard_page( $stored ) ) {
-				throw new RuntimeException( 'HAL_PAGE_ASSIGNED_ID_INVALID' );
-			}
-			return;
+		if ( ! class_exists( 'HAL_Frontend_Dashboard_Site_Provisioner', false ) ) {
+			require_once __DIR__ . '/class-site-provisioner.php';
 		}
-
-		if ( ! function_exists( 'wp_insert_post' ) || ! function_exists( 'update_option' ) || ! function_exists( 'get_post_meta' ) || ! function_exists( 'get_posts' ) ) {
-			throw new RuntimeException( 'HAL_PAGE_API_UNAVAILABLE' );
-		}
-		// Recover an owned page after an interrupted option write. A slug match
-		// cannot establish ownership, and multiple marked pages are ambiguous.
-		$marked = get_posts( array(
-			'post_type' => 'page', 'post_status' => array( 'publish', 'private' ),
-			'meta_key' => self::PAGE_META_KEY, 'meta_value' => '1',
-			'fields' => 'ids', 'posts_per_page' => 2,
-		) );
-		if ( ! is_array( $marked ) || count( $marked ) > 1 ) {
-			throw new RuntimeException( 'HAL_PAGE_OWNERSHIP_AMBIGUOUS' );
-		}
-		if ( 1 === count( $marked ) ) {
-			$owned_id = (int) reset( $marked );
-			if ( ! self::is_usable_dashboard_page( $owned_id ) ) {
-				throw new RuntimeException( 'HAL_PAGE_VERIFY_FAILED' );
-			}
-			self::link_dashboard_page( $owned_id );
-			return;
-		}
-
-		$new_id = wp_insert_post(
-			array(
-				'post_title'   => 'Dashboard',
-				'post_name'    => 'dashboard',
-				'post_type'    => 'page',
-				'post_status'  => 'publish',
-				'post_content' => '',
-				'meta_input'   => array( self::PAGE_META_KEY => '1' ),
-			),
-			true
-		);
-		if ( ( function_exists( 'is_wp_error' ) && is_wp_error( $new_id ) ) || (int) $new_id < 1 ) {
-			throw new RuntimeException( 'HAL_PAGE_CREATE_FAILED' );
-		}
-		$new_id = (int) $new_id;
-
-		if ( ! self::is_usable_dashboard_page( $new_id ) || '1' !== (string) get_post_meta( $new_id, self::PAGE_META_KEY, true ) ) {
-			throw new RuntimeException( 'HAL_PAGE_VERIFY_FAILED' );
-		}
-		self::link_dashboard_page( $new_id );
-	}
-
-	private static function link_dashboard_page( int $page_id ): void {
-		update_option( self::PAGE_ID_OPTION, $page_id, false );
-		if ( ! function_exists( 'get_option' ) || (int) get_option( self::PAGE_ID_OPTION, 0 ) !== $page_id ) {
-			throw new RuntimeException( 'HAL_PAGE_LINK_FAILED' );
-		}
-	}
-
-	/**
-	 * صلاحية صفحة الهدف: WP_Post من نوع page بحالة قابلة للعرض
-	 * (publish/private) — أي شيء آخر يعيد التهيئة لا الاختطاف.
-	 */
-	private static function is_usable_dashboard_page( int $page_id ): bool {
-		if ( $page_id < 1 || ! function_exists( 'get_post' ) ) {
-			return false;
-		}
-		$post = get_post( $page_id );
-		if ( ! $post instanceof WP_Post || 'page' !== $post->post_type ) {
-			return false;
-		}
-
-		return in_array( $post->post_status, array( 'publish', 'private' ), true );
+		HAL_Frontend_Dashboard_Site_Provisioner::ensure_dashboard_page();
 	}
 
 	private static function preflight(): void {
@@ -230,9 +162,9 @@ defined( 'ABSPATH' ) || exit;
 		if ( function_exists( 'get_filesystem_method' ) && 'direct' !== get_filesystem_method() ) {
 			throw new RuntimeException( 'HAL_PREFLIGHT_DIRECT_FILESYSTEM_REQUIRED' );
 		}
-		if ( is_multisite() ) {
-			throw new RuntimeException( 'HAL_PREFLIGHT_MULTISITE_UNSUPPORTED' );
-		}
+		// Simple Multisite (approved scope): the network shares one MU
+		// Runtime release and one update state; per-site setup runs below
+		// (network-wide loop or current site). No blanket refusal.
 		if ( 'https' !== strtolower( (string) wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) ) ) {
 			throw new RuntimeException( 'HAL_PREFLIGHT_HTTPS_REQUIRED' );
 		}

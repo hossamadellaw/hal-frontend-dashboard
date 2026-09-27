@@ -1330,7 +1330,7 @@ foreach ( array( '/mu-loader', '/includes', '/payload' ) as $w4_sub ) {
 @mkdir( $win_act_mu, 0777, true );
 copy( $project . '/mu-loader/hal-frontend-dashboard.php', $win_act_plugin . '/mu-loader/hal-frontend-dashboard.php' );
 copy( $project . '/mu-loader/loader-core.php', $win_act_plugin . '/mu-loader/loader-core.php' );
-foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php' ) as $w4_inc ) {
+foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php', 'class-site-provisioner.php' ) as $w4_inc ) {
 	copy( $project . '/includes/' . $w4_inc, $win_act_plugin . '/includes/' . $w4_inc );
 }
 // Runtime payload for the candidate release 5.0.0, signed with a fresh
@@ -1373,6 +1373,7 @@ $w4_carrier_map = array(
 	'includes/class-package-verifier.php' => $win_act_plugin . '/includes/class-package-verifier.php',
 	'includes/class-release-manager.php' => $win_act_plugin . '/includes/class-release-manager.php',
 	'includes/class-health-check.php' => $win_act_plugin . '/includes/class-health-check.php',
+	'includes/class-site-provisioner.php' => $win_act_plugin . '/includes/class-site-provisioner.php',
 	'payload/runtime-5.0.0.zip' => $w4_zip_path,
 	'payload/runtime-manifest.json' => $win_act_plugin . '/payload/runtime-manifest.json',
 	'payload/runtime-manifest.sig' => $win_act_plugin . '/payload/runtime-manifest.sig',
@@ -1477,7 +1478,7 @@ foreach ( array( '/mu-loader', '/includes', '/payload' ) as $w6_sub ) {
 @mkdir( $w6_mu, 0777, true );
 copy( $project . '/mu-loader/hal-frontend-dashboard.php', $w6_plugin . '/mu-loader/hal-frontend-dashboard.php' );
 copy( $project . '/mu-loader/loader-core.php', $w6_plugin . '/mu-loader/loader-core.php' );
-foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php' ) as $w6_inc ) {
+foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php', 'class-site-provisioner.php' ) as $w6_inc ) {
 	copy( $project . '/includes/' . $w6_inc, $w6_plugin . '/includes/' . $w6_inc );
 }
 // Broken-candidate payload: same release id 5.0.0 as the interrupted
@@ -1515,6 +1516,7 @@ $w6_carrier_map = array(
 	'includes/class-package-verifier.php' => $w6_plugin . '/includes/class-package-verifier.php',
 	'includes/class-release-manager.php' => $w6_plugin . '/includes/class-release-manager.php',
 	'includes/class-health-check.php' => $w6_plugin . '/includes/class-health-check.php',
+	'includes/class-site-provisioner.php' => $w6_plugin . '/includes/class-site-provisioner.php',
 	'payload/runtime-5.0.0.zip' => $w6_zip_path,
 	'payload/runtime-manifest.json' => $w6_plugin . '/payload/runtime-manifest.json',
 	'payload/runtime-manifest.sig' => $w6_plugin . '/payload/runtime-manifest.sig',
@@ -1616,7 +1618,7 @@ foreach ( array( '/mu-loader', '/includes', '/payload' ) as $act_sub ) {
 @mkdir( $act_mu, 0777, true );
 copy( $project . '/mu-loader/hal-frontend-dashboard.php', $act_plugin . '/mu-loader/hal-frontend-dashboard.php' );
 copy( $project . '/mu-loader/loader-core.php', $act_plugin . '/mu-loader/loader-core.php' );
-foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php' ) as $act_inc ) {
+foreach ( array( 'class-installer.php', 'class-package-verifier.php', 'class-release-manager.php', 'class-health-check.php', 'class-site-provisioner.php' ) as $act_inc ) {
 	copy( $project . '/includes/' . $act_inc, $act_plugin . '/includes/' . $act_inc );
 }
 
@@ -1669,6 +1671,7 @@ $act_carrier_map = array(
 	'includes/class-package-verifier.php' => $act_plugin . '/includes/class-package-verifier.php',
 	'includes/class-release-manager.php' => $act_plugin . '/includes/class-release-manager.php',
 	'includes/class-health-check.php' => $act_plugin . '/includes/class-health-check.php',
+	'includes/class-site-provisioner.php' => $act_plugin . '/includes/class-site-provisioner.php',
 	'payload/runtime-6.0.0.zip' => $act_zip_path,
 	'payload/runtime-manifest.json' => $act_plugin . '/payload/runtime-manifest.json',
 	'payload/runtime-manifest.sig' => $act_plugin . '/payload/runtime-manifest.sig',
