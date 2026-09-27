@@ -1,0 +1,130 @@
+name: Checks
+
+# HAL Frontend Dashboard — limited build+tests CI for main pushes and PRs.
+# No secrets, no signing, no packaging, no publish. Releases stay tag-only
+# (release.yml, on.push.tags v*). Reuses the same gates the release build
+# job enforces, so a green Checks run predicts the release pre-build gates.
+# Only first-party/offical code: actions/checkout pinned to full commit SHA
+# (same pin as release.yml); everything else is shell + preinstalled
+# runner tooling (php, node, composer).
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: hal-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Composer validate, locked install, audit, licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --strict --no-check-publish
+          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
+          composer audit --locked --no-dev
+          php -r '
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            $names = [];
+            foreach (array_merge($lock["packages"] ?? [], $lock["packages-dev"] ?? []) as $p) { $names[] = $p["name"] . " " . $p["version"]; }
+            $notices = file_get_contents("THIRD-PARTY-NOTICES.txt");
+            foreach ($names as $n) {
+              if (strpos($notices, explode(" ", $n)[0]) === false) { fwrite(STDERR, "checks:blocked:license_notice_missing ($n)\n"); exit(1); }
+            }
+            $composer = json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (!empty($composer["scripts"]) || !empty($composer["allow-plugins"])) {
+              fwrite(STDERR, "checks:blocked:composer_scripts_or_plugins_present\n"); exit(1);
+            }
+            echo "composer: " . count($names) . " locked packages covered by THIRD-PARTY-NOTICES.txt\n";
+          '
+          test ! -d vendor/yahnis-elsts/plugin-update-checker || echo 'puc locked copy present for runtime/vendor staging'
+
+      - name: php -l and node --check
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files '*.php' | while read -r f; do php -l "$f" >/dev/null || exit 1; done
+          echo 'php -l: all tracked PHP files pass'
+          git ls-files '*.js' | while read -r f; do node --check "$f" || exit 1; done
+          echo 'node --check: all tracked JS files pass'
+
+      - name: Full local test run
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in tests/php/*-test.php; do
+            echo "== php $t"
+            php -d extension=sodium "$t" || exit 1
+          done
+          for t in tests/js/*.test.js; do
+            echo "== node $t"
+            node "$t" || exit 1
+          done
+          for v in 7.0 7.1; do
+            echo "== AI contract matrix: WordPress $v"
+            HAL_WP_TARGET="$v" php -d extension=sodium tests/php/integration-health-test.php || exit 1
+          done
+
+      - name: Leakage scan, Docs ban, scope freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)Docs/' ; then
+            echo 'checks:blocked:docs_in_git_index' >&2
+            exit 1
+          fi
+          # ci.yml holds the literal pattern below, so it excludes itself;
+          # any other file matching is a genuine leak.
+          if grep -rInE --exclude-dir=.git --exclude-dir=node_modules --exclude='ci.yml' \
+            -e 'BEGIN [A-Z ]*PRIVATE KEY' -e 'ghp_[A-Za-z0-9]+' -e 'github_pat_' \
+            -e 'xox[bpas]-' -e 'AKIA[0-9A-Z]{16}' . ; then
+            echo 'checks:blocked:secret_leakage' >&2
+            exit 1
+          fi
+          if grep -rInE --include='*.php' --include='*.js' --include='*.json' \
+            -e 'D:\\' -e '/home/[a-z]' hal-frontend-dashboard.php includes mu-loader runtime tests build ; then
+            echo 'checks:blocked:local_path_leakage' >&2
+            exit 1
+          fi
+          git ls-files | cut -d/ -f1 | sort -u > /tmp/tracked_roots.txt
+          cat > /tmp/allowed_roots.txt <<'EOF'
+          .github
+          .gitignore
+          LICENSE
+          SECURITY.md
+          THIRD-PARTY-NOTICES.txt
+          build
+          composer.json
+          composer.lock
+          hal-frontend-dashboard.php
+          includes
+          mu-loader
+          readme.txt
+          runtime
+          tests
+          EOF
+          if ! diff -u /tmp/allowed_roots.txt /tmp/tracked_roots.txt; then
+            echo 'checks:blocked:scope_freeze (new top-level path needs a Change Request)' >&2
+            exit 1
+          fi
+          echo 'gates: leakage/Docs/scope pass'
