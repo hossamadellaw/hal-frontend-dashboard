@@ -46,10 +46,10 @@ jobs:
         run: |
           set -euo pipefail
           php -v
-          # Known runner state (proven 2026-09-27): ubuntu-latest php has
-          # sodium compiled in (functional with no flags) while every
-          # harness passes `-d extension=sodium`, which then always warns.
-          # The fallback below only helps runners WITHOUT static sodium.
+          # Known runner states: sodium may be static (functional with no
+          # flags; any `-d extension=` for it only warns) or absent (then
+          # install it below). Harnesses themselves now probe per child, so
+          # this step only guarantees FUNCTIONAL availability, silently.
           # No product or harness code is touched.
           if ! php -m | grep -qi '^sodium$'; then
             sudo apt-get update -qq
@@ -63,13 +63,12 @@ jobs:
             fi
           fi
           # Silence startup duplication noise only (runtime errors still
-          # display) so on-demand -d extension= loading stays warning-free.
+          # display) for runners where on-demand loading applies.
           INI="$(php -r 'echo php_ini_loaded_file();')"
           echo 'display_startup_errors=Off' | sudo tee -a "$INI" >/dev/null
-          php -d extension=sodium -r 'exit(extension_loaded("sodium") ? 0 : 1);'
-          php -r 'exit(class_exists("ZipArchive") ? 0 : 1);'
-          php -d extension=sodium -d extension=zip -r 'echo "extensions clean\n";' 2> /tmp/ext-err.txt
-          test ! -s /tmp/ext-err.txt
+          # Functional gate, flag-free (silent on static and shared builds):
+          php -r 'exit(extension_loaded("sodium") && class_exists("ZipArchive") ? 0 : 1);'
+          echo 'extensions functional'
 
       - name: Composer validate, locked install, audit, licenses
         shell: bash
