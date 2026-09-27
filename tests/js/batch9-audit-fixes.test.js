@@ -40,6 +40,7 @@ const legacyAssets = path.resolve(projectRoot, '..', '..', 'dashboard', 'Dahboar
 
 let passCount = 0;
 let failCount = 0;
+let skipCount = 0;
 const failures = [];
 
 function check(id, ok, pass, fail) {
@@ -52,6 +53,18 @@ function check(id, ok, pass, fail) {
     console.log(`FAIL [${id}] ${fail}`);
   }
 }
+
+/**
+ * Loud skip (never a PASS): used ONLY when the exclusive legacy reference
+ * root is absent (e.g. CI runners). Deferred to runs with the reference
+ * tree. Skipped is not passed.
+ */
+function skip(id, reason) {
+  skipCount += 1;
+  console.log(`SKIP [${id}] ${reason}`);
+}
+
+const LEGACY_PRESENT = fs.existsSync(legacyAssets);
 
 function makeNode(extra = {}) {
   const node = {
@@ -335,12 +348,24 @@ function testCssCoversFragments(renderedJson) {
     `dashboard.css equals the legacy source except the single documented [B9-U1] utility rule (runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
     'dashboard.css diverges from legacy beyond the documented [B9-U1] rule');
 
+  testCssUrlsOnly();
+  testCssClassCoverage(renderedJson, runtimeCss);
+}
+
+function testCssUrlsOnly() {
+  const runtimeCss = fs.readFileSync(path.join(projectRoot, 'runtime', 'assets', 'css', 'dashboard.css'), 'utf8');
   const urls = [...runtimeCss.matchAll(/url\(\s*([^)]+)\)/g)].map((m) => m[1].trim().replace(/^['"]|['"]$/g, ''));
+  checkUrlsDataOnly(urls);
+}
+
+function checkUrlsDataOnly(urls) {
   check('B9F-6-css-urls-data-only',
     urls.length > 0 && urls.every((u) => u.startsWith('data:')),
     `all ${urls.length} url() references inside dashboard.css are data: URIs (no file URLs to break in the release)`,
     `non-data url() found: ${JSON.stringify(urls.slice(0, 3))}`);
+}
 
+function testCssClassCoverage(renderedJson, runtimeCss) {
   const classes = new Set();
   for (const fragment of JSON.parse(renderedJson)) {
     for (const m of String(fragment).matchAll(/class="([^"]+)"/g)) {
@@ -376,11 +401,18 @@ function testEnqueueServesReleaseOnly() {
   await testDeleteReloadsView();
   testMalformedHash();
   testValidHashStillRoutes();
-  const rendered = testRenderEquivalence();
-  testCssCoversFragments(rendered);
+  if (!LEGACY_PRESENT) {
+    skip('B9F-4-render-identical', 'exclusive legacy root absent — render equivalence deferred to runs with the reference tree');
+    skip('B9F-5-css-delta-only', 'exclusive legacy root absent — css delta proof deferred to runs with the reference tree');
+    testCssUrlsOnly();
+    skip('B9F-7-css-covers-rendered-classes', 'exclusive legacy root absent — class coverage over compared fragments deferred to runs with the reference tree');
+  } else {
+    const rendered = testRenderEquivalence();
+    testCssCoversFragments(rendered);
+  }
   testEnqueueServesReleaseOnly();
 
-  console.log(`B9F RESULT: ${passCount} pass, ${failCount} fail (node ${process.version})`);
+  console.log(`B9F RESULT: ${passCount} pass, ${skipCount} skipped (legacy root absent — comparison only, never passed), ${failCount} fail (node ${process.version})`);
   if (failCount > 0) {
     console.log('Failures:\n' + failures.join('\n'));
     process.exit(1);

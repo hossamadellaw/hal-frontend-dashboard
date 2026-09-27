@@ -38,6 +38,10 @@
  *             HAL text fallback and contains no fixed logo file path.
  *
  * Usage:  php tests/php/batch9-assets-test.php     (exit 0 = all pass)
+ *
+ * Legacy-absent mode (e.g. CI runners without the exclusive reference
+ * tree): live-legacy comparisons SKIP loudly (never PASS); committable
+ * inventory proxies run as B9-B1b checks. Skipped is not passed.
  */
 
 error_reporting( E_ALL );
@@ -140,6 +144,7 @@ define(
 $GLOBALS['B9_PASS'] = 0;
 $GLOBALS['B9_FAIL'] = 0;
 $GLOBALS['B9_FAILS'] = array();
+$GLOBALS['B9_SKIP'] = 0;
 
 function b9_check( string $id, bool $ok, string $pass, string $fail ): void {
 	if ( $ok ) {
@@ -151,6 +156,20 @@ function b9_check( string $id, bool $ok, string $pass, string $fail ): void {
 		echo "FAIL [{$id}] {$fail}\n";
 	}
 }
+
+/**
+ * Loud skip (never a PASS): used ONLY when the exclusive legacy reference
+ * root is absent (e.g. CI runners). The live-legacy comparison is then
+ * deferred to runs with the reference tree; committable inventory proxies
+ * run as separate B9-B1b checks. Skipped is not passed.
+ */
+function b9_skip( string $id, string $reason ): void {
+	$GLOBALS['B9_SKIP']++;
+	echo "SKIP [{$id}] {$reason}\n";
+}
+
+/* Exclusive legacy root presence gate (missing on CI runners by design). */
+$B9_LEGACY = is_dir( dirname( $GLOBALS['B9_PROJECT'], 2 ) . '/dashboard/Dahboard-v-1.0.0' );
 
 /* ════════════════════════════════════════════════════════════════
  * Load the REAL i18n and REAL setup, then run the REAL enqueue closure
@@ -171,7 +190,7 @@ b9_check( 'B9-LOAD-real-setup', null !== $enqueue_cb,
 	'real setup.php did not register the expected enqueue closure' );
 
 if ( null === $enqueue_cb ) {
-	echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_FAIL']} fail\n";
+	echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_SKIP']} skipped, {$GLOBALS['B9_FAIL']} fail\n";
 	exit( 1 );
 }
 $enqueue_cb();
@@ -254,11 +273,23 @@ $fallbacks_present = false !== strpos( $members_src, "t('contractError','Invalid
 	&& false !== strpos( $uploads_src, "t('loadFailed','Could not load files.')" );
 
 $legacy_i18n_path = dirname( $GLOBALS['B9_PROJECT'], 2 ) . '/dashboard/Dahboard-v-1.0.0/mu-plugins/hossam-dashboard/core/i18n.php';
-$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
-$legacy_same_gap = '' !== $legacy_i18n
-	&& false === strpos( $legacy_i18n, 'contractError' )
-	&& false === strpos( $legacy_i18n, 'loadFailed' )
-	&& false === strpos( $legacy_i18n, 'requestFailed' );
+if ( ! $B9_LEGACY ) {
+	b9_check( 'B9-I1b-fallback-only-set-nolegacy',
+		$expected_fallback_only === $undefined && $fallbacks_present,
+		'the only t() keys without an i18n entry are contractError/loadFailed/requestFailed with inline fallbacks (live-legacy gap cross-check skipped: root absent)',
+		'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) );
+	b9_skip( 'B9-I1b-fallback-only-set-exact', 'exclusive legacy root absent — live-legacy gap equivalence deferred to runs with the reference tree' );
+} else {
+	$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
+	$legacy_same_gap = '' !== $legacy_i18n
+		&& false === strpos( $legacy_i18n, 'contractError' )
+		&& false === strpos( $legacy_i18n, 'loadFailed' )
+		&& false === strpos( $legacy_i18n, 'requestFailed' );
+	b9_check( 'B9-I1b-fallback-only-set-exact',
+		$expected_fallback_only === $undefined && $fallbacks_present && $legacy_same_gap,
+		'the only t() keys without an i18n entry are contractError/loadFailed/requestFailed, each carries its inline fallback in members.js/uploads.js, and the legacy i18n has the same gap (equivalence, not drift)',
+		'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) . ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
+}
 
 // Split assertions so each failure is actionable:
 $shared_keys = array( 'networkError', 'fallbackNotice', 'loadMore', 'retry', 'noFiles', 'noMembers', 'confirmTrashArticle', 'confirmDeleteFile', 'fileUploaded' );
@@ -271,10 +302,6 @@ foreach ( $shared_keys as $key ) {
 b9_check( 'B9-I1a-defined-keys', array() === $shared_missing,
 	'the shared/known t() keys used by the shipped files are used and defined in the real i18n map',
 	'shared i18n keys missing from use or from the real map: ' . json_encode( $shared_missing ) );
-b9_check( 'B9-I1b-fallback-only-set-exact',
-	$expected_fallback_only === $undefined && $fallbacks_present && $legacy_same_gap,
-	'the only t() keys without an i18n entry are contractError/loadFailed/requestFailed, each carries its inline fallback in members.js/uploads.js, and the legacy i18n has the same gap (equivalence, not drift)',
-	'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) . ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
 
 /* ── BYTE identity vs exclusive source and batch-9 inventory ───── */
 
@@ -295,6 +322,16 @@ $mappings = array(
 );
 
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
+	if ( ! $B9_LEGACY ) {
+		$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+		$inv      = $inv_by_path[ $legacy_rel ] ?? null;
+		b9_check( 'B9-B1b-runtime-matches-inventory-' . basename( $legacy_rel ),
+			null !== $inv && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+			"{$runtime_rel} shows no drift since the verified migration (inventory hash) — live-legacy byte comparison skipped: root absent",
+			"{$runtime_rel}: dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
+		b9_skip( 'B9-B1-byte-identity-' . basename( $legacy_rel ), 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
+		continue;
+	}
 	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
@@ -317,10 +354,18 @@ $audit_deltas = array(
 
 foreach ( $audit_deltas as $legacy_rel => $pair ) {
 	list( $runtime_rel, $marker ) = $pair;
+	$dst_src  = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+	if ( ! $B9_LEGACY ) {
+		b9_check( 'B9-B1b-delta-marker-' . basename( $legacy_rel ),
+			false !== strpos( $dst_src, '[' . $marker . ']' ),
+			"{$runtime_rel} carries the documented audit marker [{$marker}] (source-side provenance skipped: root absent)",
+			"{$runtime_rel}: marker [{$marker}] missing in runtime" );
+		b9_skip( 'B9-B1-audit-delta-' . basename( $legacy_rel ), 'exclusive legacy root absent — source-side provenance deferred to runs with the reference tree' );
+		continue;
+	}
 	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
-	$dst_src  = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
 	$leg_src  = (string) file_get_contents( $source_root . '/' . $legacy_rel );
 	b9_check( 'B9-B1-audit-delta-' . basename( $legacy_rel ),
 		null !== $inv && $src_hash === $inv['sha256'] && (int) filesize( $source_root . '/' . $legacy_rel ) === (int) $inv['bytes']
@@ -418,7 +463,7 @@ b9_check( 'B9-L1-shell-logo-contract',
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
-echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_SKIP']} skipped (legacy root absent — inventory-proxy only, never passed), {$GLOBALS['B9_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
 if ( $GLOBALS['B9_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B9_FAILS'] ) . "\n";
 	exit( 1 );

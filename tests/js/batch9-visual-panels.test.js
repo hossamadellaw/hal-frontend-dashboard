@@ -57,6 +57,7 @@ const legacyTheme = path.resolve(projectRoot, '..', '..', 'dashboard', 'Dahboard
 
 let passCount = 0;
 let failCount = 0;
+let skipCount = 0;
 const failures = [];
 
 function check(id, ok, pass, fail) {
@@ -69,6 +70,18 @@ function check(id, ok, pass, fail) {
     console.log(`FAIL [${id}] ${fail}`);
   }
 }
+
+/**
+ * Loud skip (never a PASS): the whole suite compares the exclusive legacy
+ * tree against the migrated tree, so without the legacy root nothing
+ * committable remains to assert. Deferred to runs with the reference tree.
+ */
+function skip(id, reason) {
+  skipCount += 1;
+  console.log(`SKIP [${id}] ${reason}`);
+}
+
+const LEGACY_PRESENT = fs.existsSync(legacyTheme);
 
 /* ── Identical preprocessing for both trees ─────────────────────── */
 
@@ -283,6 +296,11 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
 /* ── Run ────────────────────────────────────────────────────────── */
 
 (function main() {
+  if (!LEGACY_PRESENT) {
+    skip('B9V-visual-equivalence', 'exclusive legacy root absent — 12 panels + shell legacy-vs-runtime comparison deferred to runs with the reference tree');
+    console.log(`B9V RESULT: ${passCount} pass, ${skipCount} skipped (legacy root absent — comparison only, never passed), ${failCount} fail (node ${process.version})`);
+    process.exit(failCount > 0 ? 1 : 0);
+  }
   const legacyCss = fs.readFileSync(path.join(legacyTheme, 'assets/css/dashboard.css'), 'utf8');
   const runtimeCss = fs.readFileSync(path.join(projectRoot, 'runtime/assets/css/dashboard.css'), 'utf8');
   const legacyRules = parseRules(legacyCss);
@@ -302,7 +320,7 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   for (const o of checkUnit('shell', refShell, migShell, legacyRules, runtimeRules)) { allOrphans.add(o); }
 
   console.log(`INFO union residual orphans across 12 panels + shell: [${[...allOrphans].sort().join(', ') || 'none'}]`);
-  console.log(`B9V RESULT: ${passCount} pass, ${failCount} fail (node ${process.version})`);
+  console.log(`B9V RESULT: ${passCount} pass, ${skipCount} skipped (legacy root absent — comparison only, never passed), ${failCount} fail (node ${process.version})`);
   if (failCount > 0) {
     console.log('Failures:\n' + failures.join('\n'));
     process.exit(1);

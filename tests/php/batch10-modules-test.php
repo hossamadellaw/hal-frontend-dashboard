@@ -38,6 +38,10 @@
  *             facet lives in tests/js/batch10-modules.test.js).
  *
  * Usage:  php tests/php/batch10-modules-test.php     (exit 0 = all pass)
+ *
+ * Legacy-absent mode (e.g. CI runners without the exclusive reference
+ * tree): live-legacy comparisons SKIP loudly (never PASS); committable
+ * inventory proxies run as B10-B1b checks. Skipped is not passed.
  */
 
 error_reporting( E_ALL );
@@ -140,6 +144,7 @@ define(
 $GLOBALS['B10_PASS'] = 0;
 $GLOBALS['B10_FAIL'] = 0;
 $GLOBALS['B10_FAILS'] = array();
+$GLOBALS['B10_SKIP'] = 0;
 
 function b10_check( string $id, bool $ok, string $pass, string $fail ): void {
 	if ( $ok ) {
@@ -151,6 +156,20 @@ function b10_check( string $id, bool $ok, string $pass, string $fail ): void {
 		echo "FAIL [{$id}] {$fail}\n";
 	}
 }
+
+/**
+ * Loud skip (never a PASS): used ONLY when the exclusive legacy reference
+ * root is absent (e.g. CI runners). The live-legacy comparison is then
+ * deferred to runs with the reference tree; committable inventory proxies
+ * run as separate B10-B1b checks. Skipped is not passed.
+ */
+function b10_skip( string $id, string $reason ): void {
+	$GLOBALS['B10_SKIP']++;
+	echo "SKIP [{$id}] {$reason}\n";
+}
+
+/* Exclusive legacy root presence gate (missing on CI runners by design). */
+$B10_LEGACY = is_dir( dirname( $GLOBALS['B10_PROJECT'], 2 ) . '/dashboard/Dahboard-v-1.0.0' );
 
 /**
  * Strip JS comments (block + line) so static string checks cannot be
@@ -332,19 +351,28 @@ b10_check( 'B10-I1a-defined-keys', array() === $shared_missing,
 	'shared i18n keys missing from use or from the real map: ' . json_encode( $shared_missing ) );
 
 $legacy_i18n_path = dirname( $GLOBALS['B10_PROJECT'], 2 ) . '/dashboard/Dahboard-v-1.0.0/mu-plugins/hossam-dashboard/core/i18n.php';
-$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
-$legacy_same_gap = '' !== $legacy_i18n;
-foreach ( $expected_fallback_only as $key ) {
-	if ( false !== strpos( $legacy_i18n, "'" . $key . "'" ) ) {
-		$legacy_same_gap = false;
+if ( ! $B10_LEGACY ) {
+	b10_check( 'B10-I1b-fallback-set-nolegacy',
+		$expected_fallback_only === $undefined && array() === $fallbacks_missing,
+		'the only t() keys without an i18n entry are the exact 13-key set with inline fallbacks (live-legacy gap cross-check skipped: root absent)',
+		'unexpected i18n gap: undefined=' . json_encode( $undefined )
+			. ' fallbacks_missing=' . json_encode( $fallbacks_missing ) );
+	b10_skip( 'B10-I1b-fallback-only-set-exact', 'exclusive legacy root absent — live-legacy gap equivalence deferred to runs with the reference tree' );
+} else {
+	$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
+	$legacy_same_gap = '' !== $legacy_i18n;
+	foreach ( $expected_fallback_only as $key ) {
+		if ( false !== strpos( $legacy_i18n, "'" . $key . "'" ) ) {
+			$legacy_same_gap = false;
+		}
 	}
+	b10_check( 'B10-I1b-fallback-only-set-exact',
+		$expected_fallback_only === $undefined && array() === $fallbacks_missing && $legacy_same_gap,
+		'the only t() keys without an i18n entry are the exact 13-key set, each carries its inline fallback at its call sites (comment-stripped), and the legacy i18n has the same gap (equivalence, not drift)',
+		'unexpected i18n gap: undefined=' . json_encode( $undefined )
+			. ' fallbacks_missing=' . json_encode( $fallbacks_missing )
+			. ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
 }
-b10_check( 'B10-I1b-fallback-only-set-exact',
-	$expected_fallback_only === $undefined && array() === $fallbacks_missing && $legacy_same_gap,
-	'the only t() keys without an i18n entry are the exact 13-key set, each carries its inline fallback at its call sites (comment-stripped), and the legacy i18n has the same gap (equivalence, not drift)',
-	'unexpected i18n gap: undefined=' . json_encode( $undefined )
-		. ' fallbacks_missing=' . json_encode( $fallbacks_missing )
-		. ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
 
 /* ── BYTE identity vs exclusive source and batch-10 inventory ───── */
 
@@ -367,6 +395,16 @@ $mappings = array(
 );
 
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
+	if ( ! $B10_LEGACY ) {
+		$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+		$inv      = $inv_by_path[ $legacy_rel ] ?? null;
+		b10_check( 'B10-B1b-runtime-matches-inventory-' . basename( $legacy_rel ),
+			null !== $inv && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+			"{$runtime_rel} shows no drift since the verified migration (inventory hash) — live-legacy byte comparison skipped: root absent",
+			"{$runtime_rel}: dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
+		b10_skip( 'B10-B1-byte-identity-' . basename( $legacy_rel ), 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
+		continue;
+	}
 	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
@@ -388,10 +426,18 @@ $audit_deltas = array(
 
 foreach ( $audit_deltas as $legacy_rel => $pair ) {
 	list( $runtime_rel, $marker ) = $pair;
+	$dst_src  = (string) file_get_contents( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+	if ( ! $B10_LEGACY ) {
+		b10_check( 'B10-B1b-delta-marker-' . basename( $legacy_rel ),
+			false !== strpos( $dst_src, '[' . $marker . ']' ),
+			"{$runtime_rel} carries the documented audit marker [{$marker}] (source-side provenance skipped: root absent)",
+			"{$runtime_rel}: marker [{$marker}] missing in runtime" );
+		b10_skip( 'B10-B1-audit-delta-' . basename( $legacy_rel ), 'exclusive legacy root absent — source-side provenance deferred to runs with the reference tree' );
+		continue;
+	}
 	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
-	$dst_src  = (string) file_get_contents( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
 	$leg_src  = (string) file_get_contents( $source_root . '/' . $legacy_rel );
 	b10_check( 'B10-B1-audit-delta-' . basename( $legacy_rel ),
 		null !== $inv && $src_hash === $inv['sha256'] && (int) filesize( $source_root . '/' . $legacy_rel ) === (int) $inv['bytes']
@@ -491,7 +537,7 @@ b10_check( 'B10-S1-ai-no-strategy-or-secret-surface',
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
-echo "B10 RESULT: {$GLOBALS['B10_PASS']} pass, {$GLOBALS['B10_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+echo "B10 RESULT: {$GLOBALS['B10_PASS']} pass, {$GLOBALS['B10_SKIP']} skipped (legacy root absent — inventory-proxy only, never passed), {$GLOBALS['B10_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
 if ( $GLOBALS['B10_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B10_FAILS'] ) . "\n";
 	exit( 1 );
