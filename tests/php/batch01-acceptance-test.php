@@ -1196,11 +1196,37 @@ function wp_remote_post( $url, $args ) {
 		'HAL_BOOT_MU' => WPMU_PLUGIN_DIR,
 		'HAL_BOOT_HANDOFF' => $handoff,
 	) );
+	// Mirror of tests/php/lib-hal-php-flags.php, inlined: generated
+	// drivers must stay standalone (no harness require). PHP startup
+	// dlopen warnings land on STDOUT and would corrupt the JSON ack body,
+	// so redundant load flags are dropped only when the child runtime
+	// already provides the extension; never added.
+	$probe_base = array( PHP_BINARY, '-n',
+		'-d', 'extension_dir=' . ( getenv( 'HAL_PHP_EXT_DIR' ) ?: ini_get( 'extension_dir' ) ),
+	);
+	$have_sodium = $have_zip = false;
+	$probe_proc = @proc_open( array_merge( $probe_base, array( '-r', 'echo extension_loaded("sodium") ? "S1" : "S0"; echo class_exists("ZipArchive") ? "Z1" : "Z0";' ) ), array( 1 => array( 'pipe', 'w' ), 2 => array( 'pipe', 'w' ) ), $probe_pipes );
+	if ( is_resource( $probe_proc ) ) {
+		$probe_out = (string) stream_get_contents( $probe_pipes[1] );
+		fclose( $probe_pipes[1] );
+		fclose( $probe_pipes[2] );
+		if ( 0 === proc_close( $probe_proc ) ) {
+			$have_sodium = false !== strpos( $probe_out, 'S1' );
+			$have_zip = false !== strpos( $probe_out, 'Z1' );
+		}
+	}
 	$cmd = array( PHP_BINARY, '-n',
 		'-d', 'extension_dir=' . ( getenv( 'HAL_PHP_EXT_DIR' ) ?: ini_get( 'extension_dir' ) ),
-		'-d', 'extension=sodium', '-d', 'extension=zip',
-		$requester,
 	);
+	if ( ! $have_sodium ) {
+		$cmd[] = '-d';
+		$cmd[] = 'extension=sodium';
+	}
+	if ( ! $have_zip ) {
+		$cmd[] = '-d';
+		$cmd[] = 'extension=zip';
+	}
+	$cmd[] = $requester;
 	$proc = proc_open( $cmd, array( 1 => array( 'pipe', 'w' ), 2 => array( 'pipe', 'w' ) ), $pipes, null, $env );
 	if ( ! is_resource( $proc ) ) {
 		return array( 'code' => 500, 'body' => '' );
