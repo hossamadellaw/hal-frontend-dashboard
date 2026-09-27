@@ -349,9 +349,37 @@ if ( ! function_exists( 'did_action' ) ) {
 }
 if ( ! function_exists( 'apply_filters' ) ) {
 	function apply_filters( string $hook, $value, ...$args ) {
+		foreach ( $GLOBALS['MS_FILTER_HOOKS'][ $hook ] ?? array() as $cb ) {
+			$value = $cb( $value );
+		}
 		return $value;
 	}
 }
+if ( ! function_exists( 'absint' ) ) {
+	function absint( $value ): int {
+		return abs( (int) $value );
+	}
+}
+if ( ! function_exists( 'has_filter' ) ) {
+	function has_filter( string $hook, $callback = false ): bool {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_permalink' ) ) {
+	function get_permalink( $id ): string {
+		$host = 1 === get_current_blog_id() ? 'https://one.test' : 'https://two.test';
+		return $host . '/?p=' . (int) $id;
+	}
+}
+if ( ! function_exists( 'get_page_by_path' ) ) {
+	function get_page_by_path( string $slug ) {
+		if ( 1 === get_current_blog_id() && 'hello' === $slug ) {
+			return (object) array( 'ID' => 55 );
+		}
+		return null;
+	}
+}
+$GLOBALS['MS_FILTER_HOOKS'] = array();
 
 /* ── Per-blog $wpdb with SHOW emulation (mirrors batch2 B2C_WPDB shape) ── */
 
@@ -678,6 +706,65 @@ ms_check(
 		&& '' !== $ver1 && '' !== $ver2,
 	'messages tables are blog-prefixed per site (shared DB sees both names) with independent schema versions',
 	'tables: ' . json_encode( $tables1 ) . ' / ' . json_encode( $tables2 )
+);
+
+/* ── M3b: per-blog caches on URL/table/profile paths ── */
+
+require_once $project . '/runtime/adapters/wpml.php';
+require_once $project . '/runtime/adapters/amelia.php';
+require_once $project . '/runtime/core/setup.php';
+$GLOBALS['wpdb']->ms_record_table( 'wp_amelia_appointments', array( 'id' ), array( 'PRIMARY' ) );
+$ms_url1 = $ms_url2 = null;
+switch_to_blog( 1 );
+$ms_url1 = hossam_dashboard_url();
+$ms_url1_again = hossam_dashboard_url();
+$ms_wpml1 = hossam_wpml_url( 'hello' );
+$ms_byid1 = hossam_wpml_url_by_id( 101 );
+$ms_amelia1 = hossam_amelia_table_exists( 'amelia_appointments' );
+switch_to_blog( 2 );
+$ms_url2 = hossam_dashboard_url();
+$ms_wpml2 = hossam_wpml_url( 'hello' );
+$ms_byid2 = hossam_wpml_url_by_id( 101 );
+$ms_amelia2 = hossam_amelia_table_exists( 'amelia_appointments' );
+$ms_amelia_bad = hossam_amelia_table_exists( 'nope' );
+switch_to_blog( 1 );
+$ms_amelia1_again = hossam_amelia_table_exists( 'amelia_appointments' );
+restore_current_blog();
+ms_check(
+	'M3b-url-caches',
+	'https://one.test/?p=101' === $ms_url1 && 'https://two.test/?p=101' === $ms_url2
+		&& $ms_url1 === $ms_url1_again
+		&& false !== strpos( $ms_wpml1, 'https://one.test' ) && 'https://example.test/hello/' === $ms_wpml2
+		&& 'https://one.test/?p=101' === $ms_byid1 && 'https://two.test/?p=101' === $ms_byid2,
+	'dashboard/adapter URLs resolve per blog and stay stable on repeat calls',
+	"urls: {$ms_url1} / {$ms_url2} / {$ms_wpml1} / {$ms_wpml2} / {$ms_byid1} / {$ms_byid2}"
+);
+ms_check(
+	'M3b-table-cache',
+	true === $ms_amelia1 && false === $ms_amelia2 && true === $ms_amelia1_again && false === $ms_amelia_bad,
+	'table existence is cached per blog (present on blog 1 only, stable, unknown suffix rejected)',
+	"amelia: b1={$ms_amelia1} b2={$ms_amelia2} b1again={$ms_amelia1_again}"
+);
+$GLOBALS['MS_FILTER_HOOKS']['hossam_ai_runtime_profile'][] = static function ( $profile ) {
+	$base = array( 'per_minute' => 60, 'per_day' => 1000, 'concurrent' => 5, 'max_attempts' => 3, 'stale_pending' => 60, 'processing_deadline' => 300, 'wp_ai_client_timeout' => 10, 'direct_key_timeout' => 10 );
+	if ( 2 === get_current_blog_id() ) {
+		$base['per_minute'] = 120;
+	}
+	return $base;
+};
+switch_to_blog( 1 );
+$ms_prof1 = hossam_ai_get_runtime_profile();
+$ms_prof1_again = hossam_ai_get_runtime_profile();
+switch_to_blog( 2 );
+$ms_prof2 = hossam_ai_get_runtime_profile();
+restore_current_blog();
+ms_check(
+	'M3b-profile-cache',
+	is_array( $ms_prof1 ) && is_array( $ms_prof2 )
+		&& 60 === ( $ms_prof1['per_minute'] ?? null ) && 120 === ( $ms_prof2['per_minute'] ?? null )
+		&& $ms_prof1 === $ms_prof1_again,
+	'AI runtime profile snapshots per blog (60 vs 120) and stay stable on repeat calls',
+	'profile: ' . json_encode( $ms_prof1 ) . ' / ' . json_encode( $ms_prof2 )
 );
 
 /* ── M4: capabilities — super admin vs site admin; auto-update gate ── */
