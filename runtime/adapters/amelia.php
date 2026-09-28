@@ -446,11 +446,16 @@ add_action( 'plugins_loaded', function(): void {
 			return $current_user_id === $employee_id ? true : $authenticated;
 		}
 
+		// MS-02: per-site cache key — $wpdb->prefix already follows
+		// switch_to_blog(), so the static map must too; keying by
+		// employee_id alone accepted site 2 on site 1's binding.
 		static $employee_users = [];
-		if ( ! array_key_exists( $employee_id, $employee_users ) ) {
+		$auth_blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$auth_cache_key = $auth_blog_id . "\0" . $employee_id;
+		if ( ! array_key_exists( $auth_cache_key, $employee_users ) ) {
 			global $wpdb;
 			$table = $wpdb->prefix . 'amelia_employees';
-			$employee_users[ $employee_id ] = (int) $wpdb->get_var(
+			$employee_users[ $auth_cache_key ] = (int) $wpdb->get_var(
 				$wpdb->prepare(
 					"SELECT externalId FROM {$table} WHERE id = %d LIMIT 1",
 					$employee_id
@@ -461,7 +466,7 @@ add_action( 'plugins_loaded', function(): void {
 			}
 		}
 
-		return $employee_users[ $employee_id ] > 0 && $employee_users[ $employee_id ] === $current_user_id
+		return $employee_users[ $auth_cache_key ] > 0 && $employee_users[ $auth_cache_key ] === $current_user_id
 			? true
 			: $authenticated;
 	};

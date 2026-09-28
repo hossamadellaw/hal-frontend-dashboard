@@ -1212,6 +1212,11 @@ b11c_check(
 /* ════════════════ SIGNER: the ACTUAL workflow command (item 2) ════════════════ */
 
 $workflow = (string) file_get_contents($PROJECT . '/.github/workflows/release.yml');
+// CRLF checkout normalization, in memory only: the workflow file itself is
+// untouched, and the extraction assertions below are unchanged. Without it,
+// `$`-anchored and `\n`-literal patterns miss on Windows checkouts.
+$workflow = str_replace("\r\n", "\n", $workflow);
+$workflow = str_replace("\r", "\n", $workflow);
 // YAML literal blocks dedent by the common indent: a `PHP` terminator at
 // the block indent becomes column 0 in the executed script, which is what
 // bash `<<'PHP'` requires. Prove that shape on the dedented text.

@@ -410,38 +410,67 @@ b12c_check(
 
 /* ════════════════ KEEP — B12-5 ════════════════ */
 
-/* gitignored-or-absent probe: protected paths stay out of git so no
-   update/rollback can delete them from history; on fresh checkouts their
-   absence is by design, not deletion. */
-function b12c_ignored_or_absent(string $rel): bool {
-    global $PROJECT;
-    if (!file_exists($PROJECT . '/' . $rel)) { return true; }
+/* CI-02: presence and git-protection are separate questions. Only a run
+   WITH the reference tree may assert that protected references are
+   still present — and then absence must FAIL, never PASS as present.
+   HAL_B12_DOCS_DIR overrides the Docs presence probe for that proof
+   only; default behavior is unchanged.
+   Proven subtlety (CI run 36465615157): `git check-ignore` cannot match
+   dir-only rules (e.g. `/Docs/`) for an ABSENT path, so absence is
+   proven via the index instead (`git ls-files` empty), while a PRESENT
+   path must additionally match an ignore rule. */
+function b12c_is_tracked(string $rel): bool {
+    $out = array(); $code = 1;
+    @exec('git ls-files -- ' . escapeshellarg($rel) . ' 2>&1', $out, $code);
+    if (0 !== $code) { return true; }
+    foreach ($out as $line) {
+        if ('' !== trim((string) $line)) { return true; }
+    }
+    return false;
+}
+
+function b12c_is_ignored(string $rel): bool {
     $out = array(); $code = 1;
     @exec('git check-ignore -q ' . escapeshellarg($rel) . ' 2>&1', $out, $code);
     return 0 === $code;
 }
 
-$keepLocal = b12c_ignored_or_absent('Docs') && b12c_ignored_or_absent('.audit-work');
+function b12c_path_protected(string $rel, bool $present): bool {
+    if (b12c_is_tracked($rel)) { return false; }
+    if ($present) { return b12c_is_ignored($rel); }
+    return true;
+}
+
+function b12c_keep_refs_ok(bool $legacy, bool $docs_present, bool $docs_ok, bool $audit_ok, bool $markers_ok): bool {
+    if (!$docs_ok || !$audit_ok) { return false; }
+    if (!$legacy) { return true; }
+    return $docs_present && $markers_ok;
+}
+
+$docsEnv = getenv('HAL_B12_DOCS_DIR');
+$docsDir = (is_string($docsEnv) && '' !== $docsEnv) ? $docsEnv : ($PROJECT . '/Docs');
+$docsPresent = is_dir($docsDir);
+$docsIgnored = b12c_path_protected('Docs', is_dir($PROJECT . '/Docs'));
+$auditIgnored = b12c_path_protected('.audit-work', is_dir($PROJECT . '/.audit-work'));
+$markersOk = is_file($LEGACY_ROOT . '/mu-plugins/hossam-dashboard.php')
+    && is_file($LEGACY_ROOT . '/theme/page-dashboard.php');
 if (!$B12C_LEGACY) {
     b12c_check(
         'B12C-KEEP-REFS',
-        $keepLocal,
-        'Docs/ and .audit-work/ protected (present or gitignored — absent on fresh checkouts by design, never tracked)',
-        'a local protected reference is missing'
+        b12c_keep_refs_ok(false, $docsPresent, $docsIgnored, $auditIgnored, false),
+        'Docs/ and .audit-work/ are gitignored (never tracked; absent on fresh checkouts by design)',
+        'a local protected path is not gitignored'
     );
     b12c_skip(
         'B12C-KEEP-LEGACY-MARKERS',
         'exclusive legacy root absent — legacy marker presence deferred to runs with the reference tree'
     );
 } else {
-    $keepOk = $keepLocal
-        && is_file($LEGACY_ROOT . '/mu-plugins/hossam-dashboard.php')
-        && is_file($LEGACY_ROOT . '/theme/page-dashboard.php');
     b12c_check(
         'B12C-KEEP-REFS',
-        $keepOk,
-        'Docs/, .audit-work/ and the legacy reference markers (mu boot + theme shell) all still present — nothing deleted',
-        'a protected reference is missing'
+        b12c_keep_refs_ok(true, $docsPresent, $docsIgnored, $auditIgnored, $markersOk),
+        'Docs/ present and gitignored, .audit-work/ gitignored, and the legacy reference markers (mu boot + theme shell) all still present — nothing deleted',
+        'a protected reference is missing or not gitignored'
     );
 }
 
@@ -573,7 +602,7 @@ foreach (array_merge(b12c_product_php(), array($PROJECT . '/hal-frontend-dashboa
         }
     }
 }
-$rootVendor = is_dir($PROJECT . '/vendor') && !b12c_ignored_or_absent('vendor');
+$rootVendor = is_dir($PROJECT . '/vendor') && (b12c_is_tracked('vendor') || !b12c_is_ignored('vendor'));
 $runtimePng = b12c_files_recursive($PROJECT . '/runtime', 'png');
 if ($rootVendor) { $pkgOk = false; $pkgMiss[] = 'root vendor/ present and tracked'; }
 if (0 !== count($runtimePng)) { $pkgOk = false; $pkgMiss[] = 'png under runtime/'; }

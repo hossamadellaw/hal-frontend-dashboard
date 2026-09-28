@@ -396,8 +396,9 @@ function b8_check( string $id, bool $condition, string $pass, string $fail = '' 
 
 /**
  * Loud skip (never a PASS): used ONLY when the exclusive legacy reference
- * file is absent (e.g. CI runners). Deferred to runs with the reference
+ * ROOT is absent (e.g. CI runners). Deferred to runs with the reference
  * tree. Skipped is not passed (ok=true so the verdict never counts it).
+ * A single required file missing inside a present root FAILS (CI-01).
  */
 function b8_skip( string $id, string $reason ): void {
 	$GLOBALS['B8_RESULTS'][] = array( 'id' => $id, 'ok' => true, 'skip' => $reason, 'pass' => '', 'fail' => '' );
@@ -627,8 +628,13 @@ function b8_mode_main( string $project ): void {
 
 	$panel_files = array( 'seo', 'translations', 'inbox', 'finance', 'store', 'admin', 'members' );
 	/* Portable exclusive-source root (same location the hardcoded owner
-	 * path denoted, without the machine-specific absolute prefix). */
-	$sourceRoot  = dirname( $project, 2 ) . '/dashboard/Dahboard-v-1.0.0';
+	 * path denoted, without the machine-specific absolute prefix).
+	 * CI-01 seam: HAL_B8_SOURCE_ROOT overrides it for the absent-root /
+	 * missing-file proof only; default behavior is unchanged. */
+	$envRoot = getenv( 'HAL_B8_SOURCE_ROOT' );
+	$sourceRoot  = ( is_string( $envRoot ) && '' !== $envRoot )
+		? $envRoot
+		: ( dirname( $project, 2 ) . '/dashboard/Dahboard-v-1.0.0' );
 
 	/* 1. Runtime loads with the batch-7 controller; all twelve documented
 	 * parts now exist on disk (batch-8 completes the set). */
@@ -688,11 +694,29 @@ function b8_mode_main( string $project ): void {
 	foreach ( $panel_files as $file ) {
 		$src_path = $sourceRoot . '/theme/template-parts/dashboard/' . $file . '.php';
 		if ( ! is_file( $src_path ) ) {
-			b8_skip( 'D-' . $file . '-guard-present', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
-			if ( 'seo' === $file || 'finance' === $file ) {
-				b8_skip( 'D-' . $file . '-delta-anchor', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+			/* CI-01: the environmental SKIP applies ONLY when the
+			 * reference root itself is absent (e.g. CI runners). A
+			 * required file missing inside a PRESENT root fails the
+			 * same assertions the byte-diff would have emitted. */
+			if ( ! is_dir( $sourceRoot ) ) {
+				b8_skip( 'D-' . $file . '-guard-present', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+				if ( 'seo' === $file || 'finance' === $file ) {
+					b8_skip( 'D-' . $file . '-delta-anchor', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+				}
+				b8_skip( 'D-' . $file . '-body-byte-exact', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+				continue;
 			}
-			b8_skip( 'D-' . $file . '-body-byte-exact', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+			b8_check( 'D-' . $file . '-guard-present', false,
+				'',
+				'reference file missing inside a present root — byte-diff cannot hold: ' . $src_path );
+			if ( 'seo' === $file || 'finance' === $file ) {
+				b8_check( 'D-' . $file . '-delta-anchor', false,
+					'',
+					'reference file missing inside a present root — delta anchor unverifiable: ' . $src_path );
+			}
+			b8_check( 'D-' . $file . '-body-byte-exact', false,
+				'',
+				'reference file missing inside a present root — body unverifiable: ' . $src_path );
 			continue;
 		}
 		$src  = (string) file_get_contents( $src_path );

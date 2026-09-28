@@ -28,6 +28,10 @@
  *        proven by release-manager-test on the same single-dir design).
  *   M6 — late-joined site via the REAL setup.php wp_initialize_site hook:
  *        blog 3 provisioned, blogs 1-2 untouched.
+ *   M7 — shared network import through the REAL candidate→import→promote
+ *        path (MS-01): site admin refused fail-closed with state kept,
+ *        system context promotes v4 identically on both blogs, failed v5
+ *        rolls back identically with its digest suppressed.
  *
  * Usage: php -d extension=sodium tests/php/multisite-test.php (exit 0)
  */
@@ -501,14 +505,15 @@ function ms_sign( array $manifest, string $secret ): array {
 /**
  * Build a minimal but complete fixture Carrier (mirrors installer-test).
  */
-function ms_build_carrier( string $project, string $ws, string $name, string $secret, string $version = '1.0.0' ): string {
+function ms_build_carrier( string $project, string $ws, string $name, string $secret, string $version = '1.0.0', int $sequence = 1, string $loader_version = '' ): string {
+	$loader_version = '' !== $loader_version ? $loader_version : $version;
 	$carrier = $ws . '/' . $name;
 	ms_rmdir( $carrier );
 	mkdir( $carrier . '/includes', 0777, true );
 	mkdir( $carrier . '/mu-loader', 0777, true );
 	mkdir( $carrier . '/payload', 0777, true );
 
-	file_put_contents( $carrier . '/hal-frontend-dashboard.php', "<?php\ndefined( 'ABSPATH' ) || exit;\n// fixture carrier main $version\n" );
+	file_put_contents( $carrier . '/hal-frontend-dashboard.php', "<?php\n/**\n * Plugin Name: HAL Fixture\n * Version: $version\n */\ndefined( 'ABSPATH' ) || exit;\n// fixture carrier main $version\n" );
 	file_put_contents( $carrier . '/readme.txt', "=== HAL Frontend Dashboard ===\nStable tag: $version\n" );
 	file_put_contents( $carrier . '/LICENSE', "GPL-2.0-or-later fixture\n" );
 	file_put_contents( $carrier . '/THIRD-PARTY-NOTICES.txt', "fixture notices\n" );
@@ -528,9 +533,9 @@ function ms_build_carrier( string $project, string $ws, string $name, string $se
 	$sha = str_repeat( 'a', 40 );
 	$runtime_manifest = array(
 		'schema' => 1, 'product' => 'hal-frontend-dashboard', 'version' => $version,
-		'release_sequence' => 1, 'release_id' => $version . '+' . $sha, 'tag' => 'v' . $version,
+		'release_sequence' => $sequence, 'release_id' => $version . '+' . $sha, 'tag' => 'v' . $version,
 		'commit_sha' => $sha, 'requires_wp' => '7.0', 'requires_php' => '8.3',
-		'loader_api_min' => 1, 'loader_api_max' => 1, 'loader_core_version' => $version,
+		'loader_api_min' => 1, 'loader_api_max' => 1, 'loader_core_version' => $loader_version,
 		'schema_version' => '1', 'archive_sha256' => hash_file( 'sha256', $zip_path ),
 		'files' => array( 'bootstrap.php' => hash( 'sha256', $bootstrap ) ),
 	);
@@ -885,6 +890,124 @@ ms_check(
 	'failed v3 never became active on either blog (both still v2) with its digest suppressed',
 	'rollback not shared: ' . json_encode( $seen_v3_blog1 ) . ' / ' . json_encode( $seen_v3_blog2 )
 );
+
+/* ── M7: shared network import through the REAL import_candidate path (MS-01) ── */
+
+if ( ! defined( 'WP_PLUGIN_DIR' ) ) {
+	define( 'WP_PLUGIN_DIR', $ws_root . '/wp-plugins' );
+}
+$v4_id = '4.0.0+' . str_repeat( 'a', 40 );
+$v5_id = '5.0.0+' . str_repeat( 'a', 40 );
+ms_build_carrier( $project, $ws_root, 'wp-plugins/hal-frontend-dashboard', $secret, '4.0.0', 4 );
+
+// A site admin (uid 2: manage_options, no manage_network) fails closed
+// BEFORE any write: the shared network release never moves for them.
+$GLOBALS['MS_USER_ID'] = 2;
+switch_to_blog( 1 );
+update_option( 'hal_frontend_dashboard_update_candidate', array( 'plugin' => 'hal-frontend-dashboard/hal-frontend-dashboard.php', 'time' => time() ), false );
+try {
+	( new HAL_Frontend_Dashboard_Release_Manager( $mu_dir ) )->import_candidate( static function (): bool { return true; } );
+	$m7_unauth_code = '';
+} catch ( Throwable $e ) {
+	$m7_unauth_code = $e->getMessage();
+}
+restore_current_blog();
+ms_check(
+	'M7-site-admin-refused',
+	'HAL_IMPORT_MULTISITE_UNAUTHORIZED' === $m7_unauth_code,
+	'site admin import refused fail-closed (network capability preserved)',
+	'unexpected code: ' . $m7_unauth_code
+);
+$still1 = null;
+$still2 = null;
+$cand_kept = null;
+switch_to_blog( 1 );
+$still1 = $manager->read_pointer( 'active.json' );
+$cand_kept = get_option( 'hal_frontend_dashboard_update_candidate', false );
+switch_to_blog( 2 );
+$still2 = $manager->read_pointer( 'active.json' );
+restore_current_blog();
+ms_check(
+	'M7-refusal-keeps-state',
+	$v2_id === ( $still1['release_id'] ?? '' ) && $still1 === $still2 && is_array( $cand_kept ),
+	'refused import moved nothing (both blogs still v2) and kept the candidate for forensics',
+	'state moved: ' . json_encode( $still1 ) . ' / ' . json_encode( $still2 )
+);
+
+// System context (cron/CLI, uid 0) promotes v4 through the real path.
+$GLOBALS['MS_USER_ID'] = 0;
+switch_to_blog( 1 );
+try {
+	$m7_imported = ( new HAL_Frontend_Dashboard_Release_Manager( $mu_dir ) )->import_candidate( static function (): bool { return true; } );
+	$m7_import_code = '';
+} catch ( Throwable $e ) {
+	$m7_imported = '';
+	$m7_import_code = $e->getMessage();
+}
+restore_current_blog();
+ms_check(
+	'M7-shared-import',
+	$v4_id === $m7_imported,
+	'system import promoted v4 through candidate→import→promote (no direct promote_runtime)',
+	'unexpected: ' . $m7_import_code
+);
+$seen_v4_blog1 = null;
+$seen_v4_blog2 = null;
+$cand_gone = null;
+switch_to_blog( 1 );
+$seen_v4_blog1 = $manager->read_pointer( 'active.json' );
+$cand_gone = get_option( 'hal_frontend_dashboard_update_candidate', false );
+switch_to_blog( 2 );
+$seen_v4_blog2 = $manager->read_pointer( 'active.json' );
+restore_current_blog();
+ms_check(
+	'M7-shared-import-pointers',
+	$v4_id === ( $seen_v4_blog1['release_id'] ?? '' ) && $seen_v4_blog1 === $seen_v4_blog2 && false === $cand_gone,
+	'v4 observed identically from both blogs and the candidate consumed',
+	'import not shared: ' . json_encode( $seen_v4_blog1 ) . ' / ' . json_encode( $seen_v4_blog2 )
+);
+
+// Failed v5 through the same real path rolls back identically. It reuses
+// the active loader (4.0.0) so the failure lands on the runtime leg —
+// the exact leg M5's direct promote_runtime() call exercised.
+ms_build_carrier( $project, $ws_root, 'wp-plugins/hal-frontend-dashboard', $secret, '5.0.0', 5, '4.0.0' );
+switch_to_blog( 1 );
+update_option( 'hal_frontend_dashboard_update_candidate', array( 'plugin' => 'hal-frontend-dashboard/hal-frontend-dashboard.php', 'time' => time() ), false );
+try {
+	( new HAL_Frontend_Dashboard_Release_Manager( $mu_dir ) )->import_candidate( static function (): bool { return false; } );
+	$m7_v5_code = '';
+} catch ( Throwable $e ) {
+	$m7_v5_code = $e->getMessage();
+}
+restore_current_blog();
+ms_check(
+	'M7-shared-import-rollback-setup',
+	'HAL_PROMOTION_HEALTH_FAILED' === $m7_v5_code,
+	'failed v5 health aborts the real-path promotion (rollback path engaged)',
+	'unexpected code: ' . $m7_v5_code
+);
+$seen_v5_blog1 = null;
+$seen_v5_blog2 = null;
+switch_to_blog( 1 );
+$seen_v5_blog1 = $manager->read_pointer( 'active.json' );
+switch_to_blog( 2 );
+$seen_v5_blog2 = $manager->read_pointer( 'active.json' );
+restore_current_blog();
+$digest_state5 = $manager->read_state_file( 'failed-digests.json' );
+$found5 = false;
+foreach ( ( is_array( $digest_state5 ) && is_array( $digest_state5['digests'] ?? null ) ? $digest_state5['digests'] : array() ) as $entry ) {
+	if ( $v5_id === ( $entry['release_id'] ?? '' ) ) {
+		$found5 = true;
+		break;
+	}
+}
+ms_check(
+	'M7-shared-import-rollback',
+	$v4_id === ( $seen_v5_blog1['release_id'] ?? '' ) && $seen_v5_blog1 === $seen_v5_blog2 && $found5,
+	'failed v5 never became active on either blog (both still v4) with its digest suppressed',
+	'rollback not shared: ' . json_encode( $seen_v5_blog1 ) . ' / ' . json_encode( $seen_v5_blog2 )
+);
+$GLOBALS['MS_USER_ID'] = 1;
 
 /* ── M6: late-joined site via the REAL setup.php hook ── */
 
