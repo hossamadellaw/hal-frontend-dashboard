@@ -8,8 +8,8 @@
 defined( 'ABSPATH' ) || exit;
 
 final class HAL_Frontend_Dashboard_Package_Verifier {
-	public const PUBLIC_KEY_BASE64 = 'itHDWwezW3qCbM5QFmAmmd85RVi7QAdeAreCfhEbjGY=';
-	public const PUBLIC_KEY_FINGERPRINT = '8e517d96ce0ba175c8e0c99e35a1f57a6b40a25531408e7f675eb2b23a186c10';
+	public const PUBLIC_KEY_BASE64 = 'PMUvQarh5F86Ts0I+wRMK5B5tGTn3hCDKvLtNYdt/6A=';
+	public const PUBLIC_KEY_FINGERPRINT = 'b8151f3feb710b37735655e659f49b0dd2eae8dbcd2e2eaafca114827477dffd';
 
 	private const PRODUCT = 'hal-frontend-dashboard';
 	private const PLUGIN_BASENAME = 'hal-frontend-dashboard/hal-frontend-dashboard.php';
