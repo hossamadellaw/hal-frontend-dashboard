@@ -431,6 +431,7 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 					'HAL_IMPORT_MU_DIRECTORY_UNWRITABLE',
 					'HAL_IMPORT_DIRECT_FILESYSTEM_REQUIRED',
 					'HAL_IMPORT_MULTISITE_UNSUPPORTED',
+					'HAL_IMPORT_MULTISITE_UNAUTHORIZED',
 				);
 				$manager->record_status(
 					in_array( $code, $blocked, true ) ? 'blocked' : 'failed',
@@ -455,8 +456,17 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 		if ( function_exists( 'get_filesystem_method' ) && 'direct' !== get_filesystem_method() ) {
 			self::fail( 'HAL_IMPORT_DIRECT_FILESYSTEM_REQUIRED' );
 		}
+		// Simple Multisite (ODR §2.7): one shared release state for the
+		// network. The import runs under the network capability: system
+		// contexts (cron/CLI, no user) and manage_network holders may
+		// promote the shared release; any other logged-in user fails
+		// closed so a site admin can never switch the network release.
 		if ( function_exists( 'is_multisite' ) && is_multisite() ) {
-			self::fail( 'HAL_IMPORT_MULTISITE_UNSUPPORTED' );
+			$uid = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+			$network_allowed = 0 === $uid || ( function_exists( 'current_user_can' ) && current_user_can( 'manage_network' ) );
+			if ( ! $network_allowed ) {
+				self::fail( 'HAL_IMPORT_MULTISITE_UNAUTHORIZED' );
+			}
 		}
 	}
 
