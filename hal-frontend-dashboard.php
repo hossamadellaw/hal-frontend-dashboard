@@ -3,7 +3,7 @@
  * Plugin Name: HAL Frontend Dashboard
  * Plugin URI: https://github.com/hossamadellaw/hal-frontend-dashboard
  * Description: Carrier plugin for the HAL Frontend Dashboard release system.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Requires at least: 7.0
  * Requires PHP: 8.3
  * Tested up to: 7.1
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HAL_FRONTEND_DASHBOARD_VERSION', '1.0.1' );
+define( 'HAL_FRONTEND_DASHBOARD_VERSION', '1.0.2' );
 define( 'HAL_FRONTEND_DASHBOARD_SLUG', 'hal-frontend-dashboard' );
 define( 'HAL_FRONTEND_DASHBOARD_PLUGIN_FILE', __FILE__ );
 define( 'HAL_FRONTEND_DASHBOARD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
