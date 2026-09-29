@@ -1359,7 +1359,8 @@ file_put_contents( $win_act_plugin . '/payload/runtime-manifest.json', $w4_raw )
 file_put_contents( $win_act_plugin . '/payload/runtime-manifest.sig', base64_encode( sodium_crypto_sign_detached( $w4_raw, $w4_secret ) ) );
 // Real main file with Version bumped to 5.0.0 (what the release build does).
 $w4_main_src = (string) file_get_contents( $project . '/hal-frontend-dashboard.php' );
-$w4_main_src = str_replace( "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0' );", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '5.0.0' );", $w4_main_src );
+// Version-agnostic bump (whatever X.Y.Z the real main file carries).
+$w4_main_src = (string) preg_replace( "/define\(\s*'HAL_FRONTEND_DASHBOARD_VERSION',\s*'[0-9]+\\.[0-9]+\\.[0-9]+'\s*\);/", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '5.0.0' );", $w4_main_src );
 file_put_contents( $win_act_plugin . '/hal-frontend-dashboard.php', $w4_main_src );
 // Carrier manifest (full exact-name map) + signature.
 $w4_carrier_map = array(
@@ -1503,7 +1504,8 @@ $w6_raw = json_encode( $w6_runtime_manifest, JSON_UNESCAPED_SLASHES | JSON_UNESC
 file_put_contents( $w6_plugin . '/payload/runtime-manifest.json', $w6_raw );
 file_put_contents( $w6_plugin . '/payload/runtime-manifest.sig', base64_encode( sodium_crypto_sign_detached( $w6_raw, $w4_secret ) ) );
 $w6_main_src = (string) file_get_contents( $project . '/hal-frontend-dashboard.php' );
-$w6_main_src = str_replace( "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0' );", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '5.0.0' );", $w6_main_src );
+// Version-agnostic bump (whatever X.Y.Z the real main file carries).
+$w6_main_src = (string) preg_replace( "/define\(\s*'HAL_FRONTEND_DASHBOARD_VERSION',\s*'[0-9]+\\.[0-9]+\\.[0-9]+'\s*\);/", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '5.0.0' );", $w6_main_src );
 file_put_contents( $w6_plugin . '/hal-frontend-dashboard.php', $w6_main_src );
 $w6_carrier_map = array(
 	'hal-frontend-dashboard.php' => $w6_plugin . '/hal-frontend-dashboard.php',
@@ -1656,7 +1658,8 @@ file_put_contents( $act_plugin . '/payload/runtime-manifest.sig', base64_encode(
 // Carrier main file: the REAL project main file, with Version set to the
 // fixture release (exactly what the release build does per version).
 $act_main_src = (string) file_get_contents( $project . '/hal-frontend-dashboard.php' );
-$act_main_src = str_replace( "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0' );", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '6.0.0' );", $act_main_src );
+// Version-agnostic bump (whatever X.Y.Z the real main file carries).
+$act_main_src = (string) preg_replace( "/define\(\s*'HAL_FRONTEND_DASHBOARD_VERSION',\s*'[0-9]+\\.[0-9]+\\.[0-9]+'\s*\);/", "define( 'HAL_FRONTEND_DASHBOARD_VERSION', '6.0.0' );", $act_main_src );
 file_put_contents( $act_plugin . '/hal-frontend-dashboard.php', $act_main_src );
 
 // Carrier manifest: full exact-name file map + throwaway-key signature.

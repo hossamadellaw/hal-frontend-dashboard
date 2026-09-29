@@ -131,7 +131,7 @@ jobs:
           # release.yml excludes itself in the release gate); any other file
           # matching is a genuine leak.
           if grep -rInE --exclude-dir=.git --exclude-dir=node_modules --exclude='ci.yml' --exclude='release.yml' \
-            -e 'BEGIN [A-Z ]*PRIVATE KEY' -e 'ghp_[A-Za-z0-9]+' -e 'github_pat_' \
+            -e 'BEGIN [A-Z ]*PRIVATE KEY' -e 'ghp_[A-Za-z0-9]+' -e 'github[_]pat_' \
             -e 'xox[bpas]-' -e 'AKIA[0-9A-Z]{16}' . ; then
             echo 'checks:blocked:secret_leakage' >&2
             exit 1
