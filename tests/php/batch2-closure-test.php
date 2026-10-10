@@ -721,7 +721,13 @@ function dbDelta( $queries = array(), $execute = true ) {
 
 /** Drive the real Health_Check::handle_request() against a written challenge. */
 function b2c_run_health_ack( string $run_dir, bool $expect_ready ): void {
-	require $GLOBALS['B2C_PROJECT'] . DIRECTORY_SEPARATOR . 'includes' . DIRECTORY_SEPARATOR . 'class-health-check.php';
+	// v1.0.3: modes that require the real bootstrap first already load the
+	// runtime infrastructure copy; require_once alone cannot prevent a
+	// redeclaration across the two different paths, so reuse the loaded
+	// class when present and load the includes/ copy only otherwise.
+	if ( ! class_exists( 'HAL_Frontend_Dashboard_Health_Check', false ) ) {
+		require $GLOBALS['B2C_PROJECT'] . DIRECTORY_SEPARATOR . 'includes' . DIRECTORY_SEPARATOR . 'class-health-check.php';
+	}
 
 	$mu_dir  = $run_dir . DIRECTORY_SEPARATOR . 'mu';
 	$state   = $mu_dir . DIRECTORY_SEPARATOR . 'hal-frontend-dashboard' . DIRECTORY_SEPARATOR . 'state';

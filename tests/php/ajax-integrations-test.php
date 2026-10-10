@@ -15,7 +15,8 @@
  *
  *   INVENTORY — the action inventory gains exactly the 17 batch-6
  *              wp_ajax_* hooks (2 appointments + 4 finance + 1 members +
- *              6 inbox + 1 store + 3 ai); zero wp_ajax_nopriv_* anywhere;
+ *              6 inbox + 1 store + 3 ai) plus the 2 v1.0.3 health hooks;
+ *              the single wp_ajax_nopriv_* hook is the v1.0.3 handler;
  *              ai's worker (hossam_ai_process_job_event) and sweep
  *              (hossam_ai_sweep_jobs_event) are internal cron hooks, NOT
  *              wp_ajax; ajax/seo.php stays shipped-but-unloaded.
@@ -1175,8 +1176,8 @@ function b6_mode_main( string $project ): void {
 			return false === strpos( $path, '/runtime/bootstrap.php' );
 		}
 	) );
-	b6_check( 'L2', count( array_unique( $module_included ) ) === 28 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-		'exactly 28 runtime module files load (through batch 6 plus the batch-7 infrastructure controller plus the batch-11 update bridge) and runtime_ready fires after the full load',
+	b6_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+		'exactly 29 runtime module files load (through batch 6 plus the batch-7 infrastructure controller plus the batch-11 update bridge plus the v1.0.3 health check) and runtime_ready fires after the full load',
 		'unexpected runtime file set: ' . json_encode( $relative ) );
 
 	$ajax_hooks = array_values( array_filter(
@@ -1185,8 +1186,8 @@ function b6_mode_main( string $project ): void {
 			return 0 === strpos( $hook, 'wp_ajax_' );
 		}
 	) );
-	b6_check( 'G1', 26 === count( $ajax_hooks ),
-		'the AJAX action inventory carries exactly 26 wp_ajax_* hooks (9 batch-5 + 17 batch-6)',
+	b6_check( 'G1', 28 === count( $ajax_hooks ),
+		'the AJAX action inventory carries exactly 28 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 2 v1.0.3 health)',
 		'inventory count mismatch: ' . json_encode( $ajax_hooks ) );
 
 	$batch6_hooks = array(
@@ -1219,8 +1220,8 @@ function b6_mode_main( string $project ): void {
 			return 0 === strpos( $hook, 'wp_ajax_nopriv_' );
 		}
 	) );
-	b6_check( 'G3', array() === $nopriv_hooks,
-		'zero wp_ajax_nopriv_* hooks are registered anywhere in the runtime',
+	b6_check( 'G3', array( 'wp_ajax_nopriv_hal_frontend_dashboard_boot_health' ) === $nopriv_hooks,
+		'the only wp_ajax_nopriv_* hook is the v1.0.3 health handler (unauthenticated loopback), nothing else',
 		'unexpected nopriv hooks: ' . json_encode( $nopriv_hooks ) );
 
 	b6_check( 'G4', ! isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_save_seo'] ) && ! isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_ai_process_job'] ),
