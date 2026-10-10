@@ -165,6 +165,19 @@ if ( class_exists( 'HAL_Frontend_Dashboard_Update_Bridge', false ) && HAL_Fronte
 	}
 }
 
+// ══════════════════════════════════════════════════════════════
+// HEALTH CHECK — v1.0.3 wiring: load the runtime infrastructure copy
+// then register both wp_ajax and wp_ajax_nopriv handlers unconditionally
+// (outside admin/cron/CLI/login conditions) so the unauthenticated
+// loopback is reachable. The class_exists guard avoids redeclaring the
+// class when the includes/ copy was loaded first (installer, harnesses);
+// registration always runs and never calls check()/handle_request() here.
+// ══════════════════════════════════════════════════════════════
+if ( ! class_exists( 'HAL_Frontend_Dashboard_Health_Check', false ) ) {
+	require_once $hal_runtime_root . 'infrastructure/class-health-check.php';
+}
+HAL_Frontend_Dashboard_Health_Check::register();
+
 unset( $hal_runtime_root );
 
 // ══════════════════════════════════════════════════════════════

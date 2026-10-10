@@ -648,6 +648,11 @@ function hal_test_main(): void {
 		// template_include when bootstrap requires it (after AJAX, before the
 		// readiness filter).
 		array( 'filter', 'template_include', 10 ),
+		// v1.0.3 wiring: bootstrap registers both health handlers after the
+		// update-bridge block (visitor path registers nothing there) and
+		// before unset($hal_runtime_root) and the readiness filter.
+		array( 'action', 'wp_ajax_hal_frontend_dashboard_boot_health', 10 ),
+		array( 'action', 'wp_ajax_nopriv_hal_frontend_dashboard_boot_health', 10 ),
 		array( 'filter', 'hal_frontend_dashboard_boot_readiness', 10 ),
 		array( 'action_fired', 'hal_frontend_dashboard_runtime_ready', null ),
 	);
@@ -671,7 +676,7 @@ function hal_test_main(): void {
 	hal_test_check(
 		'A4',
 		$actual_events === $expected_events,
-		'exact load-time event sequence matches (70 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the batch-7 infrastructure template_include filter + the multisite wp_initialize_site provisioner)',
+		'exact load-time event sequence matches (72 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the batch-7 infrastructure template_include filter + the 2 v1.0.3 health handlers (wp_ajax + wp_ajax_nopriv) + the multisite wp_initialize_site provisioner)',
 		'event sequence mismatch — ' . $event_detail
 	);
 
