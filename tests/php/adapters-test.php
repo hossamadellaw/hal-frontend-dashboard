@@ -782,8 +782,8 @@ function b4_mode( string $mode, array $args, string $project ): void {
 					return false === strpos( $path, '/runtime/bootstrap.php' );
 				}
 			) );
-			b4_check( 'L2', count( array_unique( $module_included ) ) === 28 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-				'exactly 28 runtime module files load (bootstrap aside: 18 through batch 4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge) and runtime_ready fires after the full load',
+		b4_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+			'exactly 29 runtime module files load (bootstrap aside: 18 through batch 4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 				'unexpected runtime file set: ' . json_encode( $relative ) );
 
 			$signatures = array(

@@ -11,10 +11,11 @@
  *
  * Coverage (architecture §16 closure gate + §10 per-file rules):
  *
- *   INVENTORY — the action inventory is exactly the legacy one: 26
- *              wp_ajax_* hooks (9 batch-5 posts/uploads + 17 batch-6
- *              appointments/finance/members/inbox/store/ai), zero
- *              wp_ajax_nopriv_* hooks, and ajax/seo.php is shipped but
+ *   INVENTORY — the action inventory is exactly: 28 wp_ajax_* hooks
+ *              (9 batch-5 posts/uploads + 17 batch-6
+ *              appointments/finance/members/inbox/store/ai + 2 v1.0.3
+ *              health), the single wp_ajax_nopriv_* hook being the
+ *              v1.0.3 health handler, and ajax/seo.php is shipped but
  *              NOT loaded (its endpoint wp_ajax_hossam_save_seo is not
  *              registered) per the §16 "loading follows the adopted
  *              registry state; limited read-only" contract.
@@ -981,8 +982,8 @@ function b5_mode_main( string $project ): void {
 			return false === strpos( $path, '/runtime/bootstrap.php' );
 		}
 	) );
-	b5_check( 'L2', count( array_unique( $module_included ) ) === 28 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-		'exactly 28 runtime module files load (bootstrap aside: 18 from batches 2–4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge) and runtime_ready fires after the full load',
+	b5_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+		'exactly 29 runtime module files load (bootstrap aside: 18 from batches 2–4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 		'unexpected runtime file set: ' . json_encode( $relative ) );
 
 	$ajax_hooks = array_values( array_filter(
@@ -993,7 +994,8 @@ function b5_mode_main( string $project ): void {
 	) );
 	sort( $ajax_hooks );
 	$expected_hooks = array(
-		// Batch-5 (9) + batch-6 (17), globally sorted as the check sorts.
+		// Batch-5 (9) + batch-6 (17) + v1.0.3 health (2), globally sorted as the check sorts.
+		'wp_ajax_hal_frontend_dashboard_boot_health',
 		'wp_ajax_hossam_ai_get_job_status',
 		'wp_ajax_hossam_ai_set_preference',
 		'wp_ajax_hossam_ai_submit_job',
@@ -1020,9 +1022,10 @@ function b5_mode_main( string $project ): void {
 		'wp_ajax_hossam_trash_article',
 		'wp_ajax_hossam_update_article',
 		'wp_ajax_hossam_upload_file',
+		'wp_ajax_nopriv_hal_frontend_dashboard_boot_health',
 	);
 	b5_check( 'G1', $ajax_hooks === $expected_hooks,
-		'the AJAX action inventory is exactly the legacy §16/§17 inventory: 26 wp_ajax_* hooks (9 batch-5 + 17 batch-6), nothing added or removed',
+		'the AJAX action inventory is exactly: 28 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 2 v1.0.3 health), nothing else added or removed',
 		'inventory mismatch: ' . json_encode( $ajax_hooks ) );
 
 	$nopriv_hooks = array_values( array_filter(
@@ -1031,8 +1034,8 @@ function b5_mode_main( string $project ): void {
 			return 0 === strpos( $hook, 'wp_ajax_nopriv_' );
 		}
 	) );
-	b5_check( 'G2', array() === $nopriv_hooks,
-		'zero wp_ajax_nopriv_* hooks are registered anywhere in the runtime',
+	b5_check( 'G2', array( 'wp_ajax_nopriv_hal_frontend_dashboard_boot_health' ) === $nopriv_hooks,
+		'the only wp_ajax_nopriv_* hook is the v1.0.3 health handler (unauthenticated loopback), nothing else',
 		'unexpected nopriv hooks: ' . json_encode( $nopriv_hooks ) );
 
 	b5_check( 'G3', ! isset( $GLOBALS['B5_HOOKS']['wp_ajax_hossam_save_seo'] ),
