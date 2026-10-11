@@ -22,8 +22,10 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 	private string $public_key;
 
 	public function __construct( ?string $public_key_base64 = null, ?string $fingerprint = null ) {
-		if ( ! extension_loaded( 'sodium' ) || ! defined( 'SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES' ) ) {
-			self::fail( 'HAL_SIGNATURE_EXTENSION_MISSING' );
+		// Capacity, not mechanism (v1.0.4 D1): the sodium extension or the
+		// WordPress-bundled sodium_compat polyfill both satisfy this gate.
+		if ( ! function_exists( 'sodium_crypto_sign_verify_detached' ) || ! defined( 'SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES' ) || ! defined( 'SODIUM_CRYPTO_SIGN_BYTES' ) ) {
+			self::fail( 'HAL_SIGNATURE_CAPABILITY_MISSING' );
 		}
 
 		$encoded = $public_key_base64 ?? self::PUBLIC_KEY_BASE64;
