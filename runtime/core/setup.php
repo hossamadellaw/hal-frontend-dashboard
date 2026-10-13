@@ -647,6 +647,15 @@ add_action( 'wp_enqueue_scripts', function(): void {
         true
     );
 
+    // v1.0.5 (B): منتقي الوسائط القياسي للصورة المميزة — على صفحات
+    // الداشبورد فقط (الحارس أعلاه يمنع أي تحميل site-wide)، ومشروط
+    // بـupload_files كواجهة الصورة نفسها. التفصيل المحسوم: شرط القدرة
+    // وحده دون تقييد بلوحة، لأن التنقل بين اللوحات يتم بالـJS داخل
+    // الصفحة الواحدة (تقييد ?panel= خادميًا كان سيكسر التنقل اللاحق).
+    if ( current_user_can( 'upload_files' ) ) {
+        wp_enqueue_media();
+    }
+
     wp_localize_script( 'hossam-dashboard-js', 'hossamAjax', [
         'ajaxurl' => admin_url( 'admin-ajax.php' ),
         'nonce'   => wp_create_nonce( 'hossam_nonce' ),

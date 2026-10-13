@@ -88,6 +88,9 @@ $GLOBALS['B7_QUERY_LOG']      = array();
 $GLOBALS['B7_QUERY_POSTS']    = array();
 $GLOBALS['B7_POSTMETA']       = array();
 $GLOBALS['B7_ENQUEUED']     = array();
+$GLOBALS['B7_ENQUEUED_MEDIA'] = 0;
+$GLOBALS['B7_CATS']          = array();
+$GLOBALS['B7_POST_CATS']     = array();
 $GLOBALS['B7_HEAD_MARK']    = '<!--B7-WP-HEAD-->';
 $GLOBALS['B7_FOOT_MARK']    = '<!--B7-WP-FOOT-->';
 
@@ -435,12 +438,12 @@ if ( ! function_exists( 'get_posts' ) ) {
 }
 if ( ! function_exists( 'get_categories' ) ) {
 	function get_categories( $args = array() ): array {
-		return array();
+		return $GLOBALS['B7_CATS'] ?? array();
 	}
 }
 if ( ! function_exists( 'wp_get_post_categories' ) ) {
 	function wp_get_post_categories( $post_id, array $args = array() ): array {
-		return array();
+		return $GLOBALS['B7_POST_CATS'] ?? array();
 	}
 }
 if ( ! function_exists( 'get_the_ID' ) ) {
@@ -674,6 +677,13 @@ if ( ! function_exists( 'wp_localize_script' ) ) {
 		return true;
 	}
 }
+// v1.0.5 (B): media-picker loader stub (pattern: settings-and-secrets-test).
+// setup.php calls wp_enqueue_media() on dashboard pages for upload_files users.
+if ( ! function_exists( 'wp_enqueue_media' ) ) {
+	function wp_enqueue_media( array $args = array() ): void {
+		$GLOBALS['B7_ENQUEUED_MEDIA']++;
+	}
+}
 if ( ! class_exists( 'WP_Post' ) ) {
 	#[AllowDynamicProperties]
 	class WP_Post {
@@ -784,6 +794,9 @@ function b7_reset_fixtures(): void {
 	$GLOBALS['B7_QUERY_LOG']    = array();
 	$GLOBALS['B7_QUERY_POSTS']  = array();
 	$GLOBALS['B7_POSTMETA']     = array();
+	$GLOBALS['B7_CATS']         = array();
+	$GLOBALS['B7_POST_CATS']    = array();
+	$GLOBALS['B7_ENQUEUED_MEDIA'] = 0;
 	unset( $GLOBALS['post'] );
 	$GLOBALS['B7_USER']       = new WP_Post( array(
 		'ID'          => 7,
@@ -1497,6 +1510,67 @@ function b7_mode_gates( string $project ): void {
 		&& false === strpos( $posts_disabled_html, 'B7-Seo-Article' ),
 		'posts part refuses stale positive shell args when posts is disabled and rows exist',
 		'disabled posts part still rendered a panel or row' );
+
+	/* v1.0.5 (A2+B): real category checkboxes by site names, excerpt field,
+	 * keep-categories disclosure, and the upload_files-gated image UI —
+	 * rendered through the real posts part. */
+	b7_enable_all_features();
+	$GLOBALS['B7_CAPS'] = array( 'edit_posts' => true, 'publish_posts' => true, 'edit_post_5' => true, 'upload_files' => true );
+	$GLOBALS['B7_CATS'] = array(
+		(object) array( 'term_id' => 3, 'name' => 'B7 News', 'slug' => 'b7-news' ),
+		(object) array( 'term_id' => 7, 'name' => 'B7 Guides', 'slug' => 'b7-guides' ),
+	);
+	$GLOBALS['B7_POST_CATS'] = array( 7 );
+	$GLOBALS['B7_POSTS'][5] = new WP_Post( array( 'ID' => 5, 'post_type' => 'post', 'post_status' => 'draft', 'post_title' => 'B7 V105', 'post_content' => 'Body', 'post_excerpt' => 'B7 Excerpt' ) );
+	$v105_prev_query = $GLOBALS['B7_QUERY_POSTS'];
+	$GLOBALS['B7_QUERY_POSTS'] = array();
+	$v105_write_html = b7_capture_part( 'posts', array_merge( $posts_part_args, array( 'url_panel' => '', 'url_post_id' => 0 ) ) );
+	b7_check( 'V105-WRITE-CHECKBOXES',
+		false !== strpos( $v105_write_html, 'name="categories[]"' )
+			&& false !== strpos( $v105_write_html, 'value="3"' ) && false !== strpos( $v105_write_html, 'B7 News' )
+			&& false !== strpos( $v105_write_html, 'value="7"' ) && false !== strpos( $v105_write_html, 'B7 Guides' ),
+		'write panel renders real site-category checkboxes by name with term-ID values',
+		'write category checkboxes missing' );
+	b7_check( 'V105-NO-INPUTMODE',
+		false === strpos( $v105_write_html, 'inputmode' ) && false === strpos( $v105_write_html, '3,7,12' ),
+		'no numeric inputmode and no raw ID text remain in the write panel',
+		'numeric inputmode or raw IDs still present' );
+	b7_check( 'V105-WRITE-EXCERPT',
+		false !== strpos( $v105_write_html, 'name="excerpt"' ) && false !== strpos( $v105_write_html, 'hossam-new-excerpt' ),
+		'write panel carries the excerpt textarea',
+		'excerpt field missing in write panel' );
+	b7_check( 'V105-WRITE-IMAGE',
+		false !== strpos( $v105_write_html, 'id="hossam-new-thumbnail-btn"' ) && false !== strpos( $v105_write_html, 'name="thumbnail_id"' ),
+		'write panel shows the upload_files-gated featured-image picker (no remove button)',
+		'featured-image UI missing in write panel' );
+	$v105_edit_html = b7_capture_part( 'posts', array_merge( $posts_part_args, array( 'url_panel' => 'edit-article', 'url_post_id' => 5 ) ) );
+	b7_check( 'V105-EDIT-CHECKED',
+		false !== strpos( $v105_edit_html, 'value="7" checked' ) && false === strpos( $v105_edit_html, 'value="3" checked' ),
+		'edit panel pre-checks the post categories only',
+		'edit pre-checked state wrong' );
+	b7_check( 'V105-EDIT-DISCLOSURE',
+		false !== strpos( $v105_edit_html, 'Leave all unchecked to keep the current categories.' ),
+		'edit panel shows the keep-current-categories disclosure',
+		'disclosure text missing in edit panel' );
+	b7_check( 'V105-EDIT-EXCERPT',
+		false !== strpos( $v105_edit_html, 'name="excerpt"' ) && false !== strpos( $v105_edit_html, 'B7 Excerpt' ),
+		'edit panel pre-fills the excerpt textarea from the post',
+		'excerpt pre-fill missing in edit panel' );
+	b7_check( 'V105-EDIT-IMAGE',
+		false !== strpos( $v105_edit_html, 'id="hossam-edit-thumbnail-btn"' ),
+		'edit panel shows the upload_files-gated featured-image picker',
+		'featured-image UI missing in edit panel' );
+	$GLOBALS['B7_CAPS'] = array( 'edit_posts' => true, 'publish_posts' => true, 'edit_post_5' => true );
+	$v105_noupload_html = b7_capture_part( 'posts', array_merge( $posts_part_args, array( 'url_panel' => 'edit-article', 'url_post_id' => 5 ) ) );
+	b7_check( 'V105-NO-UPLOAD-NO-IMAGE',
+		false === strpos( $v105_noupload_html, 'hossam-edit-thumbnail-btn' ) && false === strpos( $v105_noupload_html, 'hossam-new-thumbnail-btn' ),
+		'without upload_files no image picker renders (writer without library access)',
+		'image UI leaked without upload_files' );
+	$GLOBALS['B7_CATS'] = array();
+	$GLOBALS['B7_POST_CATS'] = array();
+	$GLOBALS['B7_CAPS'] = array( 'edit_posts' => true, 'edit_post_5' => true );
+	unset( $GLOBALS['B7_POSTS'][5] );
+	$GLOBALS['B7_QUERY_POSTS'] = $v105_prev_query;
 
 	/* Quick actions consume the same gates (write/upload/appointments/profile).
 	 * Batch-8 update (justified, not weakened): admin.php now ships and its

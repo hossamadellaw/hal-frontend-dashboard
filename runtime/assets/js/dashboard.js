@@ -51,6 +51,7 @@ function toggleSidebar(){
   const sb = document.getElementById('sidebar');
   const collapsed = sb.classList.toggle('collapsed');
   localStorage.setItem('sb-collapsed', collapsed);
+  hossamRefreshOpenSubs();
 }
 
 function openMobile(){
@@ -83,6 +84,7 @@ const PANEL_TITLES = {
   members:           t('panelMembers',       'Members'),
   store:             t('panelStore',         'Store'),
   trash:             t('panelTrash',         'Trash'),
+  'trash-articles':  t('panelTrash',         'Trash'),
 };
 
 /* [NAV-JS] debounce state */
@@ -113,13 +115,33 @@ function nav(el, panelId){
   closeMobile();
 }
 
+/* [A1] Submenu height helper — the single dynamic-height path used by all
+   three open routes (toggleSub, hash initNav, ?panel=) plus resize and
+   expand-from-collapsed. Open: inline scrollHeight; closed/collapsed: 0px
+   (dashboard.css:124 !important stays the intended collapsed behaviour). */
+function hossamSetSubHeight(sub, open){
+  if(!sub) return;
+  if(!open){ sub.style.maxHeight = '0px'; return; }
+  const sb = document.getElementById('sidebar');
+  if(sb && sb.classList.contains('collapsed') && window.innerWidth > 900){
+    sub.style.maxHeight = '0px';
+    return;
+  }
+  sub.style.maxHeight = sub.scrollHeight + 'px';
+}
+function hossamRefreshOpenSubs(){
+  document.querySelectorAll('.sb-sub.open').forEach(s=>hossamSetSubHeight(s, true));
+  document.querySelectorAll('.sb-sub:not(.open)').forEach(s=>{ s.style.maxHeight = '0px'; });
+}
+if(typeof window.addEventListener === 'function'){ window.addEventListener('resize', hossamRefreshOpenSubs); }
+
 function toggleSub(el, subId){
   const sub = document.getElementById(subId);
   if(!sub) return;
   const isOpen = sub.classList.contains('open');
-  document.querySelectorAll('.sb-sub').forEach(s=>s.classList.remove('open'));
+  document.querySelectorAll('.sb-sub').forEach(s=>{ s.classList.remove('open'); s.style.maxHeight = '0px'; });
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('open'));
-  if(!isOpen){ sub.classList.add('open'); el.classList.add('open'); }
+  if(!isOpen){ sub.classList.add('open'); el.classList.add('open'); hossamSetSubHeight(sub, true); }
 }
 
 /* [TAB-JS] Generic tab delegation — toggles active/display + lazy-loads on first open */
@@ -163,11 +185,11 @@ function initNav(){
     hash = 'overview';
   }
   const safeHash = /^[\w-]+$/.test(hash) ? hash : 'overview';
-  const articlePanels = ['write','all-articles','edit-article','delete-article'];
+  const articlePanels = ['write','all-articles','edit-article','delete-article','trash-articles'];
 
   if(articlePanels.includes(safeHash)){
     const sub = document.getElementById('sub-articles');
-    if(sub) sub.classList.add('open');
+    if(sub){ sub.classList.add('open'); hossamSetSubHeight(sub, true); }
     const trigger = document.querySelector('.sb-item[onclick*="sub-articles"]');
     if(trigger) trigger.classList.add('open');
   }
@@ -321,10 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if(safePanelParam){
     const el = document.querySelector(`.sb-item[data-panel="${safePanelParam}"]`);
     if(el){
-      const articlePanels = ['write','all-articles','edit-article','delete-article'];
+      const articlePanels = ['write','all-articles','edit-article','delete-article','trash-articles'];
       if(articlePanels.includes(safePanelParam)){
         const sub = document.getElementById('sub-articles');
-        if(sub) sub.classList.add('open');
+        if(sub){ sub.classList.add('open'); hossamSetSubHeight(sub, true); }
         const trigger = document.querySelector('.sb-item[onclick*="sub-articles"]');
         if(trigger) trigger.classList.add('open');
       }

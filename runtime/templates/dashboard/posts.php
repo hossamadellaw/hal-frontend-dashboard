@@ -92,9 +92,26 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
             <textarea class="form-input" id="hossam-new-content" name="content" rows="10"></textarea>
           </div>
           <div class="form-group mb-8">
-            <label class="form-label" for="hossam-new-cats"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></label>
-            <input type="text" class="form-input" id="hossam-new-cats" name="categories" inputmode="numeric" placeholder="3,7,12" />
+            <label class="form-label" for="hossam-new-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
+            <textarea class="form-input" id="hossam-new-excerpt" name="excerpt" rows="3"></textarea>
           </div>
+          <div class="form-group mb-8">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
+            <?php
+              $hossam_write_cats = get_categories( [ 'hide_empty' => false ] );
+              foreach ( $hossam_write_cats as $hossam_write_cat ) {
+                  echo '<label><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_write_cat->term_id ) . '" /> ' . esc_html( $hossam_write_cat->name ) . '</label>';
+              }
+            ?>
+          </div>
+          <?php if ( current_user_can( 'upload_files' ) ) : ?>
+          <div class="form-group mb-8">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
+            <input type="hidden" id="hossam-new-thumbnail" name="thumbnail_id" value="" />
+            <div><img id="hossam-new-thumbnail-preview" alt="" style="display:none;max-width:120px;height:auto;" /></div>
+            <button type="button" class="btn btn-sm" id="hossam-new-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
+          </div>
+          <?php endif; ?>
           <div class="form-group mb-8">
             <label class="form-label" for="hossam-new-status"><?php echo esc_html( hossam_t( 'Status' ) ); ?></label>
             <select class="filter-select" id="hossam-new-status" name="status">
@@ -350,9 +367,31 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
                       <textarea class="form-input" id="hossam-edit-content" name="content" rows="12"><?php echo esc_textarea( $the_post->post_content ); ?></textarea>
                     </div>
                     <div class="form-group mb-8">
-                      <label class="form-label" for="hossam-edit-cats"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></label>
-                      <input type="text" class="form-input" id="hossam-edit-cats" name="categories" inputmode="numeric" value="<?php echo esc_attr( implode( ',', $hossam_edit_cats ) ); ?>" />
+                      <label class="form-label" for="hossam-edit-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
+                      <textarea class="form-input" id="hossam-edit-excerpt" name="excerpt" rows="3"><?php echo esc_textarea( $the_post->post_excerpt ?? '' ); ?></textarea>
                     </div>
+                    <div class="form-group mb-8">
+                      <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
+                      <?php
+                        $hossam_edit_cat_list = get_categories( [ 'hide_empty' => false ] );
+                        foreach ( $hossam_edit_cat_list as $hossam_edit_cat ) {
+                            $hossam_cat_checked = in_array( (int) $hossam_edit_cat->term_id, array_map( 'intval', (array) $hossam_edit_cats ), true ) ? ' checked' : '';
+                            echo '<label><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_edit_cat->term_id ) . '"' . $hossam_cat_checked . ' /> ' . esc_html( $hossam_edit_cat->name ) . '</label>';
+                        }
+                      ?>
+                      <p class="form-hint"><?php echo esc_html( hossam_t( 'Leave all unchecked to keep the current categories.' ) ); ?></p>
+                    </div>
+                    <?php if ( current_user_can( 'upload_files' ) ) :
+                      $hossam_edit_thumb_id = function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $the_post->ID ) : 0;
+                      $hossam_edit_thumb_url = ( $hossam_edit_thumb_id > 0 && function_exists( 'wp_get_attachment_url' ) ) ? (string) wp_get_attachment_url( $hossam_edit_thumb_id ) : '';
+                    ?>
+                    <div class="form-group mb-8">
+                      <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
+                      <input type="hidden" id="hossam-edit-thumbnail" name="thumbnail_id" value="<?php echo esc_attr( $hossam_edit_thumb_id > 0 ? (string) $hossam_edit_thumb_id : '' ); ?>" />
+                      <div><img id="hossam-edit-thumbnail-preview" src="<?php echo esc_url( $hossam_edit_thumb_url ); ?>" alt="" style="<?php echo '' !== $hossam_edit_thumb_url ? 'max-width:120px;height:auto;' : 'display:none;max-width:120px;height:auto;'; ?>" /></div>
+                      <button type="button" class="btn btn-sm" id="hossam-edit-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
+                    </div>
+                    <?php endif; ?>
                     <?php if ( 'publish' === $hossam_cur_status && ! $hossam_can_publish ) : ?>
                     <?php /* مقال منشور ومستخدم بلا publish_posts: لا حقل حالة أصلًا — يبقى المنشور منشورًا */ ?>
                     <?php else : ?>

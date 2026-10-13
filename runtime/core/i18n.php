@@ -155,6 +155,9 @@ add_action( 'init', function(): void {
         'File', 'File uploaded.',
         'Allowed types: images, PDF, and Office documents.',
         'Legacy uploader unavailable.',
+        // v1.0.5 (A2+B): excerpt + featured image + keep-categories disclosure.
+        'Excerpt', 'Featured Image', 'Set featured image',
+        'Leave all unchecked to keep the current categories.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -296,6 +299,11 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'fileLabel'           => hossam_t('File'),                          // قالب files.php
             'fileUploaded'        => hossam_t('File uploaded.'),                // uploads.js
             'moveToTrashBtn'      => hossam_t('Move to Trash'),                 // قالب posts.php (زر)
+            // v1.0.5 (A2+B) — القيم مطابقة حرفيًا لنصوص fallback في الاستدعاءات الفعلية.
+            'excerptLabel'        => hossam_t('Excerpt'),                        // قالب posts.php
+            'featuredImage'       => hossam_t('Featured Image'),                // posts.js + قالب posts.php
+            'setFeaturedImage'    => hossam_t('Set featured image'),            // posts.js + قالب posts.php
+            'keepCategoriesNote'  => hossam_t('Leave all unchecked to keep the current categories.'), // قالب posts.php
         ];
     }
 }

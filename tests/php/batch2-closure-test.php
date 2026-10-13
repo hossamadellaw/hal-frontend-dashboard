@@ -61,6 +61,7 @@ $GLOBALS['B2C_OPTIONS']      = array();
 $GLOBALS['B2C_RESULTS']      = array();
 $GLOBALS['B2C_ENQUEUED_STYLES']  = array();
 $GLOBALS['B2C_ENQUEUED_SCRIPTS'] = array();
+$GLOBALS['B2C_ENQUEUED_MEDIA']   = 0;
 $GLOBALS['B2C_DEQUEUED']         = array();
 $GLOBALS['B2C_LOCALIZED']        = array();
 $GLOBALS['B2C_TEMPLATE_URI_CALLS'] = 0;
@@ -392,6 +393,13 @@ if ( ! function_exists( 'wp_localize_script' ) ) {
 	function wp_localize_script( string $handle, string $object_name, array $l10n ): bool {
 		$GLOBALS['B2C_LOCALIZED'][ $object_name ] = array( 'handle' => $handle, 'data' => $l10n );
 		return true;
+	}
+}
+// v1.0.5 (B): media-picker loader stub (pattern: settings-and-secrets-test).
+// setup.php calls wp_enqueue_media() on dashboard pages for upload_files users.
+if ( ! function_exists( 'wp_enqueue_media' ) ) {
+	function wp_enqueue_media( array $args = array() ): void {
+		$GLOBALS['B2C_ENQUEUED_MEDIA']++;
 	}
 }
 if ( ! function_exists( 'wp_create_nonce' ) ) {
@@ -1155,13 +1163,26 @@ function b2c_main( string $project ): void {
 	b2c_set_dashboard( false );
 	$styles_before = count( $GLOBALS['B2C_ENQUEUED_STYLES'] );
 	$scripts_before = count( $GLOBALS['B2C_ENQUEUED_SCRIPTS'] );
+	$media_before = $GLOBALS['B2C_ENQUEUED_MEDIA'];
 	b2c_invoke( 'wp_enqueue_scripts' );
 	b2c_check(
 		'A4',
-		count( $GLOBALS['B2C_ENQUEUED_STYLES'] ) === $styles_before && count( $GLOBALS['B2C_ENQUEUED_SCRIPTS'] ) === $scripts_before,
-		'enqueue guard: nothing is enqueued outside the dashboard page',
+		count( $GLOBALS['B2C_ENQUEUED_STYLES'] ) === $styles_before && count( $GLOBALS['B2C_ENQUEUED_SCRIPTS'] ) === $scripts_before && $GLOBALS['B2C_ENQUEUED_MEDIA'] === $media_before,
+		'enqueue guard: nothing (styles, scripts, or media) is enqueued outside the dashboard page',
 		'enqueue leaked outside the dashboard'
 	);
+	// v1.0.5 (B): the media loader is upload_files-gated — this harness
+	// denies every capability, so even on the dashboard no media loads.
+	b2c_set_dashboard( true );
+	$media_on_dash = $GLOBALS['B2C_ENQUEUED_MEDIA'];
+	b2c_invoke( 'wp_enqueue_scripts' );
+	b2c_check(
+		'A5',
+		$GLOBALS['B2C_ENQUEUED_MEDIA'] === $media_on_dash,
+		'media loader stays off on the dashboard without upload_files (no site-wide and no unconditional load)',
+		'media loader enqueued without upload_files'
+	);
+	b2c_set_dashboard( false );
 
 	/* ── U2 setup: guards, registry, capabilities, assets, redirects ── */
 	b2c_check(

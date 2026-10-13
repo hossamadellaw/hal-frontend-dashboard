@@ -62,6 +62,7 @@ $GLOBALS['B10_HOOKS']     = array();
 $GLOBALS['B10_STYLES']    = array();
 $GLOBALS['B10_SCRIPTS']   = array();
 $GLOBALS['B10_LOCALIZED'] = array();
+$GLOBALS['B10_MEDIA']     = 0;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', $GLOBALS['B10_PROJECT'] . '/runtime/fake-wp-root/' );
@@ -111,6 +112,11 @@ function wp_enqueue_script( string $handle, string $src = '', array $deps = arra
 function wp_localize_script( string $handle, string $name, array $data ): bool {
 	$GLOBALS['B10_LOCALIZED'][ $handle . ':' . $name ] = $data;
 	return true;
+}
+// v1.0.5 (B): media-picker loader stub (pattern: settings-and-secrets-test).
+// setup.php calls wp_enqueue_media() on dashboard pages only.
+function wp_enqueue_media( array $args = array() ): void {
+	$GLOBALS['B10_MEDIA']++;
 }
 
 /**
