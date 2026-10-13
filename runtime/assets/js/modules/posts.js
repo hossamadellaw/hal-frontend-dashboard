@@ -57,14 +57,18 @@ async function hossamCreateArticle(form){
   const title=form.querySelector('[name="title"]'),
         content=form.querySelector('[name="content"]'),
         status=form.querySelector('[name="status"]'),
-        cats=form.querySelector('[name="categories"]');
+        excerpt=form.querySelector('[name="excerpt"]'),
+        thumb=form.querySelector('[name="thumbnail_id"]');
   fd.append("title",title?title.value:"");
   fd.append("content",content?content.value:"");
   if(status&&status.value){fd.append("status",status.value);}
-  if(cats&&cats.value.trim()){
-    cats.value.split(",").map(s=>parseInt(s.trim(),10)).filter(n=>n>0)
-      .forEach(n=>fd.append("categories[]",n));
-  }
+  /* [B9-05] v1.0.5 A2: categories from checked boxes (no text parsing, no
+     silent drops). Empty create sends no key — WordPress assigns its default. */
+  var catBoxes = (typeof form.querySelectorAll === 'function')
+    ? form.querySelectorAll('input[name="categories[]"]:checked') : [];
+  catBoxes.forEach(box=>fd.append("categories[]",box.value));
+  if(excerpt){fd.append("excerpt",excerpt.value);}
+  if(thumb&&thumb.value!==''&&thumb.value!=='0'){fd.append("thumbnail_id",thumb.value);}
   let netError=false,resp=null,d=null;
   try{
     resp=await fetch(hossamAjax.ajaxurl,{method:"POST",body:fd});
@@ -91,15 +95,19 @@ async function hossamUpdateArticle(form){
         title=form.querySelector('[name="title"]'),
         content=form.querySelector('[name="content"]'),
         status=form.querySelector('[name="status"]'),
-        cats=form.querySelector('[name="categories"]');
+        excerpt=form.querySelector('[name="excerpt"]'),
+        thumb=form.querySelector('[name="thumbnail_id"]');
   fd.append("post_id",pid?pid.value:"0");
   fd.append("title",title?title.value:"");
   fd.append("content",content?content.value:"");
   if(status&&status.value){fd.append("status",status.value);}
-  if(cats&&cats.value.trim()){
-    cats.value.split(",").map(s=>parseInt(s.trim(),10)).filter(n=>n>0)
-      .forEach(n=>fd.append("categories[]",n));
-  }
+  /* [B9-05] v1.0.5 A2: empty update sends no categories key (keep-contract);
+     the server guard keeps the current categories. */
+  var catBoxesU = (typeof form.querySelectorAll === 'function')
+    ? form.querySelectorAll('input[name="categories[]"]:checked') : [];
+  catBoxesU.forEach(box=>fd.append("categories[]",box.value));
+  if(excerpt){fd.append("excerpt",excerpt.value);}
+  if(thumb&&thumb.value!==''&&thumb.value!=='0'){fd.append("thumbnail_id",thumb.value);}
   let netError=false,resp=null,d=null;
   try{
     resp=await fetch(hossamAjax.ajaxurl,{method:"POST",body:fd});
@@ -158,6 +166,30 @@ async function restoreArticle(postId){
 }
 
 document.addEventListener('click',e=>{const b=e.target.closest('.js-restore-article');if(b){e.preventDefault();restoreArticle(parseInt(b.dataset.id,10));}});
+
+/* [B9-05] v1.0.5 B: featured-image picker via the standard wp.media frame.
+   Select/replace only (no remove button — the server ignores thumbnail_id=0);
+   the hidden field is sent only when an image was picked. */
+function hossamBindThumbnailPicker(btnId, fieldId, previewId){
+  const btn=document.getElementById(btnId);
+  if(!btn||typeof wp==='undefined'||!wp.media) return;
+  btn.addEventListener('click',function(){
+    const frame=wp.media({title:t('featuredImage','Featured Image'),button:{text:t('setFeaturedImage','Set featured image')},multiple:false});
+    frame.on('select',function(){
+      const att=frame.state().get('selection').first().toJSON();
+      const field=document.getElementById(fieldId);
+      const preview=document.getElementById(previewId);
+      if(field) field.value=att.id;
+      if(preview){
+        const url=att.sizes&&att.sizes.thumbnail?att.sizes.thumbnail.url:att.url;
+        if(url){preview.src=url;preview.style.display='';}
+      }
+    });
+    frame.open();
+  });
+}
+hossamBindThumbnailPicker('hossam-new-thumbnail-btn','hossam-new-thumbnail','hossam-new-thumbnail-preview');
+hossamBindThumbnailPicker('hossam-edit-thumbnail-btn','hossam-edit-thumbnail','hossam-edit-thumbnail-preview');
 
 /* [Patch 4] Create WPML translation for an article */
 async function translateArticle(postId, lang){

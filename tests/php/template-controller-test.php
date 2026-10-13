@@ -284,6 +284,15 @@ foreach ( $needles as $needle ) {
 }
 hal_tc_check( 'T11-THEME-INDEPENDENCE', array() === $hits, 'no theme loaders, template-name checks, or input superglobals in live code', 'hits: ' . json_encode( $hits ) );
 
+/* T13 — v1.0.5 (A1): the deep-link target exists on both sides — the shell
+ * nav item and the posts-part panel share data-panel/id "trash-articles". */
+$tc_shell = (string) file_get_contents( $project . '/runtime/templates/dashboard.php' );
+$tc_posts = (string) file_get_contents( $project . '/runtime/templates/dashboard/posts.php' );
+hal_tc_check( 'T13-TRASH-DEEPLINK',
+	false !== strpos( $tc_shell, 'data-panel="trash-articles"' ) && false !== strpos( $tc_posts, 'id="panel-trash-articles"' ),
+	'shell nav and posts part agree on the trash-articles deep-link target',
+	'trash-articles nav/panel mismatch' );
+
 /* T12 — unavailable-runtime subprocess (no release context). */
 $php = PHP_BINARY;
 $cmd = array( $php, __FILE__, 'nocontext' );

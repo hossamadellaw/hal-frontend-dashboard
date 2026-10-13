@@ -32,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'hossam_create_article' ) ) {
 	/**
-	 * @param array{title?:string,content?:string,status?:string,categories?:array<int,int>,thumbnail_id?:int} $data
+	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int} $data
 	 * @return int|WP_Error
 	 */
 	function hossam_create_article( array $data ) {
@@ -57,14 +57,18 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			return $validation;
 		}
 
+		$postarr = [
+			'post_type'    => 'post',
+			'post_status'  => $status,
+			'post_title'   => isset( $data['title'] ) ? sanitize_text_field( $data['title'] ) : '',
+			'post_content' => isset( $data['content'] ) ? wp_kses_post( $data['content'] ) : '',
+			'post_author'  => get_current_user_id(),
+		];
+		if ( isset( $data['excerpt'] ) ) {
+			$postarr['post_excerpt'] = sanitize_textarea_field( $data['excerpt'] );
+		}
 		$post_id = wp_insert_post(
-			[
-				'post_type'    => 'post',
-				'post_status'  => $status,
-				'post_title'   => isset( $data['title'] ) ? sanitize_text_field( $data['title'] ) : '',
-				'post_content' => isset( $data['content'] ) ? wp_kses_post( $data['content'] ) : '',
-				'post_author'  => get_current_user_id(),
-			],
+			$postarr,
 			true
 		);
 		if ( is_wp_error( $post_id ) ) {
@@ -96,7 +100,7 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 
 if ( ! function_exists( 'hossam_update_article' ) ) {
 	/**
-	 * @param array{title?:string,content?:string,status?:string,categories?:array<int,int>,thumbnail_id?:int} $data
+	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int} $data
 	 * @return bool|WP_Error
 	 */
 	function hossam_update_article( int $post_id, array $data ) {
@@ -121,6 +125,9 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 		if ( isset( $data['content'] ) ) {
 			$postarr['post_content'] = wp_kses_post( $data['content'] );
 		}
+		if ( isset( $data['excerpt'] ) ) {
+			$postarr['post_excerpt'] = sanitize_textarea_field( $data['excerpt'] );
+		}
 		if ( isset( $data['status'] ) ) {
 			$allowed_statuses = [ 'draft', 'pending' ];
 			$status            = sanitize_key( $data['status'] );
@@ -142,6 +149,7 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			'post_title'   => (string) $post->post_title,
 			'post_content' => (string) $post->post_content,
 			'post_status'  => (string) $post->post_status,
+			'post_excerpt' => isset( $post->post_excerpt ) ? (string) $post->post_excerpt : '',
 		];
 		$orig_categories = $restore_categories && function_exists( 'wp_get_post_categories' ) ? wp_get_post_categories( $post_id ) : [];
 		if ( is_wp_error( $orig_categories ) ) {
@@ -263,7 +271,7 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 	 * Restores and then re-reads every state touched by an article update.
 	 * A successful Core return alone is not enough to claim compensation.
 	 *
-	 * @param array{post_title:string,post_content:string,post_status:string} $orig_post
+	 * @param array{post_title:string,post_content:string,post_status:string,post_excerpt:string} $orig_post
 	 * @param array<int,int>   $orig_categories
 	 */
 	function hossam_restore_article_snapshot(
@@ -283,6 +291,7 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 					'post_title'   => $orig_post['post_title'],
 					'post_content' => $orig_post['post_content'],
 					'post_status'  => $orig_post['post_status'],
+					'post_excerpt' => $orig_post['post_excerpt'],
 				],
 				true
 			);
@@ -290,7 +299,8 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 			if ( is_wp_error( $restore ) || 0 === $restore || ! $restored_post
 				|| $restored_post->post_title !== $orig_post['post_title']
 				|| $restored_post->post_content !== $orig_post['post_content']
-				|| $restored_post->post_status !== $orig_post['post_status'] ) {
+				|| $restored_post->post_status !== $orig_post['post_status']
+				|| (string) ( $restored_post->post_excerpt ?? '' ) !== $orig_post['post_excerpt'] ) {
 				$all_restored = false;
 				error_log( 'Hossam Dashboard post rollback failed for post ' . $post_id );
 			}

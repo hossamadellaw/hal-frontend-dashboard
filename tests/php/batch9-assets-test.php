@@ -62,6 +62,7 @@ $GLOBALS['B9_HOOKS']     = array();
 $GLOBALS['B9_STYLES']    = array();
 $GLOBALS['B9_SCRIPTS']   = array();
 $GLOBALS['B9_LOCALIZED'] = array();
+$GLOBALS['B9_MEDIA']     = 0;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', $GLOBALS['B9_PROJECT'] . '/runtime/fake-wp-root/' );
@@ -111,6 +112,11 @@ function wp_enqueue_script( string $handle, string $src = '', array $deps = arra
 function wp_localize_script( string $handle, string $name, array $data ): bool {
 	$GLOBALS['B9_LOCALIZED'][ $handle . ':' . $name ] = $data;
 	return true;
+}
+// v1.0.5 (B): media-picker loader stub (pattern: settings-and-secrets-test).
+// setup.php calls wp_enqueue_media() on dashboard pages only.
+function wp_enqueue_media( array $args = array() ): void {
+	$GLOBALS['B9_MEDIA']++;
 }
 
 /**
@@ -243,6 +249,13 @@ b9_check( 'B9-E4-hossamajax-localized',
 
 /* ── I18N completeness for the t() keys used by the shipped files ── */
 
+// v1.0.5 (B): the real closure enqueues the standard media loader on
+// dashboard pages (upload_files stubbed true in this harness).
+b9_check( 'B9-E5-media-enqueued',
+	$GLOBALS['B9_MEDIA'] > 0,
+	'wp_enqueue_media() runs through the real closure on dashboard pages',
+	'media loader was not enqueued by the real closure' );
+
 $js_sources = array(
 	'js/dashboard.js'         => file_get_contents( HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT . 'assets/js/dashboard.js' ),
 	'js/modules/posts.js'     => file_get_contents( HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT . 'assets/js/modules/posts.js' ),
@@ -303,6 +316,42 @@ b9_check( 'B9-I1a-defined-keys', array() === $shared_missing,
 	'the shared/known t() keys used by the shipped files are used and defined in the real i18n map',
 	'shared i18n keys missing from use or from the real map: ' . json_encode( $shared_missing ) );
 
+// v1.0.5 (A2+B): the four new i18n keys are present in the real map.
+$v105_keys = array( 'excerptLabel', 'featuredImage', 'setFeaturedImage', 'keepCategoriesNote' );
+$v105_missing = array();
+foreach ( $v105_keys as $key ) {
+	if ( ! array_key_exists( $key, $i18n_strings ) ) {
+		$v105_missing[] = $key;
+	}
+}
+b9_check( 'B9-I2-v105-keys', array() === $v105_missing,
+	'the v1.0.5 excerpt/featured-image/disclosure keys are defined in the real i18n map',
+	'v1.0.5 i18n keys missing from the real map: ' . json_encode( $v105_missing ) );
+
+// v1.0.5 (A1): trash-articles wired in both articlePanels arrays and PANEL_TITLES.
+$dash_src = $js_sources['js/dashboard.js'];
+$v105_panels = substr_count( $dash_src, "'write','all-articles','edit-article','delete-article','trash-articles'" );
+b9_check( 'B9-A1-trash-panels',
+	2 === $v105_panels,
+	'trash-articles is present in both articlePanels arrays (hash route and ?panel= route)',
+	'articlePanels wiring mismatch (expected 2, found ' . $v105_panels . ')' );
+b9_check( 'B9-A1-trash-title',
+	false !== strpos( $dash_src, "'trash-articles':" ) && 1 === preg_match( "/t\(\s*'panelTrash'\s*,\s*'Trash'\s*\)/", $dash_src ),
+	'PANEL_TITLES maps trash-articles to the translated Trash title',
+	'trash-articles title mapping missing in dashboard.js' );
+
+// v1.0.5 (A2): posts.js collects checked boxes; the text-ID parsing path is gone.
+// Empty update therefore sends no categories key (server keep-contract).
+$posts_src = $js_sources['js/modules/posts.js'];
+b9_check( 'B9-A2-checkbox-collection',
+	false !== strpos( $posts_src, 'input[name="categories[]"]:checked' ),
+	'posts.js collects categories from checked boxes',
+	'checkbox collection missing in posts.js' );
+b9_check( 'B9-A2-no-text-parsing',
+	false === strpos( $posts_src, 'split(",")' ) && false === strpos( $posts_src, '[name="categories"]' ),
+	'posts.js carries no text-ID parsing path (no silent drops, no categories key when empty)',
+	'legacy text-parsing path still present in posts.js' );
+
 /* ── BYTE identity vs exclusive source and batch-9 inventory ───── */
 
 $source_root = dirname( $GLOBALS['B9_PROJECT'], 2 ) . '/dashboard/Dahboard-v-1.0.0';
@@ -317,7 +366,6 @@ foreach ( $inventory['files'] as $f ) {
 }
 
 $mappings = array(
-	'theme/assets/js/modules/posts.js'     => 'runtime/assets/js/modules/posts.js',
 	'theme/assets/js/modules/members.js'   => 'runtime/assets/js/modules/members.js',
 );
 
@@ -346,10 +394,13 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 // inventory, and the runtime side must carry exactly the documented marker
 // the legacy source lacks. Minimality of the surrounding diff is proven by
 // independent review of the two files, not by this harness.
+// v1.0.5 (A2+B): posts.js intentionally diverges (checkbox collection,
+// excerpt, media picker) and carries [B9-05]; members.js stays byte-identical.
 $audit_deltas = array(
 	'theme/assets/css/dashboard.css'        => array( 'runtime/assets/css/dashboard.css', 'B9-U1' ),
 	'theme/assets/js/dashboard.js'       => array( 'runtime/assets/js/dashboard.js', 'B9-02' ),
 	'theme/assets/js/modules/uploads.js' => array( 'runtime/assets/js/modules/uploads.js', 'B9-01' ),
+	'theme/assets/js/modules/posts.js'   => array( 'runtime/assets/js/modules/posts.js', 'B9-05' ),
 );
 
 foreach ( $audit_deltas as $legacy_rel => $pair ) {

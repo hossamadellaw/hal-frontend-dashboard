@@ -195,13 +195,16 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
     }
 
     $data = [];
-    foreach ( [ 'title', 'content', 'status' ] as $field ) {
+    foreach ( [ 'title', 'content', 'status', 'excerpt' ] as $field ) {
         if ( isset( $_POST[ $field ] ) ) {
             if ( ! is_string( $_POST[ $field ] ) ) {
                 wp_send_json_error( [ 'message' => hossam_t( 'Invalid article data.' ) ], 400 );
             }
             $data[ $field ] = wp_unslash( $_POST[ $field ] );
         }
+    }
+    if ( isset( $data['excerpt'] ) ) {
+        $data['excerpt'] = sanitize_textarea_field( $data['excerpt'] );
     }
     if ( isset( $_POST['categories'] ) ) {
         $raw_cats = wp_unslash( $_POST['categories'] );
@@ -245,13 +248,16 @@ add_action( 'wp_ajax_hossam_update_article', function(): void {
     $post_id = isset( $_POST['post_id'] ) && is_scalar( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 
     $data = [];
-    foreach ( [ 'title', 'content', 'status' ] as $field ) {
+    foreach ( [ 'title', 'content', 'status', 'excerpt' ] as $field ) {
         if ( isset( $_POST[ $field ] ) ) {
             if ( ! is_string( $_POST[ $field ] ) ) {
                 wp_send_json_error( [ 'message' => hossam_t( 'Invalid article data.' ) ], 400 );
             }
             $data[ $field ] = wp_unslash( $_POST[ $field ] );
         }
+    }
+    if ( isset( $data['excerpt'] ) ) {
+        $data['excerpt'] = sanitize_textarea_field( $data['excerpt'] );
     }
     if ( isset( $_POST['categories'] ) ) {
         $raw_cats = wp_unslash( $_POST['categories'] );

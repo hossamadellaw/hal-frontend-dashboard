@@ -23,7 +23,10 @@
  *      assets/css/dashboard.css) are parsed with the SAME parser (comments
  *      stripped, @media inner rules kept with their query label).
  *   4. Per unit the harness asserts:
- *        markup-symmetric  — hook sets migrated == reference (exact);
+ *        markup-symmetric  - hook sets migrated == reference (exact),
+ *                            except panel-posts which must equal the single
+ *                            documented v1.0.5 delta exactly (V105_POSTS_DELTA
+ *                            below — no more, no less);
  *        no-lost-rules     — every hook matched by ≥1 legacy rule is still
  *                            matched by ≥1 runtime rule;
  *        rules-symmetric   — the applicable rule sets are identical
@@ -238,6 +241,40 @@ const ORPHAN_ALLOWLIST = new Set([
 
 const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance', 'inbox', 'files', 'members', 'store', 'profile', 'admin'];
 
+/* ── v1.0.5 documented markup delta, panel-posts ONLY (owner-authorized) ──
+ * The governing doc (v1.0.5 §3) mandates replacing the numeric-IDs text
+ * field with real category checkboxes + excerpt field + upload-gated image
+ * UI. The allowed diff below is EXACT: the gained/lost hook sets must equal
+ * these lists precisely — any other drift still fails. All other units stay
+ * exactly symmetric.
+ */
+const V105_POSTS_DELTA = {
+  classesGained: ['form-hint'],
+  classesLost: [],
+  idsGained: [
+    'hossam-edit-excerpt', 'hossam-edit-thumbnail', 'hossam-edit-thumbnail-btn',
+    'hossam-edit-thumbnail-preview', 'hossam-new-excerpt', 'hossam-new-thumbnail',
+    'hossam-new-thumbnail-btn', 'hossam-new-thumbnail-preview',
+  ],
+  idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
+  dataGained: [],
+  dataLost: [],
+  stylesGained: ['display:none;max-width:120px;height:auto;'],
+  stylesLost: [],
+};
+
+function v105DeltaHolds(ref, mig) {
+  const eq = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+  return eq(setDiff(mig.classes, ref.classes), V105_POSTS_DELTA.classesGained)
+    && eq(setDiff(ref.classes, mig.classes), V105_POSTS_DELTA.classesLost)
+    && eq(setDiff(mig.ids, ref.ids), V105_POSTS_DELTA.idsGained)
+    && eq(setDiff(ref.ids, mig.ids), V105_POSTS_DELTA.idsLost)
+    && eq(setDiff(mig.dataAttrs, ref.dataAttrs), V105_POSTS_DELTA.dataGained)
+    && eq(setDiff(ref.dataAttrs, mig.dataAttrs), V105_POSTS_DELTA.dataLost)
+    && eq(setDiff(mig.inlineStyles, ref.inlineStyles), V105_POSTS_DELTA.stylesGained)
+    && eq(setDiff(ref.inlineStyles, mig.inlineStyles), V105_POSTS_DELTA.stylesLost);
+}
+
 function setDiff(a, b) {
   return [...a].filter((x) => !b.has(x)).sort();
 }
@@ -251,9 +288,13 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   const dataSame = JSON.stringify([...ref.dataAttrs].sort()) === JSON.stringify([...mig.dataAttrs].sort());
   const styleSame = JSON.stringify([...ref.inlineStyles].sort()) === JSON.stringify([...mig.inlineStyles].sort());
   const logoInfo = `logo-fallback-styles ref=${ref.logoStyles.size} mig=${mig.logoStyles.size}`;
+  const markupOk = (name === 'panel-posts') ? v105DeltaHolds(ref, mig)
+    : (classSame && idSame && dataSame && styleSame);
   check(`B9V-${name}-markup-symmetric`,
-    classSame && idSame && dataSame && styleSame,
-    `${name}: styling hooks identical (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`,
+    markupOk,
+    name === 'panel-posts'
+      ? `${name}: styling hooks equal the documented v1.0.5 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
+      : `${name}: styling hooks identical (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`,
     `${name}: markup drift class[+${setDiff(mig.classes, ref.classes)}]/[-${setDiff(ref.classes, mig.classes)}]`
       + ` id[+${setDiff(mig.ids, ref.ids)}]/[-${setDiff(ref.ids, mig.ids)}]`
       + ` data[+${setDiff(mig.dataAttrs, ref.dataAttrs)}]/[-${setDiff(ref.dataAttrs, mig.dataAttrs)}]`
