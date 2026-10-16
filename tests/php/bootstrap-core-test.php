@@ -23,13 +23,14 @@
  *                  option store and a $wpdb mock: dbDelta runs exactly once
  *                  per table, the three schema version options are set once
  *                  and never change on the second run.
- *   ORDER-WEIGHT — every core file defines its signature functions (each
+ *                  ORDER-WEIGHT — every core file defines its signature functions (each
  *                  definition guarded by function_exists), and bootstrap.php
  *                  requires exactly the mandated load order: the 5 core files,
  *                  then the 8 batch-4 adapters (documented batch-4 evolution
  *                  of the bootstrap contract — the batch-2 state "no adapters
  *                  yet" was superseded by the designated adapters section),
- *                  and ajax/seo.php stays unloaded while the 8 batch-5/6 ajax files load after adapters.
+ *                  and ajax/seo.php loads ninth while the 9 batch-5/6 ajax files load after adapters
+ *                  (v1.0.6 §8.3 documented gate change).
  *
  * The harness calls the real project code — only WordPress itself is
  * stubbed (add_action/add_filter/do_action/apply_filters/__return_true/
@@ -644,6 +645,9 @@ function hal_test_main(): void {
 		array( 'action', 'hossam_ai_sweep_jobs_event', 10 ),
 		array( 'action', 'wp_ajax_hossam_ai_get_job_status', 10 ),
 		array( 'action', 'wp_ajax_hossam_ai_set_preference', 10 ),
+		// v1.0.6 §8.3 (documented gate change): ajax/seo.php loads ninth —
+		// its endpoint registers here, after ai and before the template filter.
+		array( 'action', 'wp_ajax_hossam_save_seo', 10 ),
 		// Batch 7 (§18): the infrastructure Template Controller registers
 		// template_include when bootstrap requires it (after AJAX, before the
 		// readiness filter).
@@ -676,7 +680,7 @@ function hal_test_main(): void {
 	hal_test_check(
 		'A4',
 		$actual_events === $expected_events,
-		'exact load-time event sequence matches (72 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the batch-7 infrastructure template_include filter + the 2 v1.0.3 health handlers (wp_ajax + wp_ajax_nopriv) + the multisite wp_initialize_site provisioner)',
+		'exact load-time event sequence matches (73 events: 39 through batch 4 + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the v1.0.6 §8.3 wp_ajax_hossam_save_seo registration + the batch-7 infrastructure template_include filter + the 2 v1.0.3 health handlers (wp_ajax + wp_ajax_nopriv) + the multisite wp_initialize_site provisioner)',
 		'event sequence mismatch — ' . $event_detail
 	);
 
@@ -929,13 +933,12 @@ function hal_test_main(): void {
 	preg_match_all( '/^[ \t]*(?:require_once|require|include_once|include)\b.*$/m', $bootstrap_source, $require_matches );
 	$require_lines   = $require_matches[0];
 	// Batch-5 evolution of the bootstrap contract (documented in the
-	// bootstrap's designated AJAX section): the 5 core files, then the
-	// 5 backend/settings files, then the 8 adapters, then the eight ajax
-	// files in the literal legacy order (2 batch-5 content/files + the 6
-	// batch-6 integrations/services files) — while ajax/seo.php stays
-	// forbidden (its loading follows the adopted registry state per §16;
-	// verified_fields is still false, so the save_seo endpoint remains
-	// unregistered).
+	// bootstrap's designated AJAX section) + v1.0.6 §8.3 (documented gate
+	// change): the 5 core files, then the 5 backend/settings files, then
+	// the 8 adapters, then the nine ajax files in the literal legacy order
+	// (2 batch-5 content/files + the 6 batch-6 integrations/services files
+	// + ajax/seo.php ninth) — the §16 registry-gated hold is replaced by
+	// runtime detection (verified_fields) + the owner rank_math_seo key.
 	$expected_requires = array(
 		'core/setup.php',
 		'core/i18n.php',
@@ -963,35 +966,31 @@ function hal_test_main(): void {
 		'ajax/inbox.php',
 		'ajax/store.php',
 		'ajax/ai.php',
+		'ajax/seo.php',
 	);
 	$require_order = array();
-	$forbidden_require = '';
 	foreach ( $require_lines as $line ) {
-		if ( preg_match( '#ajax/seo\.php#i', $line ) ) {
-			$forbidden_require = $line;
-			break;
-		}
 		foreach ( $expected_requires as $expected_file ) {
 			if ( false !== strpos( $line, $expected_file ) ) {
 				$require_order[] = $expected_file;
 			}
 		}
 	}
-	$forbidden_included = '';
+	// v1.0.6 §8.3: ajax/seo.php is EXPECTED among the included files (ninth
+	// ajax require above); assert it explicitly instead of forbidding it.
+	$seo_included = '';
 	foreach ( $included_normalized as $path ) {
 		if ( false !== strpos( $path, '/runtime/ajax/seo.php' ) ) {
-			$forbidden_included = $path;
+			$seo_included = $path;
 			break;
 		}
 	}
 	hal_test_check(
 		'C3',
-		'' === $forbidden_require
-			&& '' === $forbidden_included
+		'' !== $seo_included
 			&& $require_order === $expected_requires,
-		'bootstrap.php requires exactly the mandated load order (5 core + 5 backend/settings + 8 batch-4 adapters + 8 ajax files: 2 batch-5 + 6 batch-6 in the legacy order) and never loads ajax/seo.php (§16 registry-gated loading)',
-		'bootstrap require scan failed — forbidden require: ' . ( '' !== $forbidden_require ? $forbidden_require : 'none' )
-			. '; forbidden included file: ' . ( '' !== $forbidden_included ? $forbidden_included : 'none' )
+		'bootstrap.php requires exactly the mandated load order (5 core + 5 backend/settings + 8 batch-4 adapters + 9 ajax files: 2 batch-5 + 6 batch-6 in the legacy order + v1.0.6 §8.3 ajax/seo.php ninth)',
+		'bootstrap require scan failed — seo.php included: ' . ( '' !== $seo_included ? 'yes' : 'MISSING' )
 			. '; require order: ' . json_encode( $require_order )
 	);
 

@@ -158,6 +158,21 @@ add_action( 'init', function(): void {
         // v1.0.5 (A2+B): excerpt + featured image + keep-categories disclosure.
         'Excerpt', 'Featured Image', 'Set featured image',
         'Leave all unchecked to keep the current categories.',
+        // v1.0.6 §11 (P2): only strings actually rendered now (P1) — no slug,
+        // no Gutenberg/WordPress copies. 'View'/'Edit' already registered above (:74).
+        'Remove featured image', 'Permalink', 'مؤقت — النهائي عند النشر', 'Preview',
+        // v1.0.6 §9 (§11): HAL-owned rich-editor strings only — failure notice
+        // + upload-failure message. WordPress/Gutenberg UI is translated by
+        // its own packages; nothing is copied here.
+        'Rich editor unavailable — using the plain text field.', 'Media upload failed.',
+        // v1.0.6 §14: HAL-owned translation status/permission strings only —
+        // rendered by the translations panel (translations.php) and the
+        // translate endpoint (ajax/posts.php). No WPML job-system copies.
+        'Article translations', 'Original', 'Not translated',
+        'Translations are unavailable.',
+        'You do not have permission to create this translation.',
+        'You do not have permission to edit this translation.',
+        'This translation does not belong to the requested article.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -303,6 +318,18 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'excerptLabel'        => hossam_t('Excerpt'),                        // قالب posts.php
             'featuredImage'       => hossam_t('Featured Image'),                // posts.js + قالب posts.php
             'setFeaturedImage'    => hossam_t('Set featured image'),            // posts.js + قالب posts.php
+            // v1.0.6 §11: JS keys match posts.js fallbacks literally (P1-visible only).
+            'removeFeaturedImage' => hossam_t('Remove featured image'),   // posts.js
+            'viewLink'            => hossam_t('View'),                     // posts.js
+            'previewLink'         => hossam_t('Preview'),                  // posts.js
+            'editLink'            => hossam_t('Edit'),                     // posts.js
+            // v1.0.6 §8.6: posts.js success-card deep link to the SEO panel
+            // ('SEO' already registered in the strings list above — no slug).
+            'seoLink'             => hossam_t('SEO'),                      // posts.js
+            // v1.0.6 §9 (§11): HAL-owned rich-editor keys — fallbacks in
+            // posts.js match these values literally.
+            'richEditorUnavailable' => hossam_t('Rich editor unavailable — using the plain text field.'), // posts.js
+            'richUploadFailed'  => hossam_t('Media upload failed.'), // posts.js
             'keepCategoriesNote'  => hossam_t('Leave all unchecked to keep the current categories.'), // قالب posts.php
         ];
     }

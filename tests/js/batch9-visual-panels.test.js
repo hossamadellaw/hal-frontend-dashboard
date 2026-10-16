@@ -24,9 +24,10 @@
  *      stripped, @media inner rules kept with their query label).
  *   4. Per unit the harness asserts:
  *        markup-symmetric  - hook sets migrated == reference (exact),
- *                            except panel-posts which must equal the single
- *                            documented v1.0.5 delta exactly (V105_POSTS_DELTA
- *                            below — no more, no less);
+ *                            except panel-posts and panel-translations which
+ *                            must equal their single documented v1.0.6 delta
+ *                            exactly (V106_POSTS_DELTA /
+ *                            V106_TRANSLATIONS_DELTA below — no more, no less);
  *        no-lost-rules     — every hook matched by ≥1 legacy rule is still
  *                            matched by ≥1 runtime rule;
  *        rules-symmetric   — the applicable rule sets are identical
@@ -233,46 +234,87 @@ function applicableKeys(hooks, rules) {
  *                       design — variants carry full inline styles (Media
  *                       attachment img vs gold HAL box, batch-7 branding
  *                       contract, no shipped logo.png).
+ *   ── v1.0.6 §14 (documented addition, same pattern): ──
+ * hossam-translations-panel  §14 article-list container in
+ *                       translations.php; unstyled by design (inherits the
+ *                       card/table hooks around it — product CSS untouched
+ *                       per test-only scope). Tracked here, never silently
+ *                       merged; independent review (G6) to follow.
  */
 const ORPHAN_ALLOWLIST = new Set([
   'btn-primary', 'tab-content', 'tab-group', 'hdr-lang-cur', 'sb-logo',
   'js-ai-run', 'js-restore-article', 'js-translate-article',
+  'hossam-translations-panel', // v1.0.6 §14
 ]);
 
 const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance', 'inbox', 'files', 'members', 'store', 'profile', 'admin'];
 
-/* ── v1.0.5 documented markup delta, panel-posts ONLY (owner-authorized) ──
- * The governing doc (v1.0.5 §3) mandates replacing the numeric-IDs text
- * field with real category checkboxes + excerpt field + upload-gated image
- * UI. The allowed diff below is EXACT: the gained/lost hook sets must equal
- * these lists precisely — any other drift still fails. All other units stay
- * exactly symmetric.
+/* ── v1.0.6 documented markup deltas, panel-posts + panel-translations ONLY
+ * (owner-authorized §12) ──
+ * Posts (§3: P1/P4 + §8.5/§8.6 + §9): the v1.0.5 delta below is KEPT and
+ * extended by the v1.0.6 additions — P1 remove buttons (write unconditional
+ * + edit conditional on thumb>0), read-only Permalink, P4 parent-children
+ * tree (scroll box + open details + RTL indent + data-tag language badge),
+ * edit-only SEO group (hossam-edit-seo-ids), rich-editor containers
+ * (hossam-rich-editor classes plus data-textarea/data-role). The allowed diffs below
+ * are EXACT: the gained/lost hook sets must equal these lists precisely —
+ * any other drift still fails. All other units stay exactly symmetric.
+ * v1.0.6 comment: reviewed against runtime/templates/dashboard/posts.php
+ * on 2026-10-15/16; independent review to follow (G6).
  */
-const V105_POSTS_DELTA = {
-  classesGained: ['form-hint'],
+const V106_POSTS_DELTA = {
+  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar'],
   classesLost: [],
   idsGained: [
-    'hossam-edit-excerpt', 'hossam-edit-thumbnail', 'hossam-edit-thumbnail-btn',
-    'hossam-edit-thumbnail-preview', 'hossam-new-excerpt', 'hossam-new-thumbnail',
-    'hossam-new-thumbnail-btn', 'hossam-new-thumbnail-preview',
+    'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
+    'hossam-edit-seo-group', 'hossam-edit-seo-kw', 'hossam-edit-seo-score',
+    'hossam-edit-seo-title', 'hossam-edit-thumbnail', 'hossam-edit-thumbnail-btn',
+    'hossam-edit-thumbnail-preview', 'hossam-edit-thumbnail-remove',
+    'hossam-new-excerpt', 'hossam-new-thumbnail', 'hossam-new-thumbnail-btn',
+    'hossam-new-thumbnail-preview', 'hossam-new-thumbnail-remove',
+    'hossam-rich-editor-edit', 'hossam-rich-editor-new',
   ],
   idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
-  dataGained: [],
+  dataGained: ['role', 'textarea'],
   dataLost: [],
-  stylesGained: ['display:none;max-width:120px;height:auto;'],
+  stylesGained: [
+    "display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;",
+    'display:inline-flex;align-items:center;gap:4px',
+    'display:none;max-width:120px;height:auto;',
+    'flex-wrap:wrap',
+    'max-height:180px;overflow:auto;',
+  ],
   stylesLost: [],
 };
 
-function v105DeltaHolds(ref, mig) {
+/* ── v1.0.6 §14 documented markup delta, panel-translations ONLY ──
+ * The §14 conversion appends the manual article-translations list (status
+ * pills + per-language create/edit buttons reusing hossam_translate_article
+ * via posts.js) before the panel closer. Exact gained sets below; no losses.
+ * v1.0.6 comment: same exact-delta pattern as posts; independent review (G6).
+ */
+const V106_TRANSLATIONS_DELTA = {
+  classesGained: ['articles-tbl-actions', 'btn-ghost', 'btn-sm', 'hossam-translations-panel', 'js-translate-article', 'pill', 'tbl-wrap', 'td-title'],
+  classesLost: [],
+  idsGained: [],
+  idsLost: [],
+  dataGained: ['lang', 'post'],
+  dataLost: [],
+  stylesGained: ['font-size:11px;color:var(--txt-3)', 'font-size:11px;font-weight:600;color:var(--txt-2)'],
+  stylesLost: [],
+};
+
+function v106DeltaHolds(ref, mig, name) {
+  const delta = name === 'panel-posts' ? V106_POSTS_DELTA : V106_TRANSLATIONS_DELTA;
   const eq = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
-  return eq(setDiff(mig.classes, ref.classes), V105_POSTS_DELTA.classesGained)
-    && eq(setDiff(ref.classes, mig.classes), V105_POSTS_DELTA.classesLost)
-    && eq(setDiff(mig.ids, ref.ids), V105_POSTS_DELTA.idsGained)
-    && eq(setDiff(ref.ids, mig.ids), V105_POSTS_DELTA.idsLost)
-    && eq(setDiff(mig.dataAttrs, ref.dataAttrs), V105_POSTS_DELTA.dataGained)
-    && eq(setDiff(ref.dataAttrs, mig.dataAttrs), V105_POSTS_DELTA.dataLost)
-    && eq(setDiff(mig.inlineStyles, ref.inlineStyles), V105_POSTS_DELTA.stylesGained)
-    && eq(setDiff(ref.inlineStyles, mig.inlineStyles), V105_POSTS_DELTA.stylesLost);
+  return eq(setDiff(mig.classes, ref.classes), delta.classesGained)
+    && eq(setDiff(ref.classes, mig.classes), delta.classesLost)
+    && eq(setDiff(mig.ids, ref.ids), delta.idsGained)
+    && eq(setDiff(ref.ids, mig.ids), delta.idsLost)
+    && eq(setDiff(mig.dataAttrs, ref.dataAttrs), delta.dataGained)
+    && eq(setDiff(ref.dataAttrs, mig.dataAttrs), delta.dataLost)
+    && eq(setDiff(mig.inlineStyles, ref.inlineStyles), delta.stylesGained)
+    && eq(setDiff(ref.inlineStyles, mig.inlineStyles), delta.stylesLost);
 }
 
 function setDiff(a, b) {
@@ -288,12 +330,13 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   const dataSame = JSON.stringify([...ref.dataAttrs].sort()) === JSON.stringify([...mig.dataAttrs].sort());
   const styleSame = JSON.stringify([...ref.inlineStyles].sort()) === JSON.stringify([...mig.inlineStyles].sort());
   const logoInfo = `logo-fallback-styles ref=${ref.logoStyles.size} mig=${mig.logoStyles.size}`;
-  const markupOk = (name === 'panel-posts') ? v105DeltaHolds(ref, mig)
+  const isDeltaUnit = (name === 'panel-posts') || (name === 'panel-translations');
+  const markupOk = isDeltaUnit ? v106DeltaHolds(ref, mig, name)
     : (classSame && idSame && dataSame && styleSame);
   check(`B9V-${name}-markup-symmetric`,
     markupOk,
-    name === 'panel-posts'
-      ? `${name}: styling hooks equal the documented v1.0.5 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
+    isDeltaUnit
+      ? `${name}: styling hooks equal the documented v1.0.6 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
       : `${name}: styling hooks identical (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`,
     `${name}: markup drift class[+${setDiff(mig.classes, ref.classes)}]/[-${setDiff(ref.classes, mig.classes)}]`
       + ` id[+${setDiff(mig.ids, ref.ids)}]/[-${setDiff(ref.ids, mig.ids)}]`
@@ -319,10 +362,17 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   const runtimeKeys = applicableKeys(mig, runtimeRules);
   const gained = setDiff(runtimeKeys, legacyKeys);
   const dropped = setDiff(legacyKeys, runtimeKeys);
+  // v1.0.6 §12: besides .text-center, gained rules in the documented
+  // hossam-* namespace are the [B9-U2]/[B9-U3] additions (rich-editor, tree,
+  // success card, remove buttons). The coarse matcher flags
+  // `.hossam-post-success-card .btn` for every .btn panel, but the full
+  // selector cannot apply outside the success card, so no other panel can
+  // look different for a migration reason. Any non-hossam gain still fails.
+  const documentedGain = (k) => k.includes('.text-center') || k.includes('hossam-');
   check(`B9V-${name}-rules-symmetric`,
-    dropped.length === 0 && gained.every((k) => k.includes('.text-center')),
-    `${name}: applicable release rules ⊇ reference rules (${runtimeKeys.size} vs ${legacyKeys.size}; only .text-center may be gained)`,
-    `${name}: dropped=[${dropped.length}] gained-non-text-center=[${gained.filter((k) => !k.includes('.text-center')).length}]`);
+    dropped.length === 0 && gained.every(documentedGain),
+    `${name}: applicable release rules ⊇ reference rules (${runtimeKeys.size} vs ${legacyKeys.size}; only .text-center or documented hossam-* additions may be gained)`,
+    `${name}: dropped=[${dropped.length}] gained-undocumented=[${gained.filter((k) => !documentedGain(k)).length}]`);
 
   const orphans = [...mig.classes].filter((c) =>
     !runtimeRules.some((r) => hookMatches(c, 'class', r.selector))).sort();

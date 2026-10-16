@@ -103,18 +103,18 @@ require_once $hal_runtime_root . 'adapters/ultimatemember.php';
 require_once $hal_runtime_root . 'adapters/ai.php';
 
 // ══════════════════════════════════════════════════════════════
-// AJAX — الدفعتان 5 و6: تُحمَّل بعد adapters بالكامل (تستدعي دوالها
-// مباشرة). كل ملف ajax يفترض أن دوال core وadapters معرَّفة قبله —
-// هذا الترتيب هو ما يضمن ذلك. ترتيب الملفات الثمانية حرفي من المصدر
-// (mu-plugins/hossam-dashboard.php): posts → uploads → appointments →
-// finance → members → inbox → store → ai.
+// AJAX — الدفعتان 5 و6 + v1.0.6 §8.3: تُحمَّل بعد adapters بالكامل
+// (تستدعي دوالها مباشرة). كل ملف ajax يفترض أن دوال core وadapters
+// معرَّفة قبله — هذا الترتيب هو ما يضمن ذلك. ترتيب الملفات التسعة:
+// posts → uploads → appointments → finance → members → inbox →
+// store → ai → seo (تاسعًا).
 //
-// ajax/seo.php مشحون في الـrelease ولا يُحمَّل هنا — عقد §16: «يبقى
-// التحميل تابعًا لحالة registry المعتمدة؛ limited read-only»، منقولة
-// كما في المصدر: السجل يثبت verified_fields=false (core/setup.php)
-// وبوابة المقارنة الحية المؤجلة رسميًا لم تُجتَز، فلا يُسجَّل
-// wp_ajax_hossam_save_seo في التشغيل الفعلي؛ تحميله سيغيّر action
-// inventory ويخالف بوابة إغلاق الدفعة 5.
+// ajax/seo.php: v1.0.6 §8.3 — قرار موثق (القرار الموحد أ/ج): يُحمَّل
+// تاسعًا بعد ai؛ فُتحت بوابتا القالب والنقطة معًا بكشف وقت التشغيل
+// (setup.php: verified_fields) بدل بوابة إغلاق الدفعة 5 السابقة
+// (تحميله كان سيغيّر action inventory — الآن تغيير موثق: يُسجَّل
+// wp_ajax_hossam_save_seo في التشغيل الفعلي، وتحدَّث الأجنحة المتأثرة
+// بتعديل قائم موثق). مفتاح المالك rank_math_seo يبقى بوابة الإظهار.
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'ajax/posts.php';
 require_once $hal_runtime_root . 'ajax/uploads.php';
@@ -124,6 +124,7 @@ require_once $hal_runtime_root . 'ajax/members.php';
 require_once $hal_runtime_root . 'ajax/inbox.php';
 require_once $hal_runtime_root . 'ajax/store.php';
 require_once $hal_runtime_root . 'ajax/ai.php';
+require_once $hal_runtime_root . 'ajax/seo.php';
 
 // ══════════════════════════════════════════════════════════════
 // TEMPLATES — الدفعة 7: Template Controller (نسخة الـRuntime المشتركة

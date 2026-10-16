@@ -1015,3 +1015,48 @@ select.form-input{
 [dir="rtl"] .mb-table td     { text-align: right; }
 [dir="rtl"] .wc-product-card { direction: rtl; }
 [dir="rtl"] .trash-item      { flex-direction: row-reverse; }
+
+/* ══════════════════════════════════════════════════════════════
+   [B9-U2] v1.0.6 §12-أ — تحضيرًا لـP4: أنماط فقط بلا markup
+   ([B9-U1] يبقى كما هو أعلاه). زر الإزالة + بطاقة النجاح
+   (.hossam-post-success-card) + الشجرة/الطي/الإزاحة RTL/حاوية
+   التمرير/الشارة. بلا url() — يحافظ على عقد B9-C1 (data: فقط).
+   ══════════════════════════════════════════════════════════════ */
+#hossam-new-thumbnail-remove,
+#hossam-edit-thumbnail-remove{margin-inline-start:8px}
+.hossam-post-success-card{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.hossam-post-success-card p{flex-basis:100%;margin:0;font-size:13px;font-weight:600;color:var(--txt-1)}
+.hossam-post-success-card .btn{margin:0}
+.hossam-cat-scroll{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;background:var(--white)}
+.hossam-cat-tree{list-style:none;margin:0;padding:0}
+.hossam-cat-tree ul{list-style:none;margin:0;padding-inline-start:18px}
+.hossam-cat-group{margin:2px 0}
+.hossam-cat-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--txt-2);font-size:13px;background:none;border:none;padding:2px 4px}
+.hossam-cat-toggle:hover{color:var(--gold)}
+.hossam-cat-children{overflow:hidden}
+.hossam-cat-children.collapsed{display:none}
+.hossam-lang-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:var(--info-bg);color:var(--info);margin-inline-start:6px;white-space:nowrap}
+[dir="rtl"] .hossam-cat-tree ul{padding-inline-start:0;padding-inline-end:18px}
+[dir="rtl"] .hossam-cat-toggle{flex-direction:row-reverse}
+
+/* ══════════════════════════════════════════════════════════════
+   [B9-U3] v1.0.6 §9 — تنسيق المحرر الغني داخل قالب HAL
+   ([B9-U1]/[B9-U2] يبقيان كما هما). غلاف inserter/toolbar/canvas +
+   RTL + إخفاء الـtextarea بعد نجاح التهيئة فقط. أنماط محتوى الـiframe
+   تُمرَّر عبر واجهة BlockCanvas الرسمية (styles في posts.js) — هنا
+   تنسيق الغلاف الخارجي فقط. بلا url() — عقد B9-C1 (data: فقط).
+   ══════════════════════════════════════════════════════════════ */
+.hossam-rich-editor{margin-top:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--white);box-shadow:var(--shadow-sm);overflow:hidden}
+.hossam-rich-editor[hidden]{display:none}
+.hossam-rich-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--cream)}
+.hossam-rich-editor-inserter{display:flex;align-items:center;gap:8px;padding:10px 12px 0;background:var(--white)}
+.hossam-rich-editor-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--cream)}
+.hossam-rich-editor-toolbar:empty{display:none}
+.hossam-rich-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hossam-rich-editor-canvas{min-height:320px;max-height:560px;overflow:auto;padding:12px;background:var(--white)}
+.hossam-rich-editor-canvas iframe{width:100%;min-height:380px;border:1px solid var(--border);border-radius:var(--radius);background:var(--white)}
+.hossam-rich-shell{display:flex;flex-direction:column;gap:0}
+textarea.hossam-rich-hidden{display:none}
+[dir="rtl"] .hossam-rich-editor{direction:rtl;text-align:right}
+[dir="rtl"] .hossam-rich-bar{flex-direction:row-reverse}
+[dir="rtl"] .hossam-rich-editor-canvas{direction:rtl}

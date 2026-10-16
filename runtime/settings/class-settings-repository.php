@@ -34,12 +34,14 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	const CAPABILITY = 'manage_hal_frontend_dashboard';
 
 	/**
-	 * المميزات الحادية عشرة المعتمدة للإصدار الأول (معمارية §7.6
-	 * Feature toggles) — لا toggle خارج هذه القائمة.
+	 * المميزات الاثنتا عشرة المعتمدة (معمارية §7.6 Feature toggles) —
+	 * لا toggle خارج هذه القائمة. v1.0.6 §9 (doc:121): سُجل rich_editor
+	 * هنا ليصير قابلًا للتفعيل عبر المسار العام، بافتراضي مغلق مقصود.
 	 */
 	const FEATURES = array(
 		'posts', 'files', 'inbox', 'members', 'amelia', 'finance', 'store',
 		'wpml_translations', 'rank_math_seo', 'ultimate_member_profile', 'ai',
+		'rich_editor',
 	);
 
 	/**
@@ -80,9 +82,12 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 
 		$features = array();
 		foreach ( self::FEATURES as $feature ) {
+			// v1.0.6 §9 (doc:121): rich_editor بافتراضي مغلق مقصود —
+			// لا يُعمم true العام عليه (fail-closed حتى تخصيص المالك).
+			$default = 'rich_editor' === $feature ? false : true;
 			$features[ $feature ] = isset( $stored['features'][ $feature ] )
 				? (bool) $stored['features'][ $feature ]
-				: true;
+				: $default;
 		}
 
 		$attachment_id = isset( $stored['branding_attachment_id'] ) ? (int) $stored['branding_attachment_id'] : 0;

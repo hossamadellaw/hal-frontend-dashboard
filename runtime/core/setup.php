@@ -260,7 +260,11 @@ if ( ! function_exists( 'hossam_get_integration_capabilities' ) ) {
 		];
 		$rank_math_capabilities = [
 			'plugin_contract' => defined( 'RANK_MATH_VERSION' ),
-			'verified_fields' => false,
+			// v1.0.6 §8.2 (القرار الموحد أ/ج): كشف وقت التشغيل بدل القيمة
+			// الثابتة — فيُفتح بوابتا القالب (seo.php) والنقطة (ajax/seo.php)
+			// تلقائيًا معًا عند توافر Rank Math؛ مفتاح المالك rank_math_seo
+			// يبقى بوابة إظهار الواجهة.
+			'verified_fields' => class_exists( 'RankMath\\Post' ) && method_exists( 'RankMath\\Post', 'get_meta' ),
 		];
 		$woocommerce_capabilities = [
 			'orders'          => function_exists( 'wc_get_orders' ),
@@ -590,6 +594,86 @@ add_action( 'wp_enqueue_scripts', function(): void {
         true
     );
 
+    // v1.0.6 P1a: منتقي الوسائط القياسي للصورة المميزة — قبل تسجيل
+    // hossam-dashboard-posts مباشرة حتى تُطبع أصول الوسائط قبلها.
+    // على صفحات الداشبورد فقط (الحارس أعلاه يمنع أي تحميل site-wide)،
+    // ومشروط بـupload_files كواجهة الصورة نفسها. التفصيل المحسوم: شرط
+    // القدرة وحده دون تقييد بلوحة، لأن التنقل بين اللوحات يتم بالـJS
+    // داخل الصفحة الواحدة (تقييد ?panel= خادميًا كان سيكسر التنقل اللاحق).
+    if ( current_user_can( 'upload_files' ) ) {
+        wp_enqueue_media();
+    }
+
+    // v1.0.6 §9: المحرر الغني — حزم Block Editor الرسمية على لوحة HAL حصرًا.
+    // قرار المالك محسوم: إظهار وتغليف لا بناء — تركيب مكونات Gutenberg
+    // العلنية (BlockEditorProvider + BlockCanvas + Inserter + BlockTools)
+    // داخل غلاف HAL، بلا محرك/كتل بديلة وبلا Experimental.
+    // البوابات (كلها fail-closed):
+    //   - مفتاح المالك rich_editor (نمط is_feature_enabled) بوابة إظهار؛
+    //     المفتاح خارج FEATURES حاليًا فيُغلق العرض حتى تخصيصه من مالك
+    //     الإعدادات — والـtextarea يبقى حقل النموذج.
+    //   - مسار تحرير مسموح واحد على الأقل: edit_posts (إنشاء — ولو مُنع
+    //     المستخدم من تحرير مقال آخر) أو edit_post لمقال بعينه مطلوب
+    //     تحريره (post_id من الطلب). لا اعتماد على panel وحده لأن التنقل
+    //     بين اللوحات يجري داخل الصفحة.
+    //   - upload_files شرط مستقل للوسائط فقط — لا يمنع تحميل بقية الواجهة.
+    // فحوص الخادم (wordpress-posts.php:38-40,106-113) إلزامية باقية؛ إظهار
+    // الواجهة أو تحميل حزمها لا يمنح صلاحية ولا يستبدلها.
+    // الحزم: handles مسجلة من WordPress للنسخة المثبتة (لا تثبيت حزم ولا
+    // أرقام أسطر نواة) مع حراسة التسجيل wp_script_is/wp_style_is؛ ترتيب
+    // الاعتماد الصحيح تحسمه تبعيات التسجيل الرسمية. لا تُطبع الحزمة الثقيلة
+    // (block-editor.js ≈2.7MB) إلا لمن يملك مسار تحرير (allowed أدناه).
+    // إحالة script-loader السابقة (edit-post/editor/edit-widgets) تبعيات
+    // أنماط لا تسجيل JavaScript — لا تُستخدم هنا.
+    $hossam_rich_reason  = 'feature-disabled';
+    $hossam_rich_allowed = false;
+    if ( class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
+        && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'is_feature_enabled' )
+        && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rich_editor' ) ) {
+        $hossam_rich_post_id = isset( $_REQUEST['post_id'] ) ? (int) $_REQUEST['post_id'] : 0;
+        if ( current_user_can( 'edit_posts' ) ) {
+            $hossam_rich_allowed = true;
+            $hossam_rich_reason  = '';
+        } elseif ( $hossam_rich_post_id > 0 && current_user_can( 'edit_post', $hossam_rich_post_id ) ) {
+            $hossam_rich_allowed = true;
+            $hossam_rich_reason  = '';
+        } else {
+            $hossam_rich_reason = 'no-edit-path';
+        }
+    }
+    // الكتل المطلوبة (Table وDetails والوسائط والقوائم والروابط تنسيق نص +
+    // Playlist وTabs في 7.1.3) تأتي من التسجيل الرسمي حصرًا عبر
+    // registerCoreBlocks في posts.js؛ كتل الإضافات الأخرى لا تُضمَّن تلقائيًا
+    // لأن أصولها لا تُحمَّل في HAL. غياب core/playlist أو core/tabs خارج
+    // 7.1.3 يُتجاوز ببقية الكتل — UNVERIFIED محليًا (النواة 6.7.1).
+    $hossam_rich_handles = array(
+        'wp-element', 'wp-data', 'wp-components', 'wp-blocks',
+        'wp-block-editor', 'wp-block-library', 'wp-compose',
+        'wp-media-utils', 'wp-api-fetch',
+    );
+    $hossam_rich_critical = array( 'wp-element', 'wp-blocks', 'wp-block-editor' );
+    $hossam_rich_skipped  = array();
+    if ( $hossam_rich_allowed ) {
+        foreach ( $hossam_rich_handles as $hossam_rich_handle ) {
+            if ( function_exists( 'wp_script_is' ) && ! wp_script_is( $hossam_rich_handle, 'registered' ) ) {
+                $hossam_rich_skipped[] = $hossam_rich_handle;
+                continue;
+            }
+            wp_enqueue_script( $hossam_rich_handle );
+        }
+        foreach ( array( 'wp-components', 'wp-block-editor', 'wp-block-library' ) as $hossam_rich_style ) {
+            if ( function_exists( 'wp_style_is' ) && ! wp_style_is( $hossam_rich_style, 'registered' ) ) {
+                continue;
+            }
+            wp_enqueue_style( $hossam_rich_style );
+        }
+    }
+    $hossam_rich_blocked = array_intersect( $hossam_rich_critical, $hossam_rich_skipped );
+    $hossam_rich_enabled = $hossam_rich_allowed && array() === $hossam_rich_blocked;
+    if ( $hossam_rich_allowed && ! $hossam_rich_enabled ) {
+        $hossam_rich_reason = 'unregistered:' . implode( ',', $hossam_rich_skipped );
+    }
+
     wp_enqueue_script(
         'hossam-dashboard-posts',
         hossam_asset_uri( 'js/modules/posts.js' ),
@@ -597,6 +681,20 @@ add_action( 'wp_enqueue_scripts', function(): void {
         file_exists( $posts_js_path ) ? (string) filemtime( $posts_js_path ) : '1.0.0',
         true
     );
+
+    // v1.0.6 §9: إعدادات المحرر الغني على hossam-dashboard-posts — كائن
+    // مستقل hossamRichEditor (hossamAjax أعلاه كما هو بلا تغيير، B9-E3 سليم).
+    // enabled=false يعني بقاء الـtextarea ظاهرًا؛ canUpload يعكس upload_files
+    // (شرط منفصل للوسائط)؛ REST/Nonce من WordPress لمسار الرفع الرسمي
+    // (uploadMedia) — لا endpoint جديد.
+    wp_localize_script( 'hossam-dashboard-posts', 'hossamRichEditor', [
+        'enabled'   => $hossam_rich_enabled,
+        'canUpload' => current_user_can( 'upload_files' ),
+        'restRoot'  => function_exists( 'rest_url' ) ? rest_url() : '',
+        'restNonce' => wp_create_nonce( 'wp_rest' ),
+        'isRtl'     => function_exists( 'hossam_wpml_is_rtl' ) ? hossam_wpml_is_rtl() : is_rtl(),
+        'reason'    => $hossam_rich_reason,
+    ] );
 
     wp_enqueue_script(
         'hossam-dashboard-uploads',
@@ -646,15 +744,6 @@ add_action( 'wp_enqueue_scripts', function(): void {
         file_exists( $ai_js_path ) ? (string) filemtime( $ai_js_path ) : '1.0.0',
         true
     );
-
-    // v1.0.5 (B): منتقي الوسائط القياسي للصورة المميزة — على صفحات
-    // الداشبورد فقط (الحارس أعلاه يمنع أي تحميل site-wide)، ومشروط
-    // بـupload_files كواجهة الصورة نفسها. التفصيل المحسوم: شرط القدرة
-    // وحده دون تقييد بلوحة، لأن التنقل بين اللوحات يتم بالـJS داخل
-    // الصفحة الواحدة (تقييد ?panel= خادميًا كان سيكسر التنقل اللاحق).
-    if ( current_user_can( 'upload_files' ) ) {
-        wp_enqueue_media();
-    }
 
     wp_localize_script( 'hossam-dashboard-js', 'hossamAjax', [
         'ajaxurl' => admin_url( 'admin-ajax.php' ),

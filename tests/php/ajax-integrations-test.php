@@ -15,11 +15,12 @@
  *
  *   INVENTORY — the action inventory gains exactly the 17 batch-6
  *              wp_ajax_* hooks (2 appointments + 4 finance + 1 members +
- *              6 inbox + 1 store + 3 ai) plus the 2 v1.0.3 health hooks;
- *              the single wp_ajax_nopriv_* hook is the v1.0.3 handler;
- *              ai's worker (hossam_ai_process_job_event) and sweep
+ *              6 inbox + 1 store + 3 ai) plus the 2 v1.0.3 health hooks and
+ *              the v1.0.6 §8.3 seo hook (wp_ajax_hossam_save_seo, loaded
+ *              ninth); the single wp_ajax_nopriv_* hook is the v1.0.3
+ *              handler; ai's worker (hossam_ai_process_job_event) and sweep
  *              (hossam_ai_sweep_jobs_event) are internal cron hooks, NOT
- *              wp_ajax; ajax/seo.php stays shipped-but-unloaded.
+ *              wp_ajax.
  *   ORDER     — core(5) → backend(5) → adapters(8) → ajax(8) in the
  *              mandated bootstrap order; runtime_ready still fires.
  *   B3-08     — every batch-6 endpoint reads
@@ -944,6 +945,165 @@ function b6_user( int $id, string $display_name, string $email = '', array $role
 	);
 }
 
+/* ════════════════════════════════════════════════════════════════
+ * v1.0.6 Group C extension (§4/§5): posts CRUD boundary stubs.
+ * Defined on demand inside the new posts modes only (eval + guard),
+ * mirroring the ajax-content harness semantics on B6 globals. Fixture
+ * behaviour proves branches — never a live WordPress/WPML integration.
+ * ════════════════════════════════════════════════════════════════ */
+
+function b6c_require_posts_stubs(): void {
+	if ( ! function_exists( 'wp_insert_post' ) ) {
+		eval( 'function wp_insert_post( array $postarr, bool $wp_error = false ) {
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_INSERT"] ) ) {
+				return $wp_error ? new WP_Error( "b6c_insert_failed", "insert failed fixture" ) : 0;
+			}
+			static $next = 100;
+			$post = new WP_Post();
+			$post->ID = ++$next;
+			$post->post_type = (string) ( $postarr["post_type"] ?? "post" );
+			$post->post_status = (string) ( $postarr["post_status"] ?? "draft" );
+			$post->post_title = (string) ( $postarr["post_title"] ?? "" );
+			$post->post_content = (string) ( $postarr["post_content"] ?? "" );
+			$post->post_author = (int) ( $postarr["post_author"] ?? 0 );
+			$GLOBALS["B6_POSTS"][ $post->ID ] = $post;
+			return $post->ID;
+		}' );
+	}
+	if ( ! function_exists( 'wp_update_post' ) ) {
+		eval( 'function wp_update_post( array $postarr, bool $wp_error = false ) {
+			$id = (int) ( $postarr["ID"] ?? 0 );
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_UPDATE"] ) ) {
+				return $wp_error ? new WP_Error( "b6c_update_failed", "update failed fixture" ) : 0;
+			}
+			$post = $GLOBALS["B6_POSTS"][ $id ] ?? null;
+			if ( ! $post ) {
+				return $wp_error ? new WP_Error( "b6c_update_missing", "missing" ) : 0;
+			}
+			if ( isset( $postarr["post_title"] ) ) {
+				$post->post_title = (string) $postarr["post_title"];
+			}
+			if ( isset( $postarr["post_content"] ) ) {
+				$post->post_content = (string) $postarr["post_content"];
+			}
+			if ( isset( $postarr["post_status"] ) ) {
+				$post->post_status = (string) $postarr["post_status"];
+			}
+			return $id;
+		}' );
+	}
+	if ( ! function_exists( 'wp_delete_post' ) ) {
+		eval( 'function wp_delete_post( int $post_id, bool $force = false ) {
+			$post = $GLOBALS["B6_POSTS"][ $post_id ] ?? null;
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_DELETE"] ) ) {
+				return false;
+			}
+			unset( $GLOBALS["B6_POSTS"][ $post_id ] );
+			return $post;
+		}' );
+	}
+	if ( ! function_exists( 'get_post_status' ) ) {
+		eval( 'function get_post_status( $post = null ) {
+			$id = is_object( $post ) ? (int) ( $post->ID ?? 0 ) : (int) $post;
+			$row = $GLOBALS["B6_POSTS"][ $id ] ?? null;
+			if ( ! $row ) {
+				return false;
+			}
+			return (string) ( $row->post_status ?? "" );
+		}' );
+	}
+	if ( ! function_exists( 'get_preview_post_link' ) ) {
+		eval( 'function get_preview_post_link( $post = null, array $query_args = array(), string $preview_path = "" ) {
+			$id = is_object( $post ) ? (int) ( $post->ID ?? 0 ) : (int) $post;
+			if ( $id < 1 ) {
+				return null;
+			}
+			return "https://example.test/?p=" . $id . "&preview=true";
+		}' );
+	}
+	if ( ! function_exists( 'term_exists' ) ) {
+		eval( 'function term_exists( $term, string $taxonomy = "" ) {
+			if ( ! isset( $GLOBALS["B6_TERMS"][ $taxonomy ] ) ) {
+				return null;
+			}
+			return in_array( (int) $term, $GLOBALS["B6_TERMS"][ $taxonomy ], true ) ? (int) $term : null;
+		}' );
+	}
+	if ( ! function_exists( 'wp_set_post_categories' ) ) {
+		eval( 'function wp_set_post_categories( int $post_id, array $categories = array() ) {
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_CATEGORIES"] ) ) {
+				return false;
+			}
+			$GLOBALS["B6_POST_CATEGORIES"][ $post_id ] = array_map( "absint", $categories );
+			return array_map( "absint", $categories );
+		}' );
+	}
+	if ( ! function_exists( 'wp_get_post_categories' ) ) {
+		eval( 'function wp_get_post_categories( int $post_id, array $args = array() ) {
+			return $GLOBALS["B6_POST_CATEGORIES"][ $post_id ] ?? array();
+		}' );
+	}
+	if ( ! function_exists( 'wp_attachment_is_image' ) ) {
+		eval( 'function wp_attachment_is_image( $id ): bool {
+			return in_array( (int) $id, $GLOBALS["B6_MEDIA"]["image_ids"] ?? array(), true );
+		}' );
+	}
+	if ( ! function_exists( 'get_post_thumbnail_id' ) ) {
+		eval( 'function get_post_thumbnail_id( int $post_id ) {
+			return $GLOBALS["B6_POST_THUMBNAILS"][ $post_id ] ?? 0;
+		}' );
+	}
+	if ( ! function_exists( 'set_post_thumbnail' ) ) {
+		eval( 'function set_post_thumbnail( int $post_id, int $thumbnail_id ) {
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_THUMBNAIL"] ) ) {
+				return false;
+			}
+			$GLOBALS["B6_POST_THUMBNAILS"][ $post_id ] = $thumbnail_id;
+			return true;
+		}' );
+	}
+	if ( ! function_exists( 'delete_post_thumbnail' ) ) {
+		eval( 'function delete_post_thumbnail( int $post_id ) {
+			if ( ! empty( $GLOBALS["B6_POSTS_FAIL_DELETE_THUMBNAIL"] ) ) {
+				return false;
+			}
+			unset( $GLOBALS["B6_POST_THUMBNAILS"][ $post_id ] );
+			return true;
+		}' );
+	}
+}
+
+function b6c_post( int $id, string $type = 'post', string $status = 'publish', int $author = 3, string $title = '' ): object {
+	$post               = new WP_Post();
+	$post->ID           = $id;
+	$post->post_type    = $type;
+	$post->post_status  = $status;
+	$post->post_author  = $author;
+	$post->post_title   = $title;
+	$post->post_content = '';
+	$GLOBALS['B6_POSTS'][ $id ] = $post;
+	return $post;
+}
+
+function b6c_reset_posts_state(): void {
+	$GLOBALS['B6_POSTS']                        = array();
+	$GLOBALS['B6_TERMS']                        = array();
+	$GLOBALS['B6_MEDIA']                        = array( 'image_ids' => array(), 'meta' => array() );
+	$GLOBALS['B6_POST_CATEGORIES']              = array();
+	$GLOBALS['B6_POST_THUMBNAILS']              = array();
+	$GLOBALS['B6_POSTS_FAIL_INSERT']            = false;
+	$GLOBALS['B6_POSTS_FAIL_UPDATE']            = false;
+	$GLOBALS['B6_POSTS_FAIL_DELETE']            = false;
+	$GLOBALS['B6_POSTS_FAIL_CATEGORIES']        = false;
+	$GLOBALS['B6_POSTS_FAIL_THUMBNAIL']         = false;
+	$GLOBALS['B6_POSTS_FAIL_DELETE_THUMBNAIL']  = false;
+	$GLOBALS['B6C_SET']                         = array();
+	$GLOBALS['B6C_TRANS_OK']                    = false;
+	$GLOBALS['B6C_TRANS_MAP']                   = array();
+	$GLOBALS['B6C_DETAILS_FROZEN']              = false;
+	$GLOBALS['B6C_DETAILS_EXPLICIT']            = null;
+}
+
 /* WooCommerce external-API fixtures (defined on demand per subprocess). */
 function b6_enable_wc_fixtures(): void {
 	if ( ! class_exists( 'B6_WCOrder' ) ) {
@@ -1158,6 +1318,8 @@ function b6_mode_main( string $project ): void {
 		'ajax/inbox.php',
 		'ajax/store.php',
 		'ajax/ai.php',
+		// v1.0.6 §8.3 (documented gate change): ajax/seo.php loads ninth.
+		'ajax/seo.php',
 		// Batch 7 (§18) — the shared Template Controller copy loads after
 		// all modules (§6.1 pre-build infrastructure copy).
 		'infrastructure/class-template-controller.php',
@@ -1167,7 +1329,7 @@ function b6_mode_main( string $project ): void {
 	);
 	$actual_order = array_values( array_intersect( $relative, $expected_order ) );
 	b6_check( 'L1', $actual_order === $expected_order,
-		'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (8: batches 5–6) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated §13/§16/§17/§18/§22 order',
+		'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (9: batches 5–6 plus v1.0.6 §8.3 ajax/seo.php ninth) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated §13/§16/§17/§18/§22 order',
 		'load order mismatch: ' . json_encode( $relative ) );
 
 	$module_included = array_values( array_filter(
@@ -1176,8 +1338,8 @@ function b6_mode_main( string $project ): void {
 			return false === strpos( $path, '/runtime/bootstrap.php' );
 		}
 	) );
-	b6_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-		'exactly 29 runtime module files load (through batch 6 plus the batch-7 infrastructure controller plus the batch-11 update bridge plus the v1.0.3 health check) and runtime_ready fires after the full load',
+	b6_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+		'exactly 30 runtime module files load (through batch 6 plus v1.0.6 §8.3 ajax/seo.php plus the batch-7 infrastructure controller plus the batch-11 update bridge plus the v1.0.3 health check) and runtime_ready fires after the full load',
 		'unexpected runtime file set: ' . json_encode( $relative ) );
 
 	$ajax_hooks = array_values( array_filter(
@@ -1186,8 +1348,8 @@ function b6_mode_main( string $project ): void {
 			return 0 === strpos( $hook, 'wp_ajax_' );
 		}
 	) );
-	b6_check( 'G1', 28 === count( $ajax_hooks ),
-		'the AJAX action inventory carries exactly 28 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 2 v1.0.3 health)',
+	b6_check( 'G1', 29 === count( $ajax_hooks ),
+		'the AJAX action inventory carries exactly 29 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 1 v1.0.6 §8.3 seo + 2 v1.0.3 health)',
 		'inventory count mismatch: ' . json_encode( $ajax_hooks ) );
 
 	$batch6_hooks = array(
@@ -1224,9 +1386,9 @@ function b6_mode_main( string $project ): void {
 		'the only wp_ajax_nopriv_* hook is the v1.0.3 health handler (unauthenticated loopback), nothing else',
 		'unexpected nopriv hooks: ' . json_encode( $nopriv_hooks ) );
 
-	b6_check( 'G4', ! isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_save_seo'] ) && ! isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_ai_process_job'] ),
-		'ajax/seo.php endpoint wp_ajax_hossam_save_seo stays unregistered AND the ai worker is NOT exposed as wp_ajax_hossam_ai_process_job (source contract: worker is cron-only)',
-		'forbidden wp_ajax registration appeared' );
+	b6_check( 'G4', isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_save_seo'] ) && ! isset( $GLOBALS['B6_HOOKS']['wp_ajax_hossam_ai_process_job'] ),
+		'ajax/seo.php endpoint wp_ajax_hossam_save_seo IS registered (v1.0.6 §8.3 documented gate change) AND the ai worker is NOT exposed as wp_ajax_hossam_ai_process_job (source contract: worker is cron-only)',
+		'seo endpoint missing after the v1.0.6 §8.3 gate change, or a forbidden wp_ajax registration appeared' );
 
 	$internal = array( 'hossam_ai_process_job_event', 'hossam_ai_sweep_jobs_event', 'init' );
 	$internal_missing = array();
@@ -1271,6 +1433,9 @@ function b6_mode_main( string $project ): void {
 	b6_run_mode( 'ai-unavailable' );
 	b6_run_mode( 'ai-worker' );
 	b6_run_mode( 'store-wc' );
+	b6_run_mode( 'posts-links' );
+	b6_run_mode( 'posts-translate-verify' );
+	b6_run_mode( 'posts-translate-permissions' );
 	b6_run_mode( 'b308' );
 
 	b6_result_line( 'main' );
@@ -2546,6 +2711,545 @@ function b6_mode_b308( string $project ): void {
 	b6_result_line( 'b308' );
 }
 
+/* ════════════════════════════════════════════════════════════════
+ * v1.0.6 Group C modes (§4/§5): success links behind the edit_post gate
+ * and the translation two-contract read-back through the real endpoints.
+ * ════════════════════════════════════════════════════════════════ */
+
+function b6_mode_posts_links( string $project ): void {
+	$GLOBALS['B6_PROJECT'] = $project;
+	b6_define_release_context();
+	b6_define_valid_profile();
+	b6_define_admin_includes();
+	b6_begin_case();
+	b6_require_runtime();
+	b6c_require_posts_stubs();
+
+	$CREATE = 'wp_ajax_hossam_create_article';
+	$UPDATE = 'wp_ajax_hossam_update_article';
+
+	// PL1: draft creation carries preview_url only, gated on edit_post.
+	b6_begin_case( array( 'title' => 'Draft links' ), 3, true, array( 'edit_posts' => true, 'edit_post' => true ) );
+	b6c_reset_posts_state();
+	$r    = b6_call_ajax( $CREATE );
+	$data = b6_exit_data( $r );
+	$new_id = (int) ( $data['post_id'] ?? 0 );
+	b6_check( 'PL1', b6_exit_is( $r, 200, true ) && $new_id >= 1
+		&& array_key_exists( 'view_url', $data ) && array_key_exists( 'preview_url', $data )
+		&& '' === $data['view_url']
+		&& 'https://example.test/?p=' . $new_id . '&preview=true' === $data['preview_url'],
+		'draft creation returns an empty view_url plus the draft preview_url behind the edit_post gate',
+		'got ' . json_encode( $r ) );
+
+	// PL2: without edit_post on the new article both links stay empty.
+	b6_begin_case( array( 'title' => 'Draft links' ), 3, true, array( 'edit_posts' => true ) );
+	b6c_reset_posts_state();
+	$r    = b6_call_ajax( $CREATE );
+	$data = b6_exit_data( $r );
+	b6_check( 'PL2', b6_exit_is( $r, 200, true ) && '' === ( $data['view_url'] ?? 'x' ) && '' === ( $data['preview_url'] ?? 'x' ),
+		'creation without edit_post on the article returns empty view_url and preview_url',
+		'got ' . json_encode( $r ) );
+
+	// PL3: published creation carries view_url only.
+	b6_begin_case( array( 'title' => 'Live', 'status' => 'publish' ), 3, true, array( 'edit_posts' => true, 'publish_posts' => true, 'edit_post' => true ) );
+	b6c_reset_posts_state();
+	$r    = b6_call_ajax( $CREATE );
+	$data = b6_exit_data( $r );
+	$new_id = (int) ( $data['post_id'] ?? 0 );
+	b6_check( 'PL3', b6_exit_is( $r, 200, true ) && $new_id >= 1
+		&& 'https://example.test/?p=' . $new_id === ( $data['view_url'] ?? '' )
+		&& '' === ( $data['preview_url'] ?? 'x' ),
+		'published creation returns the permalink view_url with an empty preview_url',
+		'got ' . json_encode( $r ) );
+
+	// PL4: update success carries the same two payloads (was empty before).
+	b6_begin_case( array( 'post_id' => '6', 'title' => 'New' ), 3, true, array( 'edit_post_6' => true ) );
+	b6c_reset_posts_state();
+	b6c_post( 6, 'post', 'publish', 3, 'Old' );
+	$r    = b6_call_ajax( $UPDATE );
+	$data = b6_exit_data( $r );
+	b6_check( 'PL4', b6_exit_is( $r, 200, true ) && 6 === (int) ( $data['post_id'] ?? 0 )
+		&& 'https://example.test/?p=6' === ( $data['view_url'] ?? '' )
+		&& '' === ( $data['preview_url'] ?? 'x' ),
+		'update success returns post_id plus view_url/preview_url by status',
+		'got ' . json_encode( $r ) );
+
+	// PL5: draft update carries the preview link.
+	b6_begin_case( array( 'post_id' => '7', 'title' => 'New' ), 3, true, array( 'edit_post_7' => true ) );
+	b6c_reset_posts_state();
+	b6c_post( 7, 'post', 'draft', 3, 'Old' );
+	$r    = b6_call_ajax( $UPDATE );
+	$data = b6_exit_data( $r );
+	b6_check( 'PL5', b6_exit_is( $r, 200, true )
+		&& '' === ( $data['view_url'] ?? 'x' )
+		&& 'https://example.test/?p=7&preview=true' === ( $data['preview_url'] ?? '' ),
+		'draft update returns an empty view_url plus the preview_url',
+		'got ' . json_encode( $r ) );
+
+	// PL6: slug input is never accepted — success without a slug trace.
+	b6_begin_case( array( 'title' => 'No slug', 'slug' => 'custom-slug' ), 3, true, array( 'edit_posts' => true, 'edit_post' => true ) );
+	b6c_reset_posts_state();
+	$r    = b6_call_ajax( $CREATE );
+	$data = b6_exit_data( $r );
+	b6_check( 'PL6', b6_exit_is( $r, 200, true ) && ! array_key_exists( 'slug', $data )
+		&& 'No slug' === ( $GLOBALS['B6_POSTS'][ (int) ( $data['post_id'] ?? 0 ) ]->post_title ?? null ),
+		'a slug field is ignored by the contract (no acceptance, no echo)',
+		'got ' . json_encode( $r ) );
+
+	b6_result_line( 'posts-links' );
+}
+
+function b6_mode_posts_translate_verify( string $project ): void {
+	$GLOBALS['B6_PROJECT'] = $project;
+	if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+		define( 'ICL_SITEPRESS_VERSION', '4.6.15-fixture' );
+	}
+	b6_define_release_context();
+	b6_define_valid_profile();
+	b6_define_admin_includes();
+	b6_begin_case();
+	b6_require_runtime();
+	b6c_require_posts_stubs();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	add_filter( 'wpml_permalink', static function ( $url ) {
+		return $url;
+	} );
+	add_filter( 'wpml_active_languages', static function ( $languages ) {
+		return $GLOBALS['B6C_LANGS'];
+	} );
+	add_filter( 'wpml_object_id', static function ( $value, $type = null, $ret = null, $lang = null ) {
+		$map = $GLOBALS['B6C_OBJECT_MAP'] ?? array();
+		return $map[ (int) $value ][ (string) $lang ] ?? 0;
+	}, 10, 4 );
+	add_filter( 'wpml_element_trid', static function ( $value, $element_id = null, $element_type = null ) {
+		return $GLOBALS['B6C_TRID'];
+	}, 10, 3 );
+	add_filter( 'wpml_element_language_code', static function ( $value, $details = null ) {
+		return $GLOBALS['B6C_SOURCE'];
+	}, 10, 2 );
+	add_filter( 'wpml_element_type', static function ( $type ) {
+		if ( 'post' === $type ) {
+			return 'post_post';
+		}
+		if ( 'category' === $type ) {
+			return 'tax_category';
+		}
+		return $type;
+	} );
+	// Stateful details fixture: a recorded link updates the stored details
+	// (like WPML would); the frozen map forces a details mismatch instead.
+	add_filter( 'wpml_element_language_details', static function ( $value, $args = null ) {
+		if ( ! empty( $GLOBALS['B6C_DETAILS_FROZEN'] ) ) {
+			return $GLOBALS['B6C_DETAILS_EXPLICIT'];
+		}
+		$eid = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+		foreach ( array_reverse( $GLOBALS['B6C_SET'] ?? array() ) as $recorded ) {
+			if ( (int) ( $recorded['element_id'] ?? 0 ) === $eid ) {
+				return array(
+					'trid'                 => (int) $recorded['trid'],
+					'language_code'        => (string) $recorded['language_code'],
+					'source_language_code' => (string) $recorded['source_language_code'],
+				);
+			}
+		}
+		return null;
+	}, 10, 2 );
+	// Translations fixture: in the OK path the target key carries the newest
+	// draft (the one just inserted); the explicit map forces a mismatch.
+	add_filter( 'wpml_get_element_translations', static function ( $value, $trid = null, $type = null ) {
+		if ( ! empty( $GLOBALS['B6C_TRANS_OK'] ) ) {
+			$ids = array_keys( $GLOBALS['B6_POSTS'] );
+			$new = end( $ids );
+			return array(
+				(string) $GLOBALS['B6C_LANG'] => array(
+					'element_id'           => (int) $new,
+					'language_code'        => (string) $GLOBALS['B6C_LANG'],
+					'source_language_code' => (string) $GLOBALS['B6C_SOURCE'],
+				),
+			);
+		}
+		return $GLOBALS['B6C_TRANS_MAP'];
+	}, 10, 3 );
+	add_action( 'wpml_set_element_language_details', static function ( array $details ): void {
+		$GLOBALS['B6C_SET'][] = $details;
+	} );
+
+	$decision = hossam_get_integration_decision( 'wpml' );
+	b6_check( 'TV0', 'available' === $decision['status'] && true === ( $decision['capabilities']['languages'] ?? null ),
+		'the real registry classifies the WPML fixture as available with the languages capability',
+		'got ' . json_encode( $decision ) );
+
+	// TV1: matched details+translations — success, single normalised link.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$GLOBALS['B6C_TRANS_OK']   = true;
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	$new_id = (int) ( $data['post_id'] ?? 0 );
+	$set_entry = end( $GLOBALS['B6C_SET'] );
+	b6_check( 'TV1', b6_exit_is( $r, 200, true ) && $new_id >= 1 && false === ( $data['existing'] ?? true )
+		&& isset( $GLOBALS['B6_POSTS'][ $new_id ] ) && 'draft' === $GLOBALS['B6_POSTS'][ $new_id ]->post_status
+		&& 1 === count( $GLOBALS['B6C_SET'] ) && 'post_post' === ( $set_entry['element_type'] ?? '' )
+		&& 5 === ( $set_entry['trid'] ?? 0 ),
+		'translation links only after the read-back match (one normalised action, linked draft)',
+		'got ' . json_encode( $r ) . '; set=' . json_encode( $set_entry ) );
+
+	// TV2: translations key carries another element — no success, draft
+	// deleted with the established cleanup pattern.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$GLOBALS['B6C_TRANS_OK']   = false;
+	$GLOBALS['B6C_TRANS_MAP']  = array( 'ar' => array( 'element_id' => 999, 'language_code' => 'ar', 'source_language_code' => 'en' ) );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TV2', b6_exit_is( $r, 500, false ) && 'translation_link_failed' === ( $data['code'] ?? '' )
+		&& 'done' === ( $data['cleanup'] ?? '' ) && count( $GLOBALS['B6_POSTS'] ) === $rows_before,
+		'a translations mismatch fails closed with the draft deleted and verified (cleanup done, no leftover row)',
+		'got ' . json_encode( $r ) );
+
+	// TV3: details mismatch — same closed failure with verified cleanup.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']           = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP']      = array();
+	$GLOBALS['B6C_TRID']            = 5;
+	$GLOBALS['B6C_SOURCE']          = 'en';
+	$GLOBALS['B6C_LANG']            = 'ar';
+	$GLOBALS['B6C_TRANS_OK']        = true;
+	$GLOBALS['B6C_DETAILS_FROZEN']  = true;
+	$GLOBALS['B6C_DETAILS_EXPLICIT'] = array( 'trid' => 6, 'language_code' => 'fr', 'source_language_code' => 'en' );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TV3', b6_exit_is( $r, 500, false ) && 'translation_link_failed' === ( $data['code'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before,
+		'a details mismatch fails closed with the draft deleted and verified',
+		'got ' . json_encode( $r ) );
+
+	// TV4: the existing-translation branch is untouched (no new row, no link).
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true, 'edit_post_12' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source' );
+	b6c_post( 12, 'post', 'draft', 3, 'Existing translation' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array( 5 => array( 'ar' => 12 ) );
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TV4', b6_exit_is( $r, 200, true ) && 12 === (int) ( $data['post_id'] ?? 0 )
+		&& true === ( $data['existing'] ?? null ) && count( $GLOBALS['B6_POSTS'] ) === $rows_before
+		&& array() === $GLOBALS['B6C_SET'],
+		'an existing translation returns as-is with no new post and no language mutation',
+		'got ' . json_encode( $r ) );
+
+	b6_result_line( 'posts-translate-verify' );
+}
+
+function b6_mode_posts_translate_permissions( string $project ): void {
+	// v1.0.6 §14 — the named permission matrix on the REAL
+	// wp_ajax_hossam_translate_article callback: edit_post on the source +
+	// nonce + wpml_language_is_active on the target + no existing
+	// translation allows creation (with the verified translation payload);
+	// any missing condition rejects before wp_insert_post with no draft.
+	// Edit redirects additionally prove trid/language membership (6.4) and
+	// reject proven mismatches. Fixture hooks only — stubs prove branches,
+	// never a live WPML integration.
+	$GLOBALS['B6_PROJECT'] = $project;
+	if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+		define( 'ICL_SITEPRESS_VERSION', '4.6.15-fixture' );
+	}
+	b6_define_release_context();
+	b6_define_valid_profile();
+	b6_define_admin_includes();
+	b6_begin_case();
+	b6_require_runtime();
+	b6c_require_posts_stubs();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	add_filter( 'wpml_permalink', static function ( $url ) {
+		return $url;
+	} );
+	add_filter( 'wpml_active_languages', static function ( $languages ) {
+		return $GLOBALS['B6C_LANGS'];
+	} );
+	add_filter( 'wpml_object_id', static function ( $value, $type = null, $ret = null, $lang = null ) {
+		$map = $GLOBALS['B6C_OBJECT_MAP'] ?? array();
+		return $map[ (int) $value ][ (string) $lang ] ?? 0;
+	}, 10, 4 );
+	add_filter( 'wpml_element_trid', static function ( $value, $element_id = null, $element_type = null ) {
+		return $GLOBALS['B6C_TRID'];
+	}, 10, 3 );
+	add_filter( 'wpml_element_language_code', static function ( $value, $details = null ) {
+		return $GLOBALS['B6C_SOURCE'];
+	}, 10, 2 );
+	add_filter( 'wpml_element_type', static function ( $type ) {
+		if ( 'post' === $type ) {
+			return 'post_post';
+		}
+		if ( 'category' === $type ) {
+			return 'tax_category';
+		}
+		return $type;
+	} );
+	add_filter( 'wpml_default_language', static function () {
+		return 'en';
+	} );
+	add_filter( 'wpml_is_translated_taxonomy', static function ( $value, $taxonomy = null ) {
+		return false;
+	}, 10, 2 );
+	$b6c_lang_active = static function ( $value, $lang = null ) {
+		$off = (array) ( $GLOBALS['B6C_LANG_OFF'] ?? array() );
+		return ! in_array( (string) $lang, $off, true );
+	};
+	add_filter( 'wpml_language_is_active', $b6c_lang_active, 10, 2 );
+	add_filter( 'wpml_element_language_details', static function ( $value, $args = null ) {
+		if ( ! empty( $GLOBALS['B6C_DETAILS_FROZEN'] ) ) {
+			return $GLOBALS['B6C_DETAILS_EXPLICIT'];
+		}
+		$eid = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+		foreach ( array_reverse( $GLOBALS['B6C_SET'] ?? array() ) as $recorded ) {
+			if ( (int) ( $recorded['element_id'] ?? 0 ) === $eid ) {
+				return array(
+					'trid'                 => (int) $recorded['trid'],
+					'language_code'        => (string) $recorded['language_code'],
+					'source_language_code' => (string) $recorded['source_language_code'],
+				);
+			}
+		}
+		return null;
+	}, 10, 2 );
+	add_filter( 'wpml_get_element_translations', static function ( $value, $trid = null, $type = null ) {
+		if ( ! empty( $GLOBALS['B6C_TRANS_OK'] ) ) {
+			$ids = array_keys( $GLOBALS['B6_POSTS'] );
+			$new = end( $ids );
+			return array(
+				(string) $GLOBALS['B6C_LANG'] => array(
+					'element_id'           => (int) $new,
+					'language_code'        => (string) $GLOBALS['B6C_LANG'],
+					'source_language_code' => (string) $GLOBALS['B6C_SOURCE'],
+				),
+			);
+		}
+		return $GLOBALS['B6C_TRANS_MAP'];
+	}, 10, 3 );
+	add_action( 'wpml_set_element_language_details', static function ( array $details ): void {
+		$GLOBALS['B6C_SET'][] = $details;
+	} );
+	do_action( 'wpml_loaded' );
+
+	// TP0: the permission-test environment itself passes the strict gate —
+	// no live writes happen before the gate in a complete WPML runtime.
+	$GLOBALS['B6C_LANGS'] = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$gate = hossam_wpml_translation_runtime_ready();
+	b6_check( 'TP0', true === ( $gate['ready'] ?? false ),
+		'the strict runtime gate passes in the complete fixture environment (wpml_loaded + every interface + array)',
+		'gate mismatch: ' . json_encode( $gate ) );
+
+	// TP1: allowed + assigned + active + no translation + nonce = creation
+	// with the verified translation payload (contract 4/6).
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$GLOBALS['B6C_LANG_OFF']   = array();
+	$GLOBALS['B6C_TRANS_OK']   = true;
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	$new_id = (int) ( $data['post_id'] ?? 0 );
+	b6_check( 'TP1', b6_exit_is( $r, 200, true ) && $new_id >= 1 && false === ( $data['existing'] ?? true )
+		&& array( 'trid' => 5, 'language_code' => 'ar', 'source_language_code' => 'en' ) === ( $data['translation'] ?? null )
+		&& 3 === ( $GLOBALS['B6_POSTS'][ $new_id ]->post_author ?? 0 ),
+		'the full permission matrix allows creation and returns the verified translation payload',
+		'got ' . json_encode( $r ) );
+
+	// TP2: target language not active — 403 before wp_insert_post, no draft.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$GLOBALS['B6C_LANG_OFF']   = array( 'ar' );
+	$GLOBALS['B6C_TRANS_OK']   = true;
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP2', b6_exit_is( $r, 403, false ) && 'translation_forbidden' === ( $data['code'] ?? '' )
+		&& 'You do not have permission to create this translation.' === ( $data['message'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before && array() === $GLOBALS['B6C_SET'],
+		'an inactive target language rejects with a permission message before wp_insert_post (no draft, no link)',
+		'got ' . json_encode( $r ) );
+	$GLOBALS['B6C_LANG_OFF'] = array();
+
+	// TP3: no edit_post on the source — 403, no draft.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array() );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 7, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP3', b6_exit_is( $r, 403, false )
+		&& 'You do not have permission to edit this article.' === ( $data['message'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before,
+		'a source the user cannot edit rejects before wp_insert_post (no draft)',
+		'got ' . json_encode( $r ) );
+
+	// TP4: bad nonce — 403 before any translation work, no draft.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ), false );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	b6_check( 'TP4', true === ( $r['registered'] ?? false ) && 403 === ( $r['status'] ?? 0 )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before && array() === $GLOBALS['B6C_SET'],
+		'a bad nonce rejects with 403 before any translation work (no draft, no link)',
+		'got ' . json_encode( $r ) );
+
+	// TP5: existing translation the user cannot edit — 403.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source' );
+	b6c_post( 12, 'post', 'draft', 7, 'Existing translation' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array( 5 => array( 'ar' => 12 ) );
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	b6_check( 'TP5', b6_exit_is( $r, 403, false )
+		&& 'You do not have permission to edit this translation.' === ( $data['message'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before,
+		'an existing translation without edit permission rejects the edit',
+		'got ' . json_encode( $r ) );
+
+	// TP6: existing translation carrying another trid — 403 mismatch.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true, 'edit_post_12' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source' );
+	b6c_post( 12, 'post', 'draft', 3, 'Existing translation' );
+	$GLOBALS['B6C_LANGS']            = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP']       = array( 5 => array( 'ar' => 12 ) );
+	$GLOBALS['B6C_TRID']             = 5;
+	$GLOBALS['B6C_SOURCE']           = 'en';
+	$GLOBALS['B6C_LANG']             = 'ar';
+	$GLOBALS['B6C_TRANS_OK']         = false;
+	$GLOBALS['B6C_TRANS_MAP']        = array();
+	$GLOBALS['B6C_DETAILS_FROZEN']   = true;
+	$GLOBALS['B6C_DETAILS_EXPLICIT'] = array( 'trid' => 999, 'language_code' => 'ar', 'source_language_code' => 'en' );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP6', b6_exit_is( $r, 403, false ) && 'translation_mismatch' === ( $data['code'] ?? '' )
+		&& 'This translation does not belong to the requested article.' === ( $data['message'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before && array() === $GLOBALS['B6C_SET'],
+		'an edit whose translation carries another trid rejects with a mismatch message and no link',
+		'got ' . json_encode( $r ) );
+
+	// TP7: group map pointing the target key at another element — 403.
+	$GLOBALS['B6C_DETAILS_EXPLICIT'] = array( 'trid' => 5, 'language_code' => 'ar', 'source_language_code' => 'en' );
+	$GLOBALS['B6C_TRANS_MAP']        = array( 'ar' => array( 'element_id' => 999, 'language_code' => 'ar', 'source_language_code' => 'en' ) );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP7', b6_exit_is( $r, 403, false ) && 'translation_mismatch' === ( $data['code'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before && array() === $GLOBALS['B6C_SET'],
+		'an edit whose group map carries another element for the target language rejects with a mismatch',
+		'got ' . json_encode( $r ) );
+
+	// TP8: matching existing translation — 200 with the verified payload.
+	$GLOBALS['B6C_TRANS_MAP'] = array( 'ar' => array( 'element_id' => 12, 'language_code' => 'ar', 'source_language_code' => 'en' ) );
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP8', b6_exit_is( $r, 200, true ) && 12 === (int) ( $data['post_id'] ?? 0 )
+		&& true === ( $data['existing'] ?? null )
+		&& array( 'trid' => 5, 'language_code' => 'ar', 'source_language_code' => 'en' ) === ( $data['translation'] ?? null )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before && array() === $GLOBALS['B6C_SET'],
+		'a matching existing translation returns with the verified payload, no new post and no link',
+		'got ' . json_encode( $r ) );
+	$GLOBALS['B6C_DETAILS_FROZEN']  = false;
+	$GLOBALS['B6C_DETAILS_EXPLICIT'] = null;
+
+	// TP9: wpml_language_is_active unregistered — the legacy membership
+	// guard still allows creation (documented fallback, no new path).
+	remove_filter( 'wpml_language_is_active', $b6c_lang_active );
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B6C_OBJECT_MAP'] = array();
+	$GLOBALS['B6C_TRID']       = 5;
+	$GLOBALS['B6C_SOURCE']     = 'en';
+	$GLOBALS['B6C_LANG']       = 'ar';
+	$GLOBALS['B6C_TRANS_OK']   = true;
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP9', b6_exit_is( $r, 200, true ) && (int) ( $data['post_id'] ?? 0 ) >= 1
+		&& false === ( $data['existing'] ?? true ),
+		'without the is_active interface the membership guard still allows creation through the existing endpoint',
+		'got ' . json_encode( $r ) );
+
+	// TP10: language outside the active list — 400 before any write.
+	b6_begin_case( array( 'post_id' => '5', 'lang' => 'fr' ), 3, true, array( 'edit_post_5' => true ) );
+	b6c_reset_posts_state();
+	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
+	b6c_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B6C_TRID']   = 5;
+	$GLOBALS['B6C_SOURCE'] = 'en';
+	$rows_before = count( $GLOBALS['B6_POSTS'] );
+	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$data = b6_exit_data( $r );
+	b6_check( 'TP10', b6_exit_is( $r, 400, false ) && 'Invalid language.' === ( $data['message'] ?? '' )
+		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before,
+		'a language outside the active list rejects with 400 and no draft',
+		'got ' . json_encode( $r ) );
+
+	b6_result_line( 'posts-translate-permissions' );
+}
+
 /* ── Dispatch ── */
 $project = dirname( __DIR__, 2 );
 if ( ! defined( 'HAL_TEST_EXT_DIR' ) ) {
@@ -2596,6 +3300,15 @@ switch ( $mode ) {
 		break;
 	case 'store-wc':
 		b6_mode_store_wc( $project );
+		break;
+	case 'posts-links':
+		b6_mode_posts_links( $project );
+		break;
+	case 'posts-translate-verify':
+		b6_mode_posts_translate_verify( $project );
+		break;
+	case 'posts-translate-permissions':
+		b6_mode_posts_translate_permissions( $project );
 		break;
 	case 'b308':
 		b6_mode_b308( $project );

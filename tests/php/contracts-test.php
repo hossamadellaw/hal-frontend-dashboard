@@ -9,11 +9,11 @@
  * comments via tokens, so documentation never satisfies an assertion).
  *
  * Coverage (§22 contracts row):
- *   AJAX action inventory (exact 26), no nopriv twins for hossam_*
+ *   AJAX action inventory (exact 27), no nopriv twins for hossam_*
  *   actions, JSON response + nonce discipline per ajax file, feature/
  *   registry gates per ajax file, registry consumption in the integration
- *   adapters, TLS-only endpoints, and the registry-gated seo action
- *   staying unregistered.
+ *   adapters, TLS-only endpoints, and the v1.0.6 §8.3 seo action loading
+ *   ninth and staying registered.
  *
  * Usage:  php tests/php/contracts-test.php
  *         exit 0 = all checks pass.
@@ -151,7 +151,7 @@ if ( ! defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT' ) ) {
 
 require $project . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
-/* C1 — exact AJAX action inventory (26 registered hossam_* actions). */
+/* C1 — exact AJAX action inventory (27 registered hossam_* actions). */
 $expected_actions = array(
 	'hossam_ai_get_job_status', 'hossam_ai_set_preference', 'hossam_ai_submit_job',
 	'hossam_create_article', 'hossam_delete_file', 'hossam_finance_summary',
@@ -160,7 +160,7 @@ $expected_actions = array(
 	'hossam_get_products', 'hossam_get_saved_tokens', 'hossam_get_upcoming_appointments',
 	'hossam_lazy_appointments', 'hossam_mark_all_read', 'hossam_mark_message_read',
 	'hossam_mark_read', 'hossam_restore_article', 'hossam_restore_file',
-	'hossam_send_message', 'hossam_translate_article', 'hossam_trash_article',
+	'hossam_save_seo', 'hossam_send_message', 'hossam_translate_article', 'hossam_trash_article',
 	'hossam_update_article', 'hossam_upload_file',
 );
 sort( $expected_actions, SORT_STRING );
@@ -174,7 +174,7 @@ sort( $actual_actions, SORT_STRING );
 hal_ct_check(
 	'C1-INVENTORY',
 	$expected_actions === $actual_actions,
-	'action inventory frozen at exactly 26 wp_ajax_hossam_* registrations',
+	'action inventory frozen at exactly 27 wp_ajax_hossam_* registrations (26 + v1.0.6 §8.3 hossam_save_seo)',
 	'expected=' . json_encode( $expected_actions ) . ' actual=' . json_encode( $actual_actions )
 );
 
@@ -199,14 +199,15 @@ foreach ( $GLOBALS['HAL_CT_HOOKS'] as $hook => $callbacks ) {
 		}
 	}
 }
-hal_ct_check( 'C3-CALLABLE', array() === $uncallable, 'all 26 action callbacks are callable', 'uncallable: ' . json_encode( $uncallable ) );
+hal_ct_check( 'C3-CALLABLE', array() === $uncallable, 'all 27 action callbacks are callable', 'uncallable: ' . json_encode( $uncallable ) );
 
-/* C4 — registry-gated seo action stays unregistered in the live load. */
+/* C4 — v1.0.6 §8.3 (documented gate change): the registry-gated seo action
+ * loads ninth and stays registered in the live load. */
 hal_ct_check(
 	'C4-SEO-GATED',
-	! isset( $GLOBALS['HAL_CT_HOOKS']['wp_ajax_hossam_save_seo'] ),
-	'wp_ajax_hossam_save_seo not registered (§16 registry-gated loading)',
-	'save_seo registered without registry approval'
+	isset( $GLOBALS['HAL_CT_HOOKS']['wp_ajax_hossam_save_seo'] ),
+	'wp_ajax_hossam_save_seo IS registered (v1.0.6 §8.3: runtime detection + owner key)',
+	'save_seo missing after the v1.0.6 §8.3 gate change'
 );
 
 function hal_ct_strip_comments( string $code ): string {

@@ -329,24 +329,52 @@ function testRenderEquivalence() {
 }
 
 function testCssCoversFragments(renderedJson) {
-  const runtimeCss = fs.readFileSync(path.join(projectRoot, 'runtime', 'assets', 'css', 'dashboard.css'), 'utf8');
-  const legacyCss = fs.readFileSync(
+  // v1.0.6 EOL note: files rewritten in this cycle carry CRLF on disk (git
+  // autocrlf hides it; legacy is LF). Comparison normalizes CRLF to LF so
+  // only content drift can fail — EOL alone never passes or fails content.
+  const runtimeRaw = fs.readFileSync(path.join(projectRoot, 'runtime', 'assets', 'css', 'dashboard.css'), 'utf8');
+  const legacyRaw = fs.readFileSync(
     path.resolve(projectRoot, '..', '..', 'dashboard', 'Dahboard-v-1.0.0', 'theme', 'assets', 'css', 'dashboard.css'), 'utf8');
+  const runtimeCss = runtimeRaw.replace(/\r\n/g, '\n');
+  const legacyCss = legacyRaw.replace(/\r\n/g, '\n');
   const runtimeHash = crypto.createHash('sha256').update(runtimeCss, 'utf8').digest('hex');
   const legacyHash = crypto.createHash('sha256').update(legacyCss, 'utf8').digest('hex');
-  // The single documented [B9-U1] utility rule is the only permitted delta:
-  // strip it and the remainder must be byte-identical to the legacy source.
-  const markerStart = runtimeCss.indexOf('\n/* [B9-U1]');
-  const markerEnd = runtimeCss.indexOf('.text-center{text-align:center}') + '.text-center{text-align:center}'.length;
-  const addedBlock = markerStart >= 0 ? runtimeCss.slice(markerStart, markerEnd) : '';
-  const remainder = addedBlock !== '' ? runtimeCss.replace(addedBlock, '') : runtimeCss;
+  // v1.0.6 §12: the documented audit markers are [B9-U1] (kept) plus the new
+  // [B9-U2] (P4-prep styles) and [B9-U3] (rich-editor styles) found in the
+  // file. Each documented block is stripped by its anchors and the remainder
+  // must be byte-identical to the legacy source — any other drift fails.
+  // Independent review (G6) to follow.
+  const u1Start = runtimeCss.indexOf('\n/* [B9-U1]');
+  const u1End = runtimeCss.indexOf('.text-center{text-align:center}') + '.text-center{text-align:center}'.length;
+  const u1Block = u1Start >= 0 ? runtimeCss.slice(u1Start, u1End) : '';
+  const u2Anchor = '[dir="rtl"] .hossam-cat-toggle{flex-direction:row-reverse}';
+  const u2Mark = runtimeCss.indexOf('[B9-U2]');
+  const u2Start = u2Mark >= 0 ? runtimeCss.lastIndexOf('/*', u2Mark) - 1 : -1;
+  // The [B9-U2] block is followed by exactly one blank line before the
+  // [B9-U3] comment; consume it so the stripped remainder joins exactly.
+  const u2End = runtimeCss.indexOf(u2Anchor) + u2Anchor.length + 1;
+  const u2Block = (u2Start >= 0 && u2End > u2Start) ? runtimeCss.slice(u2Start, u2End) : '';
+  const u3Mark = runtimeCss.indexOf('[B9-U3]');
+  const u3Start = u3Mark >= 0 ? runtimeCss.lastIndexOf('/*', u3Mark) - 1 : -1;
+  // v1.0.6: [B9-U3] is the last block in the file (rich-editor styles to EOF).
+  const u3Block = u3Start >= 0 ? runtimeCss.slice(u3Start) : '';
+  let remainder = runtimeCss;
+  for (const block of [u1Block, u2Block, u3Block]) {
+    if (block !== '') { remainder = remainder.replace(block, ''); }
+  }
   check('B9F-5-css-delta-only',
     runtimeCss.includes('.text-center{text-align:center}')
       && runtimeCss.includes('[B9-U1]')
+      && runtimeCss.includes('[B9-U2]')
+      && runtimeCss.includes('[B9-U3]')
+      && runtimeCss.includes('.hossam-post-success-card')
+      && runtimeCss.includes('.hossam-rich-editor')
       && !legacyCss.includes('.text-center')
+      && !legacyCss.includes('[B9-U2]')
+      && !legacyCss.includes('[B9-U3]')
       && remainder === legacyCss,
-    `dashboard.css equals the legacy source except the single documented [B9-U1] utility rule (runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
-    'dashboard.css diverges from legacy beyond the documented [B9-U1] rule');
+    `dashboard.css equals the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3] blocks (runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
+    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3] blocks');
 
   testCssUrlsOnly();
   testCssClassCoverage(renderedJson, runtimeCss);

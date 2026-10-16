@@ -52,9 +52,25 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			$status = 'draft';
 		}
 
-		$validation = hossam_validate_article_taxonomy_and_thumbnail( $data );
+		// v1.0.6 §5: the creation target is the site default language, read
+		// before any WPML assignment via the official filter only.
+		$target_language = '';
+		if ( defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			$maybe_default = apply_filters( 'wpml_default_language', null );
+			if ( is_string( $maybe_default ) && '' !== $maybe_default ) {
+				$target_language = sanitize_key( $maybe_default );
+			}
+		}
+
+		$validation = hossam_validate_article_taxonomy_and_thumbnail( $data, $target_language );
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
+		}
+		// The very list resolved pre-save goes to save — never the raw IDs,
+		// never a second resolution after the write.
+		$save_data = $data;
+		if ( is_array( $validation ) && isset( $validation['resolved_category_ids'] ) && is_array( $validation['resolved_category_ids'] ) ) {
+			$save_data['categories'] = array_values( array_map( 'absint', $validation['resolved_category_ids'] ) );
 		}
 
 		$postarr = [
@@ -75,7 +91,7 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			return $post_id;
 		}
 
-		$related_result = hossam_apply_article_taxonomy_and_thumbnail( $post_id, $data );
+		$related_result = hossam_apply_article_taxonomy_and_thumbnail( $post_id, $save_data );
 		if ( is_wp_error( $related_result ) ) {
 			$deleted = wp_delete_post( $post_id, true );
 			if ( ! $deleted || is_wp_error( $deleted ) || null !== get_post( $post_id ) ) {
@@ -112,9 +128,21 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to edit this article.', 'astra-child' ) );
 		}
 
-		$validation = hossam_validate_article_taxonomy_and_thumbnail( $data );
+		// v1.0.6 §5: the update target is the article's existing language.
+		$target_language = '';
+		if ( defined( 'ICL_SITEPRESS_VERSION' ) && function_exists( 'hossam_wpml_get_element_language_code' ) ) {
+			$target_language = hossam_wpml_get_element_language_code( $post_id );
+		}
+
+		$validation = hossam_validate_article_taxonomy_and_thumbnail( $data, $target_language );
 		if ( is_wp_error( $validation ) ) {
 			return $validation;
+		}
+		// The very list resolved pre-save goes to save — never the raw IDs,
+		// never a second resolution after the write.
+		$save_data = $data;
+		if ( is_array( $validation ) && isset( $validation['resolved_category_ids'] ) && is_array( $validation['resolved_category_ids'] ) ) {
+			$save_data['categories'] = array_values( array_map( 'absint', $validation['resolved_category_ids'] ) );
 		}
 
 		$postarr = [ 'ID' => $post_id ];
@@ -164,7 +192,7 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			}
 		}
 
-		$related_result = hossam_apply_article_taxonomy_and_thumbnail( $post_id, $data );
+		$related_result = hossam_apply_article_taxonomy_and_thumbnail( $post_id, $save_data );
 		if ( is_wp_error( $related_result ) ) {
 			$compensated = hossam_restore_article_snapshot(
 				$post_id,
@@ -233,11 +261,22 @@ if ( ! function_exists( 'hossam_restore_article' ) ) {
 }
 
 if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
-	function hossam_validate_article_taxonomy_and_thumbnail( array $data ) {
+	/**
+	 * v1.0.6 §5 — pre-save validation. Takes the target language and resolves
+	 * every category through the WPML contract (§6) BEFORE any insert/update:
+	 * success returns array('resolved_category_ids' => int[]) alongside the
+	 * result (boolean true when no categories were supplied); any failure is
+	 * hossam_invalid_categories (or the thumbnail errors). Zero is never
+	 * passed to save and nothing is dropped silently.
+	 *
+	 * @return array{resolved_category_ids:array<int,int>}|true|WP_Error
+	 */
+	function hossam_validate_article_taxonomy_and_thumbnail( array $data, string $target_language = '' ) {
 		if ( isset( $data['categories'] ) ) {
 			if ( ! is_array( $data['categories'] ) ) {
 				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
 			}
+			$input_ids = array();
 			foreach ( $data['categories'] as $term_id ) {
 				if ( ! is_scalar( $term_id ) || ! is_numeric( $term_id ) ) {
 					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
@@ -246,7 +285,67 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 				if ( $tid < 1 || ! term_exists( $tid, 'category' ) ) {
 					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
 				}
+				$input_ids[] = $tid;
 			}
+			$target_language = sanitize_key( $target_language );
+			if ( '' === $target_language || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+				return array( 'resolved_category_ids' => $input_ids );
+			}
+			// Guard 1 (official hook reference): an untranslated taxonomy
+			// keeps the IDs as-is, with no conversion.
+			$taxonomy_translated = false;
+			if ( has_filter( 'wpml_is_translated_taxonomy' ) ) {
+				$taxonomy_translated = (bool) apply_filters( 'wpml_is_translated_taxonomy', false, 'category' );
+			}
+			if ( ! $taxonomy_translated ) {
+				return array( 'resolved_category_ids' => $input_ids );
+			}
+			// Guard 2: the target language must be active — early rejection.
+			if ( has_filter( 'wpml_language_is_active' ) && ! (bool) apply_filters( 'wpml_language_is_active', false, $target_language ) ) {
+				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+			}
+			$default_language = '';
+			$maybe_default    = apply_filters( 'wpml_default_language', null );
+			if ( is_string( $maybe_default ) && '' !== $maybe_default ) {
+				$default_language = sanitize_key( $maybe_default );
+			}
+			$term_element_type = apply_filters( 'wpml_element_type', 'category' );
+			if ( ! is_string( $term_element_type ) || '' === $term_element_type ) {
+				$term_element_type = 'category';
+			}
+			$resolved_ids = array();
+			foreach ( $input_ids as $input_term_id ) {
+				// Target language first with return_original_if_missing=false;
+				// on a missing target translation fall back to an explicit
+				// default-language request — never to the implicit original.
+				$mapped_term_id    = function_exists( 'hossam_wpml_term_id_for_language' )
+					? hossam_wpml_term_id_for_language( $input_term_id, $target_language )
+					: 0;
+				$expected_language = $target_language;
+				if ( $mapped_term_id < 1 && '' !== $default_language && $default_language !== $target_language && function_exists( 'hossam_wpml_term_id_for_language' ) ) {
+					$mapped_term_id    = hossam_wpml_term_id_for_language( $input_term_id, $default_language );
+					$expected_language = $default_language;
+				}
+				if ( $mapped_term_id < 1 || ! term_exists( $mapped_term_id, 'category' ) ) {
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+				}
+				// Verify the result language against its term_taxonomy_id (§5/§6).
+				$term_taxonomy_id = $mapped_term_id;
+				if ( function_exists( 'get_term' ) ) {
+					$term_object = get_term( $mapped_term_id );
+					if ( $term_object instanceof WP_Term && isset( $term_object->term_taxonomy_id ) ) {
+						$term_taxonomy_id = (int) $term_object->term_taxonomy_id;
+					} elseif ( is_array( $term_object ) && isset( $term_object['term_taxonomy_id'] ) ) {
+						$term_taxonomy_id = (int) $term_object['term_taxonomy_id'];
+					}
+				}
+				$result_language = apply_filters( 'wpml_element_language_code', null, [ 'element_id' => $term_taxonomy_id, 'element_type' => $term_element_type ] );
+				if ( ! is_string( $result_language ) || sanitize_key( $result_language ) !== $expected_language ) {
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+				}
+				$resolved_ids[] = $mapped_term_id;
+			}
+			return array( 'resolved_category_ids' => $resolved_ids );
 		}
 		if ( isset( $data['thumbnail_id'] ) ) {
 			if ( ! is_scalar( $data['thumbnail_id'] ) || ! is_numeric( $data['thumbnail_id'] ) ) {
@@ -263,6 +362,74 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 			}
 		}
 		return true;
+	}
+}
+
+if ( ! function_exists( 'hossam_wpml_translation_runtime_ready' ) ) {
+	/**
+	 * v1.0.6 §14 — full WPML runtime gate for the translations panel.
+	 *
+	 * Completes the Group C partial gate (contract-level has_filter checks):
+	 * after `wpml_loaded`, every interface the panel and the translate
+	 * endpoint consume must be registered — the nine filters
+	 * (wpml_active_languages, wpml_element_language_details,
+	 * wpml_element_language_code, wpml_element_trid,
+	 * wpml_get_element_translations, wpml_object_id, wpml_default_language,
+	 * wpml_is_translated_taxonomy, wpml_language_is_active) plus the
+	 * wpml_set_element_language_details action — and wpml_active_languages
+	 * must return an array. No translation writes happen before this gate
+	 * passes: the panel disables its translation UI safely (articles stay
+	 * intact) and the textual reason follows the integration-capability
+	 * log pattern (setup.php reason strings for the next version).
+	 *
+	 * Stubs prove branches only — never a live WPML integration.
+	 *
+	 * @return array{ready:bool,reason:string}
+	 */
+	function hossam_wpml_translation_runtime_ready(): array {
+		if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			return array( 'ready' => false, 'reason' => 'WPML is not active on this site.' );
+		}
+		if ( ! function_exists( 'did_action' ) ) {
+			return array( 'ready' => false, 'reason' => 'WPML runtime probe is unavailable (did_action).' );
+		}
+		if ( did_action( 'wpml_loaded' ) < 1 ) {
+			return array( 'ready' => false, 'reason' => 'WPML runtime has not finished loading (wpml_loaded).' );
+		}
+		if ( ! function_exists( 'has_filter' ) || ! function_exists( 'apply_filters' ) ) {
+			return array( 'ready' => false, 'reason' => 'WPML hook probe is unavailable.' );
+		}
+		$required_filters = array(
+			'wpml_active_languages',
+			'wpml_element_language_details',
+			'wpml_element_language_code',
+			'wpml_element_trid',
+			'wpml_get_element_translations',
+			'wpml_object_id',
+			'wpml_default_language',
+			'wpml_is_translated_taxonomy',
+			'wpml_language_is_active',
+		);
+		foreach ( $required_filters as $hook_name ) {
+			if ( ! has_filter( $hook_name ) ) {
+				return array( 'ready' => false, 'reason' => 'WPML interface is not registered: ' . $hook_name . '.' );
+			}
+		}
+		// Actions share the hook registry: has_action when WordPress
+		// provides it, otherwise the equivalent has_filter probe.
+		$has_link_action = function_exists( 'has_action' )
+			? (bool) has_action( 'wpml_set_element_language_details' )
+			: (bool) has_filter( 'wpml_set_element_language_details' );
+		if ( ! $has_link_action ) {
+			return array( 'ready' => false, 'reason' => 'WPML interface is not registered: wpml_set_element_language_details.' );
+		}
+		// The array proof reads the raw filter answer: the adapter helper
+		// coerces non-arrays to [] and would mask a broken contract.
+		$active_languages = apply_filters( 'wpml_active_languages', null, array( 'skip_missing' => 0 ) );
+		if ( ! is_array( $active_languages ) ) {
+			return array( 'ready' => false, 'reason' => 'WPML did not return an active-languages array.' );
+		}
+		return array( 'ready' => true, 'reason' => '' );
 	}
 }
 
@@ -349,19 +516,25 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 	 */
 	function hossam_apply_article_taxonomy_and_thumbnail( int $post_id, array $data ) {
 		if ( isset( $data['categories'] ) && is_array( $data['categories'] ) ) {
-			$categories = array_values(
-				array_filter(
-					array_map( 'absint', $data['categories'] ),
-					function ( int $term_id ): bool {
-						return $term_id > 0 && term_exists( $term_id, 'category' );
-					}
-				)
-			);
+			// v1.0.6 §5: IDs arrive already resolved pre-save — apply them
+			// verbatim (no silent drop, no 0), then read back and compare.
+			$categories      = array_values( array_map( 'absint', $data['categories'] ) );
 			$category_result = wp_set_post_categories( $post_id, $categories );
 			if ( false === $category_result || is_wp_error( $category_result ) ) {
 				return is_wp_error( $category_result )
 					? $category_result
 					: new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
+			}
+			$stored_categories = function_exists( 'wp_get_post_categories' ) ? wp_get_post_categories( $post_id ) : $categories;
+			if ( is_wp_error( $stored_categories ) || ! is_array( $stored_categories ) ) {
+				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
+			}
+			$stored_compare   = array_values( array_map( 'absint', $stored_categories ) );
+			$expected_compare = $categories;
+			sort( $stored_compare );
+			sort( $expected_compare );
+			if ( $stored_compare !== $expected_compare ) {
+				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
 			}
 		}
 
@@ -376,6 +549,15 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 				}
 				$thumbnail_result = set_post_thumbnail( $post_id, $thumbnail_id );
 				if ( false === $thumbnail_result && get_post_thumbnail_id( $post_id ) !== $thumbnail_id ) {
+					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'astra-child' ) );
+				}
+			} elseif ( 0 === $thumbnail_id ) {
+				// v1.0.6 §5: the explicit removal signal (0 — never -1) deletes
+				// the thumbnail, verified by re-reading.
+				if ( function_exists( 'delete_post_thumbnail' ) ) {
+					delete_post_thumbnail( $post_id );
+				}
+				if ( function_exists( 'get_post_thumbnail_id' ) && 0 !== (int) get_post_thumbnail_id( $post_id ) ) {
 					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'astra-child' ) );
 				}
 			}

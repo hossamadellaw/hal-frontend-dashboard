@@ -67,6 +67,12 @@ $posts_frontend_admin = function_exists( 'hossam_get_integration_decision' )
 $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
     && ! empty( $posts_frontend_admin['capabilities']['shortcode'] )
     && shortcode_exists( 'frontend_admin' );
+// v1.0.6 §9: بوابة إظهار المحرر الغني — مفتاح المالك rich_editor (نمط
+// is_feature_enabled)؛ fail-closed (المفتاح خارج FEATURES حتى تخصيصه من مالك
+// الإعدادات — والـtextarea يبقى حقل النموذج). فحص القدرة لكل لوحة عند موضعها.
+$hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
+    && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'is_feature_enabled' )
+    && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rich_editor' );
 ?>
     <!-- ══ PANEL: WRITE NEW ARTICLE ══ -->
     <?php if ( $sees_content ) : ?>
@@ -90,6 +96,17 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
           <div class="form-group mb-8">
             <label class="form-label" for="hossam-new-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
             <textarea class="form-input" id="hossam-new-content" name="content" rows="10"></textarea>
+            <?php if ( $hossam_rich_editor_feature ) : ?>
+            <!-- v1.0.6 §9: موضع المحرر الغني (inserter/أدوات/canvas) داخل حقل
+                 المحتوى بقالب HAL — الـtextarea أعلاه يبقى حقل النموذج ظاهرًا
+                 ولا يُخفى إلا بعد نجاح التهيئة (posts.js)؛ التهيئة عند أول
+                 فتح اللوحة. اللوحة نفسها مشروطة بـ$sees_content (edit_posts). -->
+            <div class="hossam-rich-editor" id="hossam-rich-editor-new" data-textarea="hossam-new-content" hidden>
+              <div class="hossam-rich-editor-inserter" data-role="inserter"></div>
+              <div class="hossam-rich-editor-toolbar" data-role="toolbar"></div>
+              <div class="hossam-rich-editor-canvas" data-role="canvas"></div>
+            </div>
+            <?php endif; ?>
           </div>
           <div class="form-group mb-8">
             <label class="form-label" for="hossam-new-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
@@ -98,10 +115,39 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
           <div class="form-group mb-8">
             <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
             <?php
+              // v1.0.6 §3-P4: parent-children tree (hierarchical order + RTL
+              // indent), collapsible group open by default in a scroll box,
+              // one language badge per term via the official WPML term
+              // interface. Display only — the categories[] contract (ID value)
+              // is unchanged.
               $hossam_write_cats = get_categories( [ 'hide_empty' => false ] );
+              $hossam_write_kids = array();
               foreach ( $hossam_write_cats as $hossam_write_cat ) {
-                  echo '<label><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_write_cat->term_id ) . '" /> ' . esc_html( $hossam_write_cat->name ) . '</label>';
+                  $hossam_write_parent = isset( $hossam_write_cat->parent ) ? (int) $hossam_write_cat->parent : 0;
+                  $hossam_write_kids[ $hossam_write_parent ][] = $hossam_write_cat;
               }
+              $hossam_write_walk = function ( $hossam_walk_parent, $hossam_walk_depth ) use ( &$hossam_write_walk, $hossam_write_kids ) {
+                  foreach ( (array) ( $hossam_write_kids[ $hossam_walk_parent ] ?? array() ) as $hossam_write_cat ) {
+                      $hossam_write_ttid = isset( $hossam_write_cat->term_taxonomy_id ) ? (int) $hossam_write_cat->term_taxonomy_id : (int) $hossam_write_cat->term_id;
+                      $hossam_write_lang = '';
+                      if ( defined( 'ICL_SITEPRESS_VERSION' ) && has_filter( 'wpml_element_language_code' ) ) {
+                          $hossam_write_etype = apply_filters( 'wpml_element_type', 'category' );
+                          $hossam_write_lraw = apply_filters( 'wpml_element_language_code', null, array( 'element_id' => $hossam_write_ttid, 'element_type' => $hossam_write_etype ) );
+                          if ( is_string( $hossam_write_lraw ) && '' !== $hossam_write_lraw ) {
+                              $hossam_write_lang = strtoupper( $hossam_write_lraw );
+                          }
+                      }
+                      echo '<label style="display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;"><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_write_cat->term_id ) . '" /> ' . esc_html( $hossam_write_cat->name );
+                      if ( '' !== $hossam_write_lang ) {
+                          echo ' <span class="data-tag">' . esc_html( $hossam_write_lang ) . '</span>';
+                      }
+                      echo '</label>';
+                      $hossam_write_walk( (int) $hossam_write_cat->term_id, $hossam_walk_depth + 1 );
+                  }
+              };
+              echo '<div style="max-height:180px;overflow:auto;"><details open><summary>' . esc_html( hossam_t( 'Categories' ) ) . '</summary>';
+              $hossam_write_walk( 0, 0 );
+              echo '</details></div>';
             ?>
           </div>
           <?php if ( current_user_can( 'upload_files' ) ) : ?>
@@ -110,6 +156,7 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
             <input type="hidden" id="hossam-new-thumbnail" name="thumbnail_id" value="" />
             <div><img id="hossam-new-thumbnail-preview" alt="" style="display:none;max-width:120px;height:auto;" /></div>
             <button type="button" class="btn btn-sm" id="hossam-new-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="hossam-new-thumbnail-remove" style="display:none"><?php echo esc_html( hossam_t( 'Remove featured image' ) ); ?></button>
           </div>
           <?php endif; ?>
           <div class="form-group mb-8">
@@ -365,6 +412,19 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
                     <div class="form-group mb-8">
                       <label class="form-label" for="hossam-edit-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
                       <textarea class="form-input" id="hossam-edit-content" name="content" rows="12"><?php echo esc_textarea( $the_post->post_content ); ?></textarea>
+                      <?php if ( $hossam_rich_editor_feature ) : ?>
+                      <!-- v1.0.6 §9: موضع المحرر الغني في لوحة التحرير داخل حقل
+                           المحتوى بقالب HAL — نفس عقد لوحة الكتابة: الـtextarea
+                           أعلاه يبقى حقل النموذج ظاهرًا ولا يُخفى إلا بعد نجاح
+                           التهيئة (posts.js)؛ التهيئة عند أول فتح اللوحة. هذا
+                           الفرع داخل $hossam_edit_resource_allowed (edit_post
+                           لهذا المقال مثبت أعلاه) — فحص الخادم باقٍ. -->
+                      <div class="hossam-rich-editor" id="hossam-rich-editor-edit" data-textarea="hossam-edit-content" hidden>
+                        <div class="hossam-rich-editor-inserter" data-role="inserter"></div>
+                        <div class="hossam-rich-editor-toolbar" data-role="toolbar"></div>
+                        <div class="hossam-rich-editor-canvas" data-role="canvas"></div>
+                      </div>
+                      <?php endif; ?>
                     </div>
                     <div class="form-group mb-8">
                       <label class="form-label" for="hossam-edit-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
@@ -373,11 +433,41 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
                     <div class="form-group mb-8">
                       <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
                       <?php
+                        // v1.0.6 §3-P4: parent-children tree (hierarchical order
+                        // + RTL indent), collapsible group open by default in a
+                        // scroll box, one language badge per term via the
+                        // official WPML term interface. Display only — the
+                        // categories[] contract (ID value) and the disclosure
+                        // text below are unchanged.
                         $hossam_edit_cat_list = get_categories( [ 'hide_empty' => false ] );
+                        $hossam_edit_kids = array();
                         foreach ( $hossam_edit_cat_list as $hossam_edit_cat ) {
-                            $hossam_cat_checked = in_array( (int) $hossam_edit_cat->term_id, array_map( 'intval', (array) $hossam_edit_cats ), true ) ? ' checked' : '';
-                            echo '<label><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_edit_cat->term_id ) . '"' . $hossam_cat_checked . ' /> ' . esc_html( $hossam_edit_cat->name ) . '</label>';
+                            $hossam_edit_parent = isset( $hossam_edit_cat->parent ) ? (int) $hossam_edit_cat->parent : 0;
+                            $hossam_edit_kids[ $hossam_edit_parent ][] = $hossam_edit_cat;
                         }
+                        $hossam_edit_walk = function ( $hossam_walk_parent, $hossam_walk_depth ) use ( &$hossam_edit_walk, $hossam_edit_kids, $hossam_edit_cats ) {
+                            foreach ( (array) ( $hossam_edit_kids[ $hossam_walk_parent ] ?? array() ) as $hossam_edit_cat ) {
+                                $hossam_cat_checked = in_array( (int) $hossam_edit_cat->term_id, array_map( 'intval', (array) $hossam_edit_cats ), true ) ? ' checked' : '';
+                                $hossam_edit_ttid = isset( $hossam_edit_cat->term_taxonomy_id ) ? (int) $hossam_edit_cat->term_taxonomy_id : (int) $hossam_edit_cat->term_id;
+                                $hossam_edit_lang = '';
+                                if ( defined( 'ICL_SITEPRESS_VERSION' ) && has_filter( 'wpml_element_language_code' ) ) {
+                                    $hossam_edit_etype = apply_filters( 'wpml_element_type', 'category' );
+                                    $hossam_edit_lraw = apply_filters( 'wpml_element_language_code', null, array( 'element_id' => $hossam_edit_ttid, 'element_type' => $hossam_edit_etype ) );
+                                    if ( is_string( $hossam_edit_lraw ) && '' !== $hossam_edit_lraw ) {
+                                        $hossam_edit_lang = strtoupper( $hossam_edit_lraw );
+                                    }
+                                }
+                                echo '<label style="display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;"><input type="checkbox" name="categories[]" value="' . esc_attr( $hossam_edit_cat->term_id ) . '"' . $hossam_cat_checked . ' /> ' . esc_html( $hossam_edit_cat->name );
+                                if ( '' !== $hossam_edit_lang ) {
+                                    echo ' <span class="data-tag">' . esc_html( $hossam_edit_lang ) . '</span>';
+                                }
+                                echo '</label>';
+                                $hossam_edit_walk( (int) $hossam_edit_cat->term_id, $hossam_walk_depth + 1 );
+                            }
+                        };
+                        echo '<div style="max-height:180px;overflow:auto;"><details open><summary>' . esc_html( hossam_t( 'Categories' ) ) . '</summary>';
+                        $hossam_edit_walk( 0, 0 );
+                        echo '</details></div>';
                       ?>
                       <p class="form-hint"><?php echo esc_html( hossam_t( 'Leave all unchecked to keep the current categories.' ) ); ?></p>
                     </div>
@@ -390,6 +480,25 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
                       <input type="hidden" id="hossam-edit-thumbnail" name="thumbnail_id" value="<?php echo esc_attr( $hossam_edit_thumb_id > 0 ? (string) $hossam_edit_thumb_id : '' ); ?>" />
                       <div><img id="hossam-edit-thumbnail-preview" src="<?php echo esc_url( $hossam_edit_thumb_url ); ?>" alt="" style="<?php echo '' !== $hossam_edit_thumb_url ? 'max-width:120px;height:auto;' : 'display:none;max-width:120px;height:auto;'; ?>" /></div>
                       <button type="button" class="btn btn-sm" id="hossam-edit-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
+                      <?php if ( $hossam_edit_thumb_id > 0 ) : ?>
+                      <button type="button" class="btn btn-sm btn-ghost" id="hossam-edit-thumbnail-remove"><?php echo esc_html( hossam_t( 'Remove featured image' ) ); ?></button>
+                      <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <?php
+                    // v1.0.6 P1: Permalink عرض قراءة فقط (get_permalink) —
+                    // رابط المسودة موسوم «مؤقت — النهائي عند النشر». لا حقل تحرير slug.
+                    $hossam_edit_permalink = function_exists( 'get_permalink' ) ? (string) get_permalink( $the_post->ID ) : '';
+                    if ( '' !== $hossam_edit_permalink ) :
+                    ?>
+                    <div class="form-group mb-8">
+                      <span class="form-label"><?php echo esc_html( hossam_t( 'Permalink' ) ); ?></span>
+                      <div>
+                        <a href="<?php echo esc_url( $hossam_edit_permalink ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $hossam_edit_permalink ); ?></a>
+                        <?php if ( in_array( $hossam_cur_status, [ 'draft', 'pending', 'future' ], true ) ) : ?>
+                        <span class="data-tag"><?php echo esc_html( hossam_t( 'مؤقت — النهائي عند النشر' ) ); ?></span>
+                        <?php endif; ?>
+                      </div>
                     </div>
                     <?php endif; ?>
                     <?php if ( 'publish' === $hossam_cur_status && ! $hossam_can_publish ) : ?>
@@ -412,6 +521,62 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
                       <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
                     </div>
                   </form>
+                  <?php
+                  // v1.0.6 §8.5: مجموعة SEO في لوحة التحرير فقط — خلف البوابتين:
+                  // مفتاح المالك rank_math_seo + can_write من السجل (نفس عقد
+                  // seo.php: بوابة available + plugin_contract + verified_fields).
+                  // لوحة الكتابة بلا مجموعة SEO (المقال غير موجود = حقول وهمية).
+                  $hossam_edit_seo_can_write = HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rank_math_seo' )
+                      && 'available' === ( $posts_rank_math['status'] ?? '' )
+                      && ! empty( $posts_rank_math['capabilities']['plugin_contract'] )
+                      && ! empty( $posts_rank_math['capabilities']['verified_fields'] );
+                  ?>
+                  <?php if ( $hossam_edit_seo_can_write && function_exists( 'hossam_get_rankmath_seo_data' ) ) :
+                      $hossam_edit_seo = hossam_get_rankmath_seo_data( $the_post->ID );
+                      $hossam_edit_seo_title = isset( $hossam_edit_seo['title'] ) ? (string) $hossam_edit_seo['title'] : '';
+                      $hossam_edit_seo_kw = isset( $hossam_edit_seo['focus_keyword'] ) ? (string) $hossam_edit_seo['focus_keyword'] : '';
+                      $hossam_edit_seo_desc = isset( $hossam_edit_seo['description'] ) ? (string) $hossam_edit_seo['description'] : '';
+                      $hossam_edit_seo_robots = $hossam_edit_seo['robots'] ?? [];
+                      $hossam_edit_seo_score = isset( $hossam_edit_seo['seo_score'] ) ? (int) $hossam_edit_seo['seo_score'] : 0;
+                      $hossam_edit_seo_options = function_exists( 'hossam_get_allowed_rank_math_robots' ) ? hossam_get_allowed_rank_math_robots() : [];
+                  ?>
+                  <div class="card mt-12" id="hossam-edit-seo-group">
+                    <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'SEO' ) ); ?></div>
+                    <div class="form-group mb-8">
+                      <span class="form-label"><?php echo esc_html( hossam_t( 'SEO Score' ) ); ?></span>
+                      <span id="hossam-edit-seo-score" class="td-muted"><?php echo esc_html( $hossam_edit_seo_score > 0 ? $hossam_edit_seo_score . '%' : '—' ); ?></span>
+                    </div>
+                    <form id="hossam-edit-seo-form" onsubmit="event.preventDefault(); hossamSaveSeo(this); return false;">
+                      <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
+                      <div class="form-group mb-8">
+                        <label class="form-label" for="hossam-edit-seo-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
+                        <input type="text" class="form-input" id="hossam-edit-seo-title" name="title" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_title ); ?>" />
+                      </div>
+                      <div class="form-group mb-8">
+                        <label class="form-label" for="hossam-edit-seo-kw"><?php echo esc_html( hossam_t( 'Focus Keyword' ) ); ?></label>
+                        <input type="text" class="form-input" id="hossam-edit-seo-kw" name="focus_keyword" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_kw ); ?>" />
+                      </div>
+                      <div class="form-group mb-8">
+                        <label class="form-label" for="hossam-edit-seo-desc"><?php echo esc_html( hossam_t( 'Meta Description' ) ); ?></label>
+                        <textarea class="form-input" id="hossam-edit-seo-desc" name="description" rows="3"><?php echo esc_textarea( $hossam_edit_seo_desc ); ?></textarea>
+                      </div>
+                      <div class="form-group mb-8">
+                        <span class="form-label"><?php echo esc_html( hossam_t( 'Robots' ) ); ?></span>
+                        <div class="flex gap-8" style="flex-wrap:wrap">
+                          <?php foreach ( $hossam_edit_seo_options as $hossam_edit_seo_option ) : ?>
+                          <label style="display:inline-flex;align-items:center;gap:4px">
+                            <input type="checkbox" name="robots[]" value="<?php echo esc_attr( $hossam_edit_seo_option ); ?>"<?php echo ( is_array( $hossam_edit_seo_robots ) ? in_array( $hossam_edit_seo_option, $hossam_edit_seo_robots, true ) : str_contains( (string) $hossam_edit_seo_robots, $hossam_edit_seo_option ) ) ? ' checked' : ''; ?> />
+                            <?php echo esc_html( $hossam_edit_seo_option ); ?>
+                          </label>
+                          <?php endforeach; ?>
+                        </div>
+                      </div>
+                      <div class="form-actions mt-12">
+                        <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save SEO' ) ); ?></button>
+                      </div>
+                    </form>
+                  </div>
+                  <?php endif; ?>
                   <?php if ( HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) && function_exists( 'hossam_ai_interface_available' ) && hossam_ai_interface_available() ) : ?>
                   <!-- الدفعة الثالثة (7.4): داخل فرع الصلاحية حصرًا — edit_post على
                        مستوى المقال مثبت أعلاه، والقدرة إثبتت خادميًا الآن.

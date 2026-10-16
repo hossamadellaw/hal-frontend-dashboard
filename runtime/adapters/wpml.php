@@ -191,20 +191,140 @@ if ( ! function_exists( 'hossam_wpml_get_element_language_code' ) ) {
 	}
 }
 
+if ( ! function_exists( 'hossam_wpml_verify_element_link' ) ) {
+	/**
+	 * v1.0.6 §6 — mandatory two-contract read-back for a freshly linked element.
+	 *
+	 * Reads wpml_element_language_details (trid + language + source language)
+	 * then wpml_get_element_translations and requires the target-language key
+	 * to carry this element with the expected source. Any mismatch is false.
+	 *
+	 * WPML absent means the link cannot exist (false). WPML present but the
+	 * official read-back contracts unregistered in this runtime is also
+	 * false — no success before a match (§4/§6); the caller deletes the
+	 * created draft with verification. Stubs alone never prove a live
+	 * integration.
+	 */
+	function hossam_wpml_verify_element_link( int $post_id, int $trid, string $language_code, string $source_language ): bool {
+		$language_code   = sanitize_key( $language_code );
+		$source_language = sanitize_key( $source_language );
+		if ( $post_id < 1 || $trid < 1 || '' === $language_code || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			return false;
+		}
+		if ( ! has_filter( 'wpml_element_language_details' ) || ! has_filter( 'wpml_get_element_translations' ) ) {
+			return false;
+		}
+		$element_type  = 'post_post';
+		$filtered_type = apply_filters( 'wpml_element_type', 'post_post' );
+		if ( is_string( $filtered_type ) && '' !== $filtered_type ) {
+			$element_type = $filtered_type;
+		}
+		$details = apply_filters( 'wpml_element_language_details', null, [ 'element_id' => $post_id, 'element_type' => $element_type ] );
+		if ( is_object( $details ) ) {
+			$details = get_object_vars( $details );
+		}
+		if ( ! is_array( $details ) ) {
+			return false;
+		}
+		$details_trid   = isset( $details['trid'] ) ? (int) $details['trid'] : 0;
+		$details_lang   = isset( $details['language_code'] ) && is_string( $details['language_code'] ) ? sanitize_key( $details['language_code'] ) : '';
+		$details_source = isset( $details['source_language_code'] ) && is_string( $details['source_language_code'] ) ? sanitize_key( $details['source_language_code'] ) : '';
+		if ( $details_trid !== $trid || $details_lang !== $language_code ) {
+			return false;
+		}
+		if ( '' !== $source_language && $details_source !== $source_language ) {
+			return false;
+		}
+		$translations = apply_filters( 'wpml_get_element_translations', null, $trid, $element_type );
+		if ( ! is_array( $translations ) || ! isset( $translations[ $language_code ] ) ) {
+			return false;
+		}
+		$entry = $translations[ $language_code ];
+		if ( is_object( $entry ) ) {
+			$entry = get_object_vars( $entry );
+		}
+		if ( ! is_array( $entry ) ) {
+			return false;
+		}
+		$entry_id = 0;
+		if ( isset( $entry['element_id'] ) ) {
+			$entry_id = (int) $entry['element_id'];
+		} elseif ( isset( $entry['translation_id'] ) ) {
+			$entry_id = (int) $entry['translation_id'];
+		}
+		$entry_source = isset( $entry['source_language_code'] ) && is_string( $entry['source_language_code'] ) ? sanitize_key( $entry['source_language_code'] ) : '';
+		if ( $entry_id !== $post_id ) {
+			return false;
+		}
+		if ( '' !== $source_language && '' !== $entry_source && $entry_source !== $source_language ) {
+			return false;
+		}
+		return true;
+	}
+}
+
 if ( ! function_exists( 'hossam_wpml_set_element_language' ) ) {
 	function hossam_wpml_set_element_language( int $post_id, int $trid, string $language_code, string $source_language ): bool {
 		if ( $post_id < 1 || $trid < 1 || '' === $language_code || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
 			return false;
 		}
+		$language_code   = sanitize_key( $language_code );
+		$source_language = sanitize_key( $source_language );
+		// v1.0.6 §6: element_type is normalised through the official filter
+		// (WPML maps 'post' to 'post_post'); the current 'post_post' literal
+		// passes through unchanged. Never pass trid=false (it would fork trids
+		// and drop the existing relations) — $trid stays the guarded int.
+		$element_type  = 'post_post';
+		$filtered_type = apply_filters( 'wpml_element_type', 'post_post' );
+		if ( is_string( $filtered_type ) && '' !== $filtered_type ) {
+			$element_type = $filtered_type;
+		}
+		// Edit path: when the stored details already match, do not re-fire
+		// the link action — verify by re-reading and comparing instead.
+		if ( has_filter( 'wpml_element_language_details' ) ) {
+			$current = apply_filters( 'wpml_element_language_details', null, [ 'element_id' => $post_id, 'element_type' => $element_type ] );
+			if ( is_object( $current ) ) {
+				$current = get_object_vars( $current );
+			}
+			if ( is_array( $current ) ) {
+				$current_trid   = isset( $current['trid'] ) ? (int) $current['trid'] : 0;
+				$current_lang   = isset( $current['language_code'] ) && is_string( $current['language_code'] ) ? sanitize_key( $current['language_code'] ) : '';
+				$current_source = isset( $current['source_language_code'] ) && is_string( $current['source_language_code'] ) ? sanitize_key( $current['source_language_code'] ) : '';
+				if ( $current_trid === $trid && $current_lang === $language_code && ( '' === $source_language || $current_source === $source_language ) ) {
+					return hossam_wpml_verify_element_link( $post_id, $trid, $language_code, $source_language );
+				}
+			}
+		}
 		do_action( 'wpml_set_element_language_details', [
 			'element_id'           => $post_id,
-			'element_type'         => 'post_post',
+			'element_type'         => $element_type,
 			'trid'                 => $trid,
-			'language_code'        => sanitize_key( $language_code ),
-			'source_language_code' => sanitize_key( $source_language ),
+			'language_code'        => $language_code,
+			'source_language_code' => $source_language,
 		] );
 
-		return true;
+		return hossam_wpml_verify_element_link( $post_id, $trid, $language_code, $source_language );
+	}
+}
+
+if ( ! function_exists( 'hossam_wpml_term_id_for_language' ) ) {
+	/**
+	 * v1.0.6 §6 — resolve a category term id into a target language through
+	 * the official wpml_object_id filter with return_original_if_missing=false.
+	 * Returns the matching term id, or 0 when it cannot be resolved. The caller
+	 * requests the default language explicitly with a second call and verifies
+	 * the result language before accepting it. The default language is read
+	 * via apply_filters('wpml_default_language', null) only.
+	 */
+	function hossam_wpml_term_id_for_language( int $term_id, string $lang ): int {
+		$lang = sanitize_key( $lang );
+		if ( $term_id < 1 || '' === $lang || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			return 0;
+		}
+		if ( ! has_filter( 'wpml_object_id' ) ) {
+			return 0;
+		}
+		return absint( apply_filters( 'wpml_object_id', $term_id, 'category', false, $lang ) );
 	}
 }
 if ( ! function_exists('hossam_resolve_site_section') ) {

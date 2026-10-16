@@ -516,8 +516,30 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 		return $GLOBALS['B4_MEDIA']['meta'][ $post_id ][ $meta_key ] ?? '';
 	}
 }
+if ( ! function_exists( 'metadata_exists' ) ) {
+	// v1.0.6 §7 extension: distinguishes absent meta (restore = delete)
+	// from present-but-empty meta (restore = write '').
+	function metadata_exists( string $meta_type, int $object_id, string $meta_key ): bool {
+		return array_key_exists( $meta_key, $GLOBALS['B4_MEDIA']['meta'][ $object_id ] ?? array() );
+	}
+}
+if ( ! function_exists( 'delete_post_meta' ) ) {
+	function delete_post_meta( int $post_id, string $meta_key, $value = '' ): bool {
+		if ( ! array_key_exists( $meta_key, $GLOBALS['B4_MEDIA']['meta'][ $post_id ] ?? array() ) ) {
+			return false;
+		}
+		unset( $GLOBALS['B4_MEDIA']['meta'][ $post_id ][ $meta_key ] );
+		return true;
+	}
+}
 if ( ! function_exists( 'update_post_meta' ) ) {
 	function update_post_meta( int $post_id, string $meta_key, $value ) {
+		// v1.0.6 §7 extension: per-key write-failure injection for the
+		// partial-failure rollback case (empty by default — other modes
+		// keep the historical always-true path byte-identical).
+		if ( in_array( $meta_key, (array) ( $GLOBALS['B4_META_FAIL_KEYS'] ?? array() ), true ) ) {
+			return false;
+		}
 		$GLOBALS['B4_MEDIA']['meta'][ $post_id ][ $meta_key ] = $value;
 		return true;
 	}
@@ -543,6 +565,11 @@ if ( ! function_exists( 'set_post_thumbnail' ) ) {
 }
 if ( ! function_exists( 'delete_post_thumbnail' ) ) {
 	function delete_post_thumbnail( int $post_id ) {
+		// v1.0.6 Group C extension: honours the removal-failure fixture flag
+		// (unset = historical success path, byte-identical behaviour).
+		if ( ! empty( $GLOBALS['B4_POSTS_FAIL_DELETE_THUMBNAIL'] ) ) {
+			return false;
+		}
 		unset( $GLOBALS['B4_POST_THUMBNAILS'][ $post_id ] );
 		return true;
 	}
@@ -765,6 +792,9 @@ function b4_mode( string $mode, array $args, string $project ): void {
 				'ajax/inbox.php',
 				'ajax/store.php',
 				'ajax/ai.php',
+				// v1.0.6 §8.3 (documented gate change): ajax/seo.php loads
+				// ninth, after ajax/ai.php (was: shipped-but-unloaded).
+				'ajax/seo.php',
 				// Batch 7 (§18) — the shared Template Controller copy loads
 				// after all modules (§6.1 pre-build infrastructure copy).
 				'infrastructure/class-template-controller.php',
@@ -774,7 +804,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			);
 			$actual_order = array_values( array_intersect( $relative, $expected_order ) );
 			b4_check( 'L1', $actual_order === $expected_order,
-				'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (8: batch-5 content/files + batch-6 integrations/services) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated order and nothing else from runtime',
+				'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (9: batch-5 content/files + batch-6 integrations/services + v1.0.6 §8.3 seo ninth) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated order and nothing else from runtime',
 				'load order mismatch: ' . json_encode( $relative ) );
 			$module_included = array_values( array_filter(
 				$runtime_included,
@@ -782,17 +812,17 @@ function b4_mode( string $mode, array $args, string $project ): void {
 					return false === strpos( $path, '/runtime/bootstrap.php' );
 				}
 			) );
-		b4_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-			'exactly 29 runtime module files load (bootstrap aside: 18 through batch 4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
+		b4_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+			'exactly 30 runtime module files load (bootstrap aside: 18 through batch 4 + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 				'unexpected runtime file set: ' . json_encode( $relative ) );
 
 			$signatures = array(
 				'wordpress-posts.php'    => array( 'hossam_create_article', 'hossam_update_article', 'hossam_trash_article', 'hossam_restore_article', 'hossam_validate_article_taxonomy_and_thumbnail', 'hossam_restore_article_snapshot', 'hossam_apply_article_taxonomy_and_thumbnail' ),
 				'wordpress-uploads.php'  => array( 'hossam_get_allowed_upload_mimes', 'hossam_upload_file' ),
 				'woocommerce.php'        => array( 'hossam_wc_is_active', 'hossam_wc_get_orders_data', 'hossam_wc_get_orders_page', 'hossam_wc_get_order_statuses', 'hossam_wc_get_order_status_name', 'hossam_wc_get_currency', 'hossam_wc_format_price', 'hossam_wc_get_products_data', 'hossam_wc_get_available_payment_gateways', 'hossam_wc_get_registered_payment_gateways', 'hossam_wc_get_customer_tokens' ),
-				'wpml.php'               => array( 'hossam_wpml_url', 'hossam_wpml_all_paths', 'hossam_login_url', 'hossam_dashboard_url', 'hossam_wpml_url_by_id', 'hossam_wpml_get_active_languages', 'hossam_wpml_get_current_language', 'hossam_wpml_permalink', 'hossam_wpml_is_rtl', 'hossam_wpml_get_post_language', 'hossam_wpml_get_translation_id', 'hossam_wpml_get_element_trid', 'hossam_wpml_get_element_language_code', 'hossam_wpml_set_element_language', 'hossam_resolve_site_section', 'hossam_get_translation_status' ),
+				'wpml.php'               => array( 'hossam_wpml_url', 'hossam_wpml_all_paths', 'hossam_login_url', 'hossam_dashboard_url', 'hossam_wpml_url_by_id', 'hossam_wpml_get_active_languages', 'hossam_wpml_get_current_language', 'hossam_wpml_permalink', 'hossam_wpml_is_rtl', 'hossam_wpml_get_post_language', 'hossam_wpml_get_translation_id', 'hossam_wpml_get_element_trid', 'hossam_wpml_get_element_language_code', 'hossam_wpml_set_element_language', 'hossam_wpml_verify_element_link', 'hossam_wpml_term_id_for_language', 'hossam_resolve_site_section', 'hossam_get_translation_status' ),
 				'amelia.php'             => array( 'hossam_amelia_is_active', 'hossam_amelia_valid_date_range', 'hossam_amelia_has_appointments_contract', 'hossam_amelia_log_database_failure', 'hossam_amelia_table_exists', 'hossam_amelia_get_api_key', 'hossam_amelia_api_error', 'hossam_amelia_api_request', 'hossam_amelia_get_health', 'hossam_amelia_invalidate_health', 'hossam_amelia_get_linked_employee_id', 'hossam_amelia_get_upcoming_appointments' ),
-				'rankmath.php'           => array( 'hossam_get_rankmath_seo_data', 'hossam_get_allowed_rank_math_robots', 'hossam_update_rankmath_meta', 'hossam_save_rankmath_seo_data' ),
+				'rankmath.php'           => array( 'hossam_get_rankmath_seo_data', 'hossam_get_allowed_rank_math_robots', 'hossam_update_rankmath_meta', 'hossam_restore_rankmath_meta_snapshot', 'hossam_save_rankmath_seo_data' ),
 				'ultimatemember.php'     => array(),
 				'ai.php'                 => array( 'hossam_ai_wp_client_supported', 'hossam_ai_direct_key_ready', 'hossam_ai_base_strategies', 'hossam_ai_get_strategies', 'hossam_ai_allowed_preferences', 'hossam_ai_get_preference', 'hossam_ai_set_preference', 'hossam_ai_resolve_strategy', 'hossam_ai_interface_available', 'hossam_ai_connector_source_status', 'hossam_ai_allowed_models', 'hossam_ai_get_provider_config', 'hossam_ai_execute_wp_ai_client', 'hossam_ai_execute_direct_key', 'hossam_ai_build_grammar_prompt', 'hossam_ai_build_translation_prompt', 'hossam_ai_build_seo_prompt', 'hossam_ai_build_improvement_prompt', 'hossam_ai_verify_links', 'hossam_ai_verify_facts' ),
 			);
@@ -846,8 +876,8 @@ function b4_mode( string $mode, array $args, string $project ): void {
 				return basename( $path );
 			}, array_values( $ajax_loaded ) );
 			sort( $ajax_names );
-			b4_check( 'L6', array( 'ai.php', 'appointments.php', 'finance.php', 'inbox.php', 'members.php', 'posts.php', 'store.php', 'uploads.php' ) === $ajax_names,
-				'the runtime loads exactly the eight ajax files of batches 5–6 (posts/uploads + appointments/finance/members/inbox/store/ai) after the adapters and never ajax/seo.php (§16 registry-gated loading)',
+			b4_check( 'L6', array( 'ai.php', 'appointments.php', 'finance.php', 'inbox.php', 'members.php', 'posts.php', 'seo.php', 'store.php', 'uploads.php' ) === $ajax_names,
+				'the runtime loads exactly the nine ajax files (batches 5–6 plus v1.0.6 §8.3 ajax/seo.php ninth) after the adapters',
 				'ajax load set mismatch: ' . json_encode( $ajax_names ) );
 			b4_result_line( $mode );
 			// no fallthrough
@@ -1003,6 +1033,46 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			b4_check( 'RM4', false === hossam_save_rankmath_seo_data( 9, array( 'robots' => array( 'garbage' ) ) ) && false === hossam_save_rankmath_seo_data( 9, array( 'robots' => 'index' ) ) && false === hossam_save_rankmath_seo_data( 9, array( 'robots' => array( 'index' ), 'description' => 42 ) ) && false === hossam_save_rankmath_seo_data( 9, array( 'robots' => array( 5 ) ) ), 'a non-allowlisted set, non-array robots, non-string fields or non-string members all fail closed without writing', 'write rejection mismatch' );
 			$GLOBALS['B4_MEDIA']['meta'][9]['rank_math_description'] = 'same';
 			b4_check( 'RM5', true === hossam_update_rankmath_meta( 9, 'rank_math_description', 'same' ) && true === hossam_save_rankmath_seo_data( 9, array( 'robots' => array( 'index' ) ) ), 'an unchanged value short-circuits to success (update_option false is ambiguous)', 'same-value mismatch' );
+			// v1.0.6 §7 extension: snapshot/restore, absent-vs-empty meta,
+			// partial-write rollback, and the added rank_math_title.
+			$title_data = hossam_get_rankmath_seo_data( 9 );
+			b4_check( 'RM6', '' === $title_data['title']
+				&& true === hossam_save_rankmath_seo_data( 9, array( 'title' => 'B4 Title', 'robots' => array( 'index' ) ) )
+				&& 'B4 Title' === hossam_get_rankmath_seo_data( 9 )['title']
+				&& false === hossam_save_rankmath_seo_data( 9, array( 'title' => 42, 'robots' => array( 'index' ) ) )
+				&& false === hossam_save_rankmath_seo_data( 9, array( 'title' => str_repeat( 'x', 256 ), 'robots' => array( 'index' ) ) ),
+				'rank_math_title reads through the contract, saves with read-back, and rejects non-string/overlong values without writing',
+				'title mismatch: ' . json_encode( hossam_get_rankmath_seo_data( 9 )['title'] ) );
+			$GLOBALS['B4_MEDIA']['meta'][10] = array(
+				'rank_math_description' => '',
+			);
+			$absent_before = array_key_exists( 'rank_math_title', $GLOBALS['B4_MEDIA']['meta'][10] );
+			$GLOBALS['B4_META_FAIL_KEYS'] = array( 'rank_math_robots' );
+			$partial = hossam_save_rankmath_seo_data( 10, array( 'title' => 'New', 'description' => 'D', 'robots' => array( 'index' ) ) );
+			$GLOBALS['B4_META_FAIL_KEYS'] = array();
+			b4_check( 'RM7', false === $partial && false === $absent_before
+				&& ! array_key_exists( 'rank_math_title', $GLOBALS['B4_MEDIA']['meta'][10] )
+				&& array_key_exists( 'rank_math_description', $GLOBALS['B4_MEDIA']['meta'][10] )
+				&& '' === $GLOBALS['B4_MEDIA']['meta'][10]['rank_math_description']
+				&& ! array_key_exists( 'rank_math_focus_keyword', $GLOBALS['B4_MEDIA']['meta'][10] ?? array() ),
+				'a failing write restores the snapshot: absent title stays absent (deleted, not emptied) while present-but-empty description stays empty',
+				'snapshot mismatch: ' . json_encode( $GLOBALS['B4_MEDIA']['meta'][10] ) );
+			$GLOBALS['B4_MEDIA']['meta'][11] = array(
+				'rank_math_title'         => 'Old title',
+				'rank_math_focus_keyword' => 'old-kw',
+				'rank_math_description'   => 'Old desc',
+				'rank_math_robots'        => array( 'index', 'follow' ),
+			);
+			$GLOBALS['B4_META_FAIL_KEYS'] = array( 'rank_math_description' );
+			$rollback = hossam_save_rankmath_seo_data( 11, array( 'title' => 'Changed', 'focus_keyword' => 'new-kw', 'description' => 'Changed', 'robots' => array( 'noindex' ) ) );
+			$GLOBALS['B4_META_FAIL_KEYS'] = array();
+			b4_check( 'RM8', false === $rollback
+				&& 'Old title' === $GLOBALS['B4_MEDIA']['meta'][11]['rank_math_title']
+				&& 'old-kw' === $GLOBALS['B4_MEDIA']['meta'][11]['rank_math_focus_keyword']
+				&& 'Old desc' === $GLOBALS['B4_MEDIA']['meta'][11]['rank_math_description']
+				&& array( 'index', 'follow' ) === $GLOBALS['B4_MEDIA']['meta'][11]['rank_math_robots'],
+				'a mid-sequence write failure rolls back every earlier write in the same call (full restore before false)',
+				'rollback mismatch: ' . json_encode( $GLOBALS['B4_MEDIA']['meta'][11] ) );
 			b4_result_line( $mode );
 			// no fallthrough
 
@@ -1371,6 +1441,321 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			b4_check( 'RS4', 'available' === ( $registry['ai']['status'] ?? '' ) && true === ( $registry['ai']['capabilities']['wp_ai_client'] ?? false ), 'the AI integration is available through the real adapter (supported client + profile + credential)', 'ai classification mismatch: ' . json_encode( $registry['ai'] ?? array() ) );
 			b4_result_line( $mode );
 			// no fallthrough
+
+		case 'wpml-link-verify':
+			// v1.0.6 Group C (§6): the two-contract read-back (details then
+			// translations) behind hossam_wpml_set_element_language /
+			// hossam_wpml_verify_element_link, plus the term resolver.
+			// Fixture filters only — stubs prove branches, never a live WPML.
+			b4_define_release_context();
+			if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+				define( 'ICL_SITEPRESS_VERSION', '4.6.15-fixture' );
+			}
+			b4_require_runtime();
+			add_filter( 'wpml_element_type', static function ( $type ) {
+				if ( 'post' === $type ) {
+					return 'post_post';
+				}
+				if ( 'category' === $type ) {
+					return 'tax_category';
+				}
+				return $type;
+			} );
+			add_filter( 'wpml_object_id', static function ( $value, $type = null, $return_original = null, $lang = null ) {
+				$map = $GLOBALS['B4_WPML_OBJECT_MAP'] ?? array();
+				return $map[ (int) $value ][ (string) $lang ] ?? 0;
+			}, 10, 4 );
+			// Stateful details fixture: a recorded link updates the stored
+			// details (like WPML would); the frozen map forces a mismatch.
+			add_filter( 'wpml_element_language_details', static function ( $value, $args = null ) {
+				if ( ! empty( $GLOBALS['B4_WPML_DETAILS_FROZEN'] ) ) {
+					$eid = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+					return $GLOBALS['B4_WPML_DETAILS'][ $eid ] ?? null;
+				}
+				$eid = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+				foreach ( array_reverse( $GLOBALS['B4_WPML_SET'] ?? array() ) as $recorded ) {
+					if ( (int) ( $recorded['element_id'] ?? 0 ) === $eid ) {
+						return array(
+							'trid'                 => (int) $recorded['trid'],
+							'language_code'        => (string) $recorded['language_code'],
+							'source_language_code' => (string) $recorded['source_language_code'],
+						);
+					}
+				}
+				$eid_map = $GLOBALS['B4_WPML_DETAILS'][ $eid ] ?? null;
+				return $eid_map;
+			}, 10, 2 );
+			add_filter( 'wpml_get_element_translations', static function ( $value, $trid = null, $type = null ) {
+				return $GLOBALS['B4_WPML_TRANSLATIONS'][ (int) $trid ] ?? null;
+			}, 10, 3 );
+			add_action( 'wpml_set_element_language_details', static function ( array $details ): void {
+				$GLOBALS['B4_WPML_SET'][] = $details;
+			} );
+			$GLOBALS['B4_WPML_SET']          = array();
+			$GLOBALS['B4_WPML_DETAILS']      = array();
+			$GLOBALS['B4_WPML_TRANSLATIONS'] = array(
+				5 => array(
+					'en' => array( 'element_id' => 5, 'language_code' => 'en', 'source_language_code' => '' ),
+					'ar' => array( 'element_id' => 101, 'language_code' => 'ar', 'source_language_code' => 'en' ),
+				),
+			);
+			$linked    = hossam_wpml_set_element_language( 101, 5, 'ar', 'en' );
+			$set_entry = end( $GLOBALS['B4_WPML_SET'] );
+			b4_check( 'LV1', true === $linked && 1 === count( $GLOBALS['B4_WPML_SET'] )
+				&& 'post_post' === ( $set_entry['element_type'] ?? '' ) && 5 === ( $set_entry['trid'] ?? 0 )
+				&& 'ar' === ( $set_entry['language_code'] ?? '' ) && 'en' === ( $set_entry['source_language_code'] ?? '' ),
+				'a fresh link fires one normalised action (element_type post_post, int trid — never false) and the read-back match returns true',
+				'link mismatch: ' . json_encode( array( $linked, $set_entry ) ) );
+			b4_check( 'LV1B', true === hossam_wpml_verify_element_link( 101, 5, 'ar', 'en' )
+				&& false === hossam_wpml_verify_element_link( 101, 6, 'ar', 'en' )
+				&& false === hossam_wpml_verify_element_link( 101, 5, 'ar', 'fr' ),
+				'the verify helper matches trid+language+source and rejects a wrong trid or a wrong source',
+				'verify mismatch' );
+			$GLOBALS['B4_WPML_TRANSLATIONS'][5]['ar']['element_id'] = 999;
+			b4_check( 'LV2', false === hossam_wpml_set_element_language( 202, 5, 'ar', 'en' ),
+				'a translations entry pointing at another element fails the read-back (false)',
+				'mismatched translation accepted' );
+			$GLOBALS['B4_WPML_TRANSLATIONS'][5]['ar']['element_id'] = 101;
+			$GLOBALS['B4_WPML_DETAILS_FROZEN'] = true;
+			$GLOBALS['B4_WPML_DETAILS']        = array(
+				303 => array( 'trid' => 6, 'language_code' => 'fr', 'source_language_code' => 'en' ),
+			);
+			b4_check( 'LV3', false === hossam_wpml_set_element_language( 303, 5, 'ar', 'en' ),
+				'details carrying another trid/language fail the read-back (false) even though the link action was attempted',
+				'mismatched details accepted' );
+			$GLOBALS['B4_WPML_DETAILS_FROZEN'] = false;
+			$GLOBALS['B4_WPML_DETAILS']        = array(
+				404 => array( 'trid' => 5, 'language_code' => 'ar', 'source_language_code' => 'en' ),
+			);
+			$GLOBALS['B4_WPML_TRANSLATIONS'][5]['ar']['element_id'] = 404;
+			$sets_before = count( $GLOBALS['B4_WPML_SET'] );
+			b4_check( 'LV4', true === hossam_wpml_set_element_language( 404, 5, 'ar', 'en' ) && $sets_before === count( $GLOBALS['B4_WPML_SET'] ),
+				'on edit with identical stored language/group the link action is not re-fired — verify-only success',
+				'edit re-linked or failed' );
+			$GLOBALS['B4_WPML_DETAILS'][404]['language_code'] = 'fr';
+			$sets_before = count( $GLOBALS['B4_WPML_SET'] );
+			b4_check( 'LV4B', true === hossam_wpml_set_element_language( 404, 5, 'ar', 'en' ) && $sets_before + 1 === count( $GLOBALS['B4_WPML_SET'] ),
+				'a language change re-fires the link action once and verifies true',
+				'language change not re-linked' );
+			$GLOBALS['B4_WPML_OBJECT_MAP'] = array(
+				11 => array( 'en' => 11, 'ar' => 21 ),
+				12 => array( 'en' => 12 ),
+			);
+			b4_check( 'LV5', 21 === hossam_wpml_term_id_for_language( 11, 'ar' )
+				&& 11 === hossam_wpml_term_id_for_language( 11, 'en' )
+				&& 0 === hossam_wpml_term_id_for_language( 12, 'ar' )
+				&& 0 === hossam_wpml_term_id_for_language( 0, 'ar' )
+				&& 0 === hossam_wpml_term_id_for_language( 11, '' ),
+				'the term resolver maps through wpml_object_id with false (valid id or 0 — never the implicit original)',
+				'term resolution mismatch' );
+			b4_check( 'LV6', false === hossam_wpml_set_element_language( 0, 5, 'ar', 'en' )
+				&& false === hossam_wpml_set_element_language( 101, 0, 'ar', 'en' )
+				&& false === hossam_wpml_set_element_language( 101, 5, '', 'en' ),
+				'empty post/trid/language refuse closed (trid=false is never passed)',
+				'guard mismatch' );
+			b4_result_line( $mode );
+			// no fallthrough
+
+		case 'posts-categories-i18n':
+			// v1.0.6 Group C (§5): pre-save category resolution (target
+			// first with false, explicit default fallback, term_taxonomy_id
+			// language proof, rejection before any insert/update), the same
+			// resolved list reaching save, the read-back, and thumbnail 0
+			// removal with restore. Fixture filters only — stubs prove
+			// branches, never a live WPML.
+			b4_define_release_context();
+			if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+				define( 'ICL_SITEPRESS_VERSION', '4.6.15-fixture' );
+			}
+			b4_require_runtime();
+			add_filter( 'wpml_element_type', static function ( $type ) {
+				if ( 'post' === $type ) {
+					return 'post_post';
+				}
+				if ( 'category' === $type ) {
+					return 'tax_category';
+				}
+				return $type;
+			} );
+			add_filter( 'wpml_object_id', static function ( $value, $type = null, $return_original = null, $lang = null ) {
+				$map = $GLOBALS['B4_WPML_OBJECT_MAP'] ?? array();
+				return $map[ (int) $value ][ (string) $lang ] ?? 0;
+			}, 10, 4 );
+			add_filter( 'wpml_default_language', static function () {
+				return $GLOBALS['B4_WPML_DEFAULT'] ?? null;
+			} );
+			add_filter( 'wpml_element_language_code', static function ( $value, $args = null ) {
+				$eid   = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+				$etype = is_array( $args ) ? (string) ( $args['element_type'] ?? '' ) : '';
+				if ( in_array( $etype, array( 'tax_category', 'category' ), true ) ) {
+					return $GLOBALS['B4_WPML_TERM_LANG'][ $eid ] ?? '';
+				}
+				return $GLOBALS['B4_WPML_POST_LANG'][ $eid ] ?? '';
+			}, 10, 2 );
+			add_filter( 'wpml_is_translated_taxonomy', static function ( $value, $taxonomy = null ) {
+				return (bool) ( $GLOBALS['B4_WPML_TAXONOMY_TRANSLATED'] ?? false );
+			}, 10, 2 );
+			add_filter( 'wpml_language_is_active', static function ( $value, $lang = null ) {
+				return in_array( (string) $lang, $GLOBALS['B4_WPML_ACTIVE'] ?? array(), true );
+			}, 10, 2 );
+			$GLOBALS['B4_TERMS']['category']       = array( 11, 12, 13, 21 );
+			$GLOBALS['B4_MEDIA']['image_ids']      = array( 33 );
+			$GLOBALS['B4_WPML_DEFAULT']            = 'en';
+			$GLOBALS['B4_WPML_ACTIVE']             = array( 'en', 'ar' );
+			$GLOBALS['B4_WPML_TAXONOMY_TRANSLATED'] = true;
+			$GLOBALS['B4_WPML_OBJECT_MAP']         = array(
+				11 => array( 'en' => 11, 'ar' => 21 ),
+				12 => array( 'en' => 12 ),
+				21 => array( 'en' => 11, 'ar' => 21 ),
+			);
+			$GLOBALS['B4_WPML_TERM_LANG'] = array( 11 => 'en', 12 => 'en', 13 => 'en', 21 => 'ar' );
+			$GLOBALS['B4_WPML_POST_LANG'] = array();
+
+			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true, 'publish_posts' => true );
+			$post_a = hossam_create_article( array( 'title' => 'C1', 'categories' => array( 11 ) ) );
+			b4_check( 'PC1', is_int( $post_a ) && array( 11 ) === ( $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ),
+				'creation resolves in the default language and stores exactly the resolved list',
+				'creation mismatch: ' . json_encode( is_wp_error( $post_a ) ? $post_a->get_error_code() : $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ) );
+
+			$GLOBALS['B4_WPML_POST_LANG'][ $post_a ] = 'ar';
+			$GLOBALS['B4_CAPS'] = array( 'edit_post_' . $post_a => true );
+			$updated = hossam_update_article( $post_a, array( 'categories' => array( 11 ) ) );
+			b4_check( 'PC2', true === $updated && array( 21 ) === ( $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ),
+				'update in the article language stores the translated term (21), not the raw id (11)',
+				'translation mismatch: ' . json_encode( is_wp_error( $updated ) ? $updated->get_error_code() : $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ) );
+
+			$updated = hossam_update_article( $post_a, array( 'categories' => array( 12 ) ) );
+			b4_check( 'PC3', true === $updated && array( 12 ) === ( $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ),
+				'a missing target translation falls back to an explicit default-language request (12), not to a silent drop',
+				'fallback mismatch: ' . json_encode( is_wp_error( $updated ) ? $updated->get_error_code() : $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ) );
+
+			$title_before = $GLOBALS['B4_POSTS'][ $post_a ]->post_title;
+			$error = hossam_update_article( $post_a, array( 'title' => 'Nope', 'categories' => array( 13 ) ) );
+			b4_check( 'PC4', is_wp_error( $error ) && 'hossam_invalid_categories' === $error->get_error_code()
+				&& $title_before === $GLOBALS['B4_POSTS'][ $post_a ]->post_title
+				&& array( 12 ) === ( $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ),
+				'an unresolvable term rejects before any write (title and categories untouched)',
+				'rejection mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_code() : $error ) );
+			$rows_before = count( $GLOBALS['B4_POSTS'] );
+			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true );
+			$error = hossam_create_article( array( 'title' => 'X', 'categories' => array( 13 ) ) );
+			b4_check( 'PC4B', is_wp_error( $error ) && 'hossam_invalid_categories' === $error->get_error_code()
+				&& count( $GLOBALS['B4_POSTS'] ) === $rows_before,
+				'creation with an unresolvable term rejects before wp_insert_post (no draft row)',
+				'create rejection mismatch' );
+
+			$GLOBALS['B4_WPML_POST_LANG'][ $post_a ] = 'fr';
+			$GLOBALS['B4_CAPS'] = array( 'edit_post_' . $post_a => true );
+			$error = hossam_update_article( $post_a, array( 'categories' => array( 11 ) ) );
+			b4_check( 'PC5', is_wp_error( $error ) && 'hossam_invalid_categories' === $error->get_error_code()
+				&& $title_before === $GLOBALS['B4_POSTS'][ $post_a ]->post_title,
+				'an inactive target language rejects early, before any write',
+				'inactive-language mismatch' );
+			$GLOBALS['B4_WPML_POST_LANG'][ $post_a ] = 'ar';
+
+			$GLOBALS['B4_WPML_TAXONOMY_TRANSLATED'] = false;
+			$updated = hossam_update_article( $post_a, array( 'categories' => array( 11 ) ) );
+			b4_check( 'PC6', true === $updated && array( 11 ) === ( $GLOBALS['B4_POST_CATEGORIES'][ $post_a ] ?? null ),
+				'an untranslated taxonomy keeps the IDs as-is, with no conversion',
+				'untranslated mismatch' );
+			$GLOBALS['B4_WPML_TAXONOMY_TRANSLATED'] = true;
+
+			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true, 'edit_post_33' => true );
+			$post_b = hossam_create_article( array( 'title' => 'Thumb', 'thumbnail_id' => 33 ) );
+			$thumb_ok = is_int( $post_b ) && 33 === ( $GLOBALS['B4_POST_THUMBNAILS'][ $post_b ] ?? 0 );
+			$GLOBALS['B4_CAPS'] = array( 'edit_post_' . $post_b => true );
+			$removed = $thumb_ok ? hossam_update_article( $post_b, array( 'thumbnail_id' => 0 ) ) : false;
+			$validate_zero = hossam_validate_article_taxonomy_and_thumbnail( array( 'thumbnail_id' => 0 ) );
+			b4_check( 'PC7', true === $removed && 0 === (int) ( $GLOBALS['B4_POST_THUMBNAILS'][ $post_b ] ?? 0 ) && ! is_wp_error( $validate_zero ),
+				'thumbnail_id 0 removes the thumbnail (verified) and passes validation as-is',
+				'removal mismatch' );
+
+			$GLOBALS['B4_CAPS'] = array( 'edit_post_' . $post_b => true, 'edit_post_33' => true );
+			$reset_thumb = hossam_update_article( $post_b, array( 'thumbnail_id' => 33 ) );
+			$title_b = $GLOBALS['B4_POSTS'][ $post_b ]->post_title;
+			$GLOBALS['B4_POSTS_FAIL_DELETE_THUMBNAIL'] = true;
+			$error = hossam_update_article( $post_b, array( 'title' => 'Changed', 'thumbnail_id' => 0 ) );
+			$GLOBALS['B4_POSTS_FAIL_DELETE_THUMBNAIL'] = false;
+			b4_check( 'PC8', true === $reset_thumb && is_wp_error( $error ) && 'hossam_related_write_failed' === $error->get_error_code()
+				&& true === ( $error->get_error_data()['compensated'] ?? false )
+				&& 33 === (int) ( $GLOBALS['B4_POST_THUMBNAILS'][ $post_b ] ?? 0 )
+				&& $title_b === $GLOBALS['B4_POSTS'][ $post_b ]->post_title,
+				'a failed removal restores the snapshot (thumbnail and title) and reports compensated related_write_failed',
+				'restore mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_data() : $error ) );
+
+			$direct = hossam_validate_article_taxonomy_and_thumbnail( array( 'categories' => array( 11 ) ), 'ar' );
+			b4_check( 'PC9', is_array( $direct ) && array( 21 ) === ( $direct['resolved_category_ids'] ?? null )
+				&& true === hossam_validate_article_taxonomy_and_thumbnail( array( 'title' => 'x' ) )
+				&& is_wp_error( hossam_validate_article_taxonomy_and_thumbnail( array( 'categories' => array( 11 ) ), 'fr' ) ),
+				'validation returns resolved_category_ids with the result (21 for ar), true without categories, and rejects an inactive target',
+				'validation contract mismatch' );
+			b4_result_line( $mode );
+			// no fallthrough
+
+		case 'wpml-translation-gate':
+			// v1.0.6 §14: the strict WPML runtime gate behind
+			// hossam_wpml_translation_runtime_ready() — after wpml_loaded,
+			// all nine consumed filters plus the set-details action, and an
+			// array from wpml_active_languages. On failure the translation
+			// UI disables safely (articles intact) with the textual reason.
+			// Fixture hooks only — stubs prove branches, never a live WPML.
+			b4_define_release_context();
+			b4_require_runtime();
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG1', false === ( $gate['ready'] ?? true ) && '' !== ( $gate['reason'] ?? '' ),
+				'without WPML the gate fails closed with a textual reason',
+				'gate mismatch: ' . json_encode( $gate ) );
+			if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+				define( 'ICL_SITEPRESS_VERSION', '4.6.15-fixture' );
+			}
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG2', false === ( $gate['ready'] ?? true ) && false !== strpos( (string) ( $gate['reason'] ?? '' ), 'wpml_loaded' ),
+				'the constant alone is not enough — the gate waits for wpml_loaded',
+				'gate mismatch: ' . json_encode( $gate ) );
+			$GLOBALS['B4_GATE_LANGS'] = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+			add_filter( 'wpml_active_languages', static function ( $value, ...$rest ) {
+				return $GLOBALS['B4_GATE_LANGS'];
+			}, 10, 2 );
+			$b4_gate_passthrough = static function ( $value, ...$rest ) {
+				return $value;
+			};
+			foreach ( array( 'wpml_element_language_details', 'wpml_element_language_code', 'wpml_element_trid', 'wpml_get_element_translations', 'wpml_object_id', 'wpml_default_language', 'wpml_is_translated_taxonomy' ) as $b4_gate_hook ) {
+				add_filter( $b4_gate_hook, $b4_gate_passthrough );
+			}
+			$b4_gate_is_active = static function ( $value, $lang = null ) {
+				return true;
+			};
+			add_filter( 'wpml_language_is_active', $b4_gate_is_active, 10, 2 );
+			$b4_gate_set_action = static function ( array $details ): void {};
+			add_action( 'wpml_set_element_language_details', $b4_gate_set_action );
+			do_action( 'wpml_loaded' );
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG3', true === ( $gate['ready'] ?? false ) && '' === ( $gate['reason'] ?? 'x' ),
+				'after wpml_loaded with every consumed interface registered and an array of languages the gate passes',
+				'gate mismatch: ' . json_encode( $gate ) );
+			$GLOBALS['B4_GATE_LANGS'] = 'not-an-array';
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG4', false === ( $gate['ready'] ?? true ) && false !== strpos( (string) ( $gate['reason'] ?? '' ), 'array' ),
+				'a non-array answer from wpml_active_languages fails the gate with a textual reason',
+				'gate mismatch: ' . json_encode( $gate ) );
+			$GLOBALS['B4_GATE_LANGS'] = array( 'en' => array( 'code' => 'en' ) );
+			remove_filter( 'wpml_language_is_active', $b4_gate_is_active );
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG5', false === ( $gate['ready'] ?? true ) && false !== strpos( (string) ( $gate['reason'] ?? '' ), 'wpml_language_is_active' ),
+				'a missing consumed filter fails the gate naming that interface',
+				'gate mismatch: ' . json_encode( $gate ) );
+			add_filter( 'wpml_language_is_active', $b4_gate_is_active, 10, 2 );
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG5B', true === ( $gate['ready'] ?? false ),
+				're-registering the interface passes the gate again',
+				'gate mismatch: ' . json_encode( $gate ) );
+			remove_filter( 'wpml_set_element_language_details', $b4_gate_set_action );
+			$gate = hossam_wpml_translation_runtime_ready();
+			b4_check( 'TG6', false === ( $gate['ready'] ?? true ) && false !== strpos( (string) ( $gate['reason'] ?? '' ), 'wpml_set_element_language_details' ),
+				'a missing link action fails the gate naming that interface',
+				'gate mismatch: ' . json_encode( $gate ) );
+			b4_result_line( $mode );
+			// no fallthrough
 	}
 
 	fwrite( STDERR, "Unknown B4 mode: {$mode}\n" );
@@ -1423,6 +1808,9 @@ b4_run_mode( 'ai-provider-allowlist' );
 b4_run_mode( 'ai-direct-fallback' );
 b4_run_mode( 'ai-model-allowlist' );
 b4_run_mode( 'ai-connector-reach' );
+b4_run_mode( 'wpml-link-verify' );
+b4_run_mode( 'wpml-translation-gate' );
+b4_run_mode( 'posts-categories-i18n' );
 
 $b4_log_file = $project . DIRECTORY_SEPARATOR . '.local-execution' . DIRECTORY_SEPARATOR . 'batch-4' . DIRECTORY_SEPARATOR . 'direct-key-error.log';
 if ( ! is_dir( dirname( $b4_log_file ) ) ) {
