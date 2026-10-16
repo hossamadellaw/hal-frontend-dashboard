@@ -99,6 +99,16 @@ function is_user_logged_in(): bool {
 	return true;
 }
 function current_user_can( string $cap, ...$rest ): bool {
+	// v1.0.6 §9 (قبول تحميل الحزم): matrix اختيارية عبر $GLOBALS['B9_CAPS']
+	// لسيناريوهات capabilities؛ الافتراضي true كما قبل (كل الفحوص القائمة).
+	if ( isset( $GLOBALS['B9_CAPS'] ) && is_array( $GLOBALS['B9_CAPS'] ) && array_key_exists( $cap, $GLOBALS['B9_CAPS'] ) ) {
+		$v = $GLOBALS['B9_CAPS'][ $cap ];
+		if ( is_array( $v ) ) {
+			$id = isset( $rest[0] ) ? (int) $rest[0] : 0;
+			return ! empty( $v[ $id ] );
+		}
+		return (bool) $v;
+	}
 	return true;
 }
 function show_admin_bar( bool $show ): void {}
@@ -394,13 +404,20 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 // inventory, and the runtime side must carry exactly the documented marker
 // the legacy source lacks. Minimality of the surrounding diff is proven by
 // independent review of the two files, not by this harness.
-// v1.0.5 (A2+B): posts.js intentionally diverges (checkbox collection,
-// excerpt, media picker) and carries [B9-05]; members.js stays byte-identical.
+// v1.0.6 (P1): posts.js carries [B9-05] (kept) + the new P1 audit marker
+// [B9-06] (lazy media check at click, thumbnail_id '0' removal, success
+// card links) + [B9-08] (rich-editor serialize — newest); the harness tracks
+// the newest marker while every older marker stays literally in the file.
+// members.js stays byte-identical.
+// v1.0.6 (P2 §10 + §12-أ): dashboard.js carries [B9-02] (kept) + [B9-07] (icons);
+// dashboard.css carries [B9-U1] (kept) + [B9-U2] (P4-prep) + [B9-U3]
+// (rich-editor — newest); mapping follows the newest marker (same pattern
+// as P1). Independent review (G6) to follow.
 $audit_deltas = array(
-	'theme/assets/css/dashboard.css'        => array( 'runtime/assets/css/dashboard.css', 'B9-U1' ),
-	'theme/assets/js/dashboard.js'       => array( 'runtime/assets/js/dashboard.js', 'B9-02' ),
+	'theme/assets/css/dashboard.css'        => array( 'runtime/assets/css/dashboard.css', 'B9-U3' ),
+	'theme/assets/js/dashboard.js'       => array( 'runtime/assets/js/dashboard.js', 'B9-07' ),
 	'theme/assets/js/modules/uploads.js' => array( 'runtime/assets/js/modules/uploads.js', 'B9-01' ),
-	'theme/assets/js/modules/posts.js'   => array( 'runtime/assets/js/modules/posts.js', 'B9-05' ),
+	'theme/assets/js/modules/posts.js'   => array( 'runtime/assets/js/modules/posts.js', 'B9-08' ),
 );
 
 foreach ( $audit_deltas as $legacy_rel => $pair ) {
@@ -509,6 +526,155 @@ b9_check( 'B9-L1-shell-logo-contract',
 		&& false === strpos( $shell, 'assets/img' ),
 	'shell resolves logo via Settings Repository attachment or the HAL text fallback; no fixed logo file path',
 	'shell logo contract violated (fixed path or missing attachment/fallback resolution)' );
+
+/* ── v1.0.6 §10 (P2): icon-per-nav — every id="icon-*" in the real shell
+ * has a matching key in the real dashboard.js ICONS map. Added to this wing
+ * because it already consumes both artifacts ($dash_src panels + $shell logo);
+ * existing-test edit, documented for later independent review (G6). ── */
+
+preg_match_all( '/id="icon-([A-Za-z0-9_-]+)"/', $shell, $nav_icon_matches );
+$nav_icon_ids = array_values( array_unique( $nav_icon_matches[1] ) );
+sort( $nav_icon_ids );
+$icons_block = '';
+if ( preg_match( '/const\s+ICONS\s*=\s*\{(.*?)\};/s', $dash_src, $icons_match ) ) {
+	$icons_block = $icons_match[1];
+}
+preg_match_all( "/^\s*'?([A-Za-z0-9_-]+)'?\s*:/m", $icons_block, $icons_key_matches );
+$icons_keys = array_values( array_unique( $icons_key_matches[1] ) );
+sort( $icons_keys );
+$icons_missing = array_values( array_diff( $nav_icon_ids, $icons_keys ) );
+sort( $icons_missing );
+b9_check( 'B9-A3-icons-cover-nav', array() === $icons_missing,
+	'every nav icon slot in dashboard.php has an ICONS key in dashboard.js (' . count( $nav_icon_ids ) . ' slots: ' . implode( ',', $nav_icon_ids ) . ')',
+	'nav icon slots without an ICONS key: ' . json_encode( $icons_missing ) . ' (slots=' . json_encode( $nav_icon_ids ) . ' keys=' . json_encode( $icons_keys ) . ')' );
+
+/* ════════════════════════════════════════════════════════════════
+ * v1.0.6 §9 (قبول تحميل الحزم — تمديد قائم فقط، B9-E3 سليم):
+ * يعيد استدعاء closure الـenqueue الحقيقي نفسه (priority 20) تحت
+ * مصفوفات capabilities مضبوطة، بلا منطق مشروع مُعاد التنفيذ —
+ * WordPress boundary stubs فقط. المتصفح الميداني + 7.1.3 + kses
+ * الفعلي UNVERIFIED (لا WordPress حي محليًا — النواة 6.7.1).
+ *  - بلا أي مسار (لا edit_posts ولا edit_post لقائم) = لا حزم ولا تمكين.
+ *  - edit_posts يجيز الإنشاء ولو مُنع تحرير مقال آخر.
+ *  - edit_post لمقال بعينه يجيز مسار التحرير لذلك المقال فقط.
+ *  - upload_files شرط مستقل للوسائط فقط (canUpload) لا للتحميل.
+ *  - حجب/رفض تحرير مقال غير مسموح يبقى خادميًا (wordpress-posts.php).
+ * ════════════════════════════════════════════════════════════════ */
+
+if ( ! function_exists( 'wp_script_is' ) ) {
+	function wp_script_is( string $handle, string $list = 'enqueued' ): bool {
+		if ( 'registered' === $list && isset( $GLOBALS['B9_UNREGISTERED'] ) && in_array( $handle, (array) $GLOBALS['B9_UNREGISTERED'], true ) ) {
+			return false;
+		}
+		return true;
+	}
+}
+if ( ! function_exists( 'wp_style_is' ) ) {
+	function wp_style_is( string $handle, string $list = 'enqueued' ): bool {
+		if ( 'registered' === $list && isset( $GLOBALS['B9_UNREGISTERED'] ) && in_array( $handle, (array) $GLOBALS['B9_UNREGISTERED'], true ) ) {
+			return false;
+		}
+		return true;
+	}
+}
+if ( ! function_exists( 'rest_url' ) ) {
+	function rest_url( string $path = '' ): string {
+		return 'https://example.test/wp-json/' . ltrim( $path, '/' );
+	}
+}
+if ( ! class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' ) ) {
+	class HAL_Frontend_Dashboard_Settings_Repository {
+		public static function is_feature_enabled( string $feature ): bool {
+			if ( isset( $GLOBALS['B9_FEATURES'] ) && is_array( $GLOBALS['B9_FEATURES'] ) && array_key_exists( $feature, $GLOBALS['B9_FEATURES'] ) ) {
+				return (bool) $GLOBALS['B9_FEATURES'][ $feature ];
+			}
+			return false;
+		}
+	}
+}
+
+function b9_rich_run( array $features, array $caps, int $post_id = 0, array $unregistered = array() ): array {
+	$GLOBALS['B9_FEATURES']     = $features;
+	$GLOBALS['B9_CAPS']         = $caps;
+	$GLOBALS['B9_UNREGISTERED'] = $unregistered;
+	$_REQUEST['post_id']        = $post_id;
+	$GLOBALS['B9_SCRIPTS']      = array();
+	$GLOBALS['B9_STYLES']       = array();
+	$GLOBALS['B9_LOCALIZED']    = array();
+	$GLOBALS['B9_MEDIA']        = 0;
+	$cb = null;
+	foreach ( $GLOBALS['B9_HOOKS'] as $hook ) {
+		if ( 'action' === $hook[0] && 'wp_enqueue_scripts' === $hook[1] && 20 === $hook[2] ) {
+			$cb = $hook[3];
+			break;
+		}
+	}
+	if ( null !== $cb ) {
+		$cb();
+	}
+	$rich = $GLOBALS['B9_LOCALIZED']['hossam-dashboard-posts:hossamRichEditor'] ?? null;
+	$posts_deps = $GLOBALS['B9_SCRIPTS']['hossam-dashboard-posts']['deps'] ?? null;
+	return array( 'rich' => $rich, 'posts_deps' => $posts_deps );
+}
+
+$b9_critical = array( 'wp-element', 'wp-blocks', 'wp-block-editor' );
+
+// R1: بلا أي مسار — لا edit_posts ولا edit_post لقائم → لا حزم ولا تمكين.
+$r1 = b9_rich_run( array( 'rich_editor' => true ), array( 'edit_posts' => false, 'upload_files' => true ), 0 );
+$b9_r1_handles = array_intersect( $b9_critical, array_keys( $GLOBALS['B9_SCRIPTS'] ) );
+b9_check( 'B9-R1-rich-no-path-no-packages',
+	array() === $b9_r1_handles && is_array( $r1['rich'] ) && false === $r1['rich']['enabled'] && 'no-edit-path' === $r1['rich']['reason'],
+	'no edit path (neither edit_posts nor edit_post) loads no block packages and disables the editor',
+	'packages loaded or editor enabled without any edit path: scripts=' . json_encode( array_keys( $GLOBALS['B9_SCRIPTS'] ) ) . ' rich=' . var_export( $r1['rich'], true ) );
+
+// R2: edit_posts يجيز الإنشاء (ولو مُنع تحرير مقال آخر) — الحزم + التمكين.
+$r2 = b9_rich_run( array( 'rich_editor' => true ), array( 'edit_posts' => true, 'upload_files' => true ), 0 );
+$b9_r2_handles = array_intersect( $b9_critical, array_keys( $GLOBALS['B9_SCRIPTS'] ) );
+b9_check( 'B9-R2-rich-create-path-loads',
+	$b9_critical === array_values( $b9_r2_handles ) && true === $r2['rich']['enabled'] && true === $r2['rich']['canUpload'],
+	'edit_posts loads the critical block packages and enables the editor for creation',
+	'create path did not load packages: scripts=' . json_encode( array_keys( $GLOBALS['B9_SCRIPTS'] ) ) . ' rich=' . var_export( $r2['rich'], true ) );
+
+// R3: مسار مقال بعينه — edit_post لذلك المقال يجيز التحرير دون edit_posts.
+$r3 = b9_rich_run( array( 'rich_editor' => true ), array( 'edit_posts' => false, 'edit_post' => array( 7 => true ), 'upload_files' => true ), 7 );
+$b9_r3_handles = array_intersect( $b9_critical, array_keys( $GLOBALS['B9_SCRIPTS'] ) );
+b9_check( 'B9-R3-rich-single-post-path-loads',
+	$b9_critical === array_values( $b9_r3_handles ) && true === $r3['rich']['enabled'],
+	'edit_post for the requested post loads the block packages without edit_posts',
+	'single-post path did not load packages: scripts=' . json_encode( array_keys( $GLOBALS['B9_SCRIPTS'] ) ) . ' rich=' . var_export( $r3['rich'], true ) );
+
+// R4: upload_files منفصلة — بلا رفع تبقى الواجهة محملة وcanUpload=false.
+$r4 = b9_rich_run( array( 'rich_editor' => true ), array( 'edit_posts' => true, 'upload_files' => false ), 0 );
+b9_check( 'B9-R4-rich-upload-independent',
+	true === $r4['rich']['enabled'] && false === $r4['rich']['canUpload'] && 0 === $GLOBALS['B9_MEDIA'],
+	'without upload_files the editor stays enabled while canUpload=false and wp_enqueue_media() is skipped',
+	'upload independence violated: rich=' . var_export( $r4['rich'], true ) . ' media=' . var_export( $GLOBALS['B9_MEDIA'], true ) );
+
+// R5: حزمة حرجة غير مسجلة → تعطيل آمن (الـtextarea يبقى) مع سبب نصي.
+$r5 = b9_rich_run( array( 'rich_editor' => true ), array( 'edit_posts' => true, 'upload_files' => true ), 0, array( 'wp-block-editor' ) );
+b9_check( 'B9-R5-rich-unregistered-fails-closed',
+	false === $r5['rich']['enabled'] && 0 === strpos( (string) $r5['rich']['reason'], 'unregistered:' ),
+	'an unregistered critical package disables the editor fail-closed with an unregistered:* reason',
+	'unregistered package did not fail closed: rich=' . var_export( $r5['rich'], true ) );
+
+// R6: فحوص الخادم القائمة إلزامية باقية — حجب/رفض edit_post لكل مقال.
+$wordpress_posts_src = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/runtime/adapters/wordpress-posts.php' );
+b9_check( 'B9-R6-rich-server-guards-intact',
+	false !== strpos( $wordpress_posts_src, "current_user_can( 'edit_posts' )" )
+		&& false !== strpos( $wordpress_posts_src, "current_user_can( 'edit_post'" ),
+	'wordpress-posts.php keeps the mandatory edit_posts (create) and edit_post (per-post update) server guards',
+	'server-side edit guards missing in wordpress-posts.php' );
+
+// R7: B9-E3 سليم — اعتماد posts.js بلا تغيير + كائن hossamRichEditor منفصل.
+b9_check( 'B9-R7-rich-posts-deps-intact',
+	array( 'hossam-dashboard-js' ) === $r2['posts_deps']
+		&& isset( $r2['rich']['enabled'], $r2['rich']['canUpload'], $r2['rich']['restRoot'], $r2['rich']['restNonce'], $r2['rich']['isRtl'], $r2['rich']['reason'] ),
+	'hossam-dashboard-posts still depends only on hossam-dashboard-js and carries the separate hossamRichEditor map',
+	'posts.js contract drifted: deps=' . var_export( $r2['posts_deps'], true ) . ' rich=' . var_export( $r2['rich'], true ) );
+
+// R8: المفتاح خارج FEATURES افتراضيًا → fail-closed (لا تمكين بلا تخصيص المالك).
+unset( $GLOBALS['B9_FEATURES'], $GLOBALS['B9_CAPS'], $GLOBALS['B9_UNREGISTERED'] );
+unset( $_REQUEST['post_id'] );
 
 /* ════════════════════════════════════════════════════════════════
  * Summary

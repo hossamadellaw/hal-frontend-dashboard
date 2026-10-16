@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.0.5.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.0.6.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,11 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.0.6 =
+* Local implementation of Docs/versions/v1.0.6.md clauses on the existing files only: lazy media check at click with a visible message, thumbnail_id '0' removal, clickable success-card links (view/preview/edit) kept usable before any deferred transition, parent-children category tree with RTL indent and per-term language badge (display only, categories[] contract unchanged), read-only Permalink with a draft-temporary label, edit-panel-only SEO group behind the owner key plus runtime detection, official block-editor instance inside the HAL shell with textarea fallback (server contract stays plain text), and a manual article-translations list reusing the existing endpoint with read-back verification and fail-closed cleanup.
+* Tests and identity only in this step: existing wings updated to the documented deltas/inventories (posts/visual deltas, CSS markers, deferred-transition expectations, seo ninth in every action inventory, frozen read-back mock); no product logic touched here.
+* UNVERIFIED: field gates stay unverified — browser acceptance on the live site (WordPress 7.1.3), the post-install isolated-draft cycle with read-back/rollback proof, WPML runtime detection, and release_sequence=5 (recorded locally, manifest check by a separate network delegation).
 
 = 1.0.5 =
 * Article categories in the frontend editor are now real site-category checkboxes by name (write and edit panels, with prior checked state in edit and a keep-current-categories disclosure); the numeric-IDs text field is removed.

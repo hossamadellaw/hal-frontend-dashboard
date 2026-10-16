@@ -101,7 +101,10 @@ function makeSandbox() {
   sandbox.console = console;
   sandbox.URL = URL;
   sandbox.FormData = FormData;
-  sandbox.setTimeout = () => 0;
+  // v1.0.6 P1: record deferred-transition callbacks (the stub still runs
+  // nothing by itself, so the harness proves card-before-hop explicitly).
+  sandbox.__timerCalls = [];
+  sandbox.setTimeout = (fn, ms) => { sandbox.__timerCalls.push({ fn, ms }); return 0; };
   sandbox.clearTimeout = () => {};
   sandbox.setInterval = () => 0;
   sandbox.clearInterval = () => {};
@@ -155,13 +158,32 @@ function loadRealSources(sandbox) {
 }
 
 function makeForm(values) {
-  return {
+  // v1.0.6 P1: card-aware lookup (unknown selectors → null, so the
+  // success-card replace check sees "no old card") + insertBefore/children
+  // so the real hossamShowPostSuccessCard() can plant its card. Product
+  // contract unchanged (card before any deferred transition).
+  const children = [];
+  const form = {
+    children,
+    firstChild: null,
     querySelector(sel) {
+      if (sel === '.hossam-post-success-card') {
+        return children.find((c) => String(c.className || '').split(/\s+/).includes('hossam-post-success-card')) || null;
+      }
       const m = sel.match(/\[name="([^"]+)"\]/);
-      const value = m ? (values[m[1]] ?? '') : '';
+      if (!m) { return null; }
+      const value = values[m[1]] ?? '';
       return { value: String(value) };
     },
+    insertBefore(child, ref) {
+      const at = ref ? children.indexOf(ref) : -1;
+      if (at >= 0) { children.splice(at, 0, child); } else { children.unshift(child); }
+      form.firstChild = children[0] || null;
+      return child;
+    },
+    appendChild(child) { children.push(child); form.firstChild = children[0] || null; return child; },
   };
+  return form;
 }
 
 function lastToast(sandbox) {
@@ -219,11 +241,19 @@ async function main() {
     const form = makeForm({ title: 'Hello', content: 'World', status: 'draft', categories: '' });
     const result = await sandbox.hossamCreateArticle(form);
     await sleep(10);
+    // v1.0.6 P1 (card before any deferred transition — stubs prove the
+    // branch; the live delayed hop is field).
+    const card = form.querySelector('.hossam-post-success-card');
+    const hop = sandbox.__timerCalls.filter((c) => c.ms === 6000 && /location\.href/.test(String(c.fn)));
+    const cardBeforeHop = result === true && null !== card && 1 === hop.length
+      && sandbox.location.href === 'https://example.test/dashboard/'
+      && sandbox.__fetchCalls.length === 1;
+    for (const c of hop) { c.fn(); }
     check(
       'L2-CREATE-ONCE',
-      result === true && sandbox.__fetchCalls.length === 1 && sandbox.location.href === 'https://example.test/edit/1',
-      'create success with edit_url: single fetch, redirect to edit_url',
-      `result=${result} fetches=${sandbox.__fetchCalls.length} href=${sandbox.location.href}`,
+      cardBeforeHop && sandbox.location.href === 'https://example.test/edit/1',
+      'create success with edit_url: single fetch, clickable success card first, then the deferred hop to edit_url',
+      `result=${result} card=${!!card} fetches=${sandbox.__fetchCalls.length} href=${sandbox.location.href}`,
     );
     check(
       'L2-CREATE-TOAST',

@@ -11,21 +11,22 @@
  *
  * Coverage (architecture §16 closure gate + §10 per-file rules):
  *
- *   INVENTORY — the action inventory is exactly: 28 wp_ajax_* hooks
+ *   INVENTORY — the action inventory is exactly: 29 wp_ajax_* hooks
  *              (9 batch-5 posts/uploads + 17 batch-6
- *              appointments/finance/members/inbox/store/ai + 2 v1.0.3
- *              health), the single wp_ajax_nopriv_* hook being the
- *              v1.0.3 health handler, and ajax/seo.php is shipped but
- *              NOT loaded (its endpoint wp_ajax_hossam_save_seo is not
- *              registered) per the §16 "loading follows the adopted
- *              registry state; limited read-only" contract.
- *   ORDER     — core(5) → backend(5) → adapters(8) → ajax(8) in the
+ *              appointments/finance/members/inbox/store/ai + 1 v1.0.6 §8.3
+ *              seo + 2 v1.0.3 health), the single wp_ajax_nopriv_* hook
+ *              being the v1.0.3 health handler, and ajax/seo.php loads
+ *              ninth from the real bootstrap (its endpoint
+ *              wp_ajax_hossam_save_seo IS registered) per the documented
+ *              v1.0.6 §8.3 gate change (runtime detection instead of the
+ *              §16 limited-read-only hold).
+ *   ORDER     — core(5) → backend(5) → adapters(8) → ajax(9) in the
  *              mandated bootstrap order; runtime_ready still fires.
- *   B3-08     — the posts/uploads endpoints consume the owner feature
- *              decision (posts/files/wpml_translations) via
- *              is_feature_enabled: disabled → 403 feature_disabled with
- *              data preserved; re-enabled authorization stays independent.
- *              ajax/seo.php ships unloaded (G3/G4 hold — no activation).
+  *   B3-08     — the posts/uploads endpoints consume the owner feature
+  *              decision (posts/files/wpml_translations) via
+  *              is_feature_enabled: disabled → 403 feature_disabled with
+  *              data preserved; re-enabled authorization stays independent.
+  *              ajax/seo.php loads ninth (v1.0.6 §8.3 — G3/G4 hold).
  *   STATUS    — for the nine registered endpoints: 401 (logged out),
  *              403 (nonce failure / capability denied / author
  *              mismatch / feature disabled), 404 (resource missing),
@@ -71,6 +72,13 @@ $GLOBALS['B5_WPML_OBJECT_ID']       = array();
 $GLOBALS['B5_WPML_TRID']            = 0;
 $GLOBALS['B5_WPML_SOURCE']          = '';
 $GLOBALS['B5_WPML_SET']             = array();
+// v1.0.6 §4/§6 (W-NEW read-back): frozen-mock controls for the two official
+// read-back contracts. DETAILS_FROZEN=false (default) mirrors a faithful
+// WPML: details/translations derive from the recorded do_action links.
+// DETAILS_FROZEN=true forces an explicit (mismatching) answer to prove the
+// fail-closed contract — no success before a match.
+$GLOBALS['B5_WPML_DETAILS_FROZEN']  = false;
+$GLOBALS['B5_WPML_DETAILS_EXPLICIT'] = null;
 
 if ( ! class_exists( 'B5_AjaxExit' ) ) {
 	class B5_AjaxExit extends Exception {
@@ -870,6 +878,9 @@ function b5_begin_case( array $post = array(), int $user = 3, bool $logged_in = 
 	$GLOBALS['B5_WPML_OBJECT_ID']         = array();
 	$GLOBALS['B5_WPML_TRID']              = 0;
 	$GLOBALS['B5_WPML_SOURCE']            = '';
+	// v1.0.6 §4/§6: reset the frozen read-back controls with every case.
+	$GLOBALS['B5_WPML_DETAILS_FROZEN']    = false;
+	$GLOBALS['B5_WPML_DETAILS_EXPLICIT']  = null;
 	unset( $GLOBALS['B5_POSTS_FAIL_INSERT_TMP'] );
 }
 
@@ -964,6 +975,8 @@ function b5_mode_main( string $project ): void {
 		'ajax/inbox.php',
 		'ajax/store.php',
 		'ajax/ai.php',
+		// v1.0.6 §8.3 (documented gate change): ajax/seo.php loads ninth.
+		'ajax/seo.php',
 		// Batch 7 (§18) — the shared Template Controller copy loads after
 		// all modules (§6.1 pre-build infrastructure copy).
 		'infrastructure/class-template-controller.php',
@@ -973,7 +986,7 @@ function b5_mode_main( string $project ): void {
 	);
 	$actual_order = array_values( array_intersect( $relative, $expected_order ) );
 	b5_check( 'L1', $actual_order === $expected_order,
-		'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (8: batches 5–6) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated §13/§16/§17/§18/§22 order',
+		'the real bootstrap loads core (5) → backend (5) → adapters (8) → ajax (9: batches 5–6 plus v1.0.6 §8.3 ajax/seo.php ninth) → the batch-7 infrastructure controller → the batch-11 update bridge in the mandated §13/§16/§17/§18/§22 order',
 		'load order mismatch: ' . json_encode( $relative ) );
 
 	$module_included = array_values( array_filter(
@@ -982,8 +995,8 @@ function b5_mode_main( string $project ): void {
 			return false === strpos( $path, '/runtime/bootstrap.php' );
 		}
 	) );
-	b5_check( 'L2', count( array_unique( $module_included ) ) === 29 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-		'exactly 29 runtime module files load (bootstrap aside: 18 from batches 2–4 + the 8 ajax files of batches 5–6 + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
+	b5_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+		'exactly 30 runtime module files load (bootstrap aside: 18 from batches 2–4 + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 		'unexpected runtime file set: ' . json_encode( $relative ) );
 
 	$ajax_hooks = array_values( array_filter(
@@ -994,7 +1007,7 @@ function b5_mode_main( string $project ): void {
 	) );
 	sort( $ajax_hooks );
 	$expected_hooks = array(
-		// Batch-5 (9) + batch-6 (17) + v1.0.3 health (2), globally sorted as the check sorts.
+		// Batch-5 (9) + batch-6 (17) + v1.0.6 §8.3 seo (1) + v1.0.3 health (2), globally sorted as the check sorts.
 		'wp_ajax_hal_frontend_dashboard_boot_health',
 		'wp_ajax_hossam_ai_get_job_status',
 		'wp_ajax_hossam_ai_set_preference',
@@ -1017,6 +1030,7 @@ function b5_mode_main( string $project ): void {
 		'wp_ajax_hossam_mark_read',
 		'wp_ajax_hossam_restore_article',
 		'wp_ajax_hossam_restore_file',
+		'wp_ajax_hossam_save_seo',
 		'wp_ajax_hossam_send_message',
 		'wp_ajax_hossam_translate_article',
 		'wp_ajax_hossam_trash_article',
@@ -1025,7 +1039,7 @@ function b5_mode_main( string $project ): void {
 		'wp_ajax_nopriv_hal_frontend_dashboard_boot_health',
 	);
 	b5_check( 'G1', $ajax_hooks === $expected_hooks,
-		'the AJAX action inventory is exactly: 28 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 2 v1.0.3 health), nothing else added or removed',
+		'the AJAX action inventory is exactly: 29 wp_ajax_* hooks (9 batch-5 + 17 batch-6 + 1 v1.0.6 §8.3 seo + 2 v1.0.3 health), nothing else added or removed',
 		'inventory mismatch: ' . json_encode( $ajax_hooks ) );
 
 	$nopriv_hooks = array_values( array_filter(
@@ -1038,9 +1052,9 @@ function b5_mode_main( string $project ): void {
 		'the only wp_ajax_nopriv_* hook is the v1.0.3 health handler (unauthenticated loopback), nothing else',
 		'unexpected nopriv hooks: ' . json_encode( $nopriv_hooks ) );
 
-	b5_check( 'G3', ! isset( $GLOBALS['B5_HOOKS']['wp_ajax_hossam_save_seo'] ),
-		'wp_ajax_hossam_save_seo is NOT registered (ajax/seo.php ships but stays unloaded — registry verified_fields=false, §16 limited read-only)',
-		'seo endpoint must not be registered while the registry gate holds' );
+	b5_check( 'G3', isset( $GLOBALS['B5_HOOKS']['wp_ajax_hossam_save_seo'] ),
+		'wp_ajax_hossam_save_seo IS registered (ajax/seo.php loads ninth — v1.0.6 §8.3 documented gate change: runtime detection + owner key, no longer the §16 limited-read-only hold)',
+		'seo endpoint must be registered after the v1.0.6 §8.3 gate change' );
 
 	$seo_file = $project . '/runtime/ajax/seo.php';
 	$seo_loaded = array_values( array_filter(
@@ -1049,14 +1063,14 @@ function b5_mode_main( string $project ): void {
 			return false !== strpos( $path, '/runtime/ajax/seo.php' );
 		}
 	) );
-	b5_check( 'G4', file_exists( $seo_file ) && array() === $seo_loaded,
-		'runtime/ajax/seo.php exists in the release but is not required by the real bootstrap',
-		'seo.php missing from release or unexpectedly loaded: ' . json_encode( $seo_loaded ) );
+	b5_check( 'G4', file_exists( $seo_file ) && array() !== $seo_loaded,
+		'runtime/ajax/seo.php exists in the release and IS required ninth by the real bootstrap (v1.0.6 §8.3)',
+		'seo.php missing from release or unexpectedly unloaded: ' . json_encode( $seo_loaded ) );
 
 	$consumes_posts = false !== stripos( (string) file_get_contents( $project . '/runtime/ajax/posts.php' ), 'is_feature_enabled' );
 	$consumes_uploads = false !== stripos( (string) file_get_contents( $project . '/runtime/ajax/uploads.php' ), 'is_feature_enabled' );
 	b5_check( 'F1', $consumes_posts && $consumes_uploads,
-		'B3-08: the batch-5 posts/uploads endpoints consume the owner feature decision via is_feature_enabled (seo.php ships unloaded — G3/G4 hold, no activation)',
+		'B3-08: the batch-5 posts/uploads endpoints consume the owner feature decision via is_feature_enabled (seo.php loads ninth under its own gates — G3/G4 hold)',
 		'a batch-5 ajax file misses its feature gate' );
 
 	b5_run_mode( 'posts' );
@@ -1300,6 +1314,44 @@ function b5_mode_translate( string $project ): void {
 	add_action( 'wpml_set_element_language_details', static function ( array $details ): void {
 		$GLOBALS['B5_WPML_SET'][] = $details;
 	}, 10, 1 );
+	// v1.0.6 §4/§6: register the two official read-back contracts in the
+	// frozen mock (fail-closed is the contract — see W-NEW-FAILCLOSED).
+	// Unfrozen, details are re-read from the recorded links and the
+	// translations map is rebuilt per trid, so W-NEW proves the verified
+	// success path instead of the historic assume-success path. Stubs prove
+	// branches only — the live WPML read-back stays a field gate (G-WPML).
+	add_filter( 'wpml_element_language_details', static function ( $value, $args = null ) {
+		if ( ! empty( $GLOBALS['B5_WPML_DETAILS_FROZEN'] ) ) {
+			return $GLOBALS['B5_WPML_DETAILS_EXPLICIT'];
+		}
+		$eid = is_array( $args ) ? (int) ( $args['element_id'] ?? 0 ) : 0;
+		foreach ( array_reverse( $GLOBALS['B5_WPML_SET'] ?? array() ) as $recorded ) {
+			if ( $eid > 0 && (int) ( $recorded['element_id'] ?? 0 ) === $eid ) {
+				return array(
+					'trid'                 => (int) ( $recorded['trid'] ?? 0 ),
+					'language_code'        => (string) ( $recorded['language_code'] ?? '' ),
+					'source_language_code' => (string) ( $recorded['source_language_code'] ?? '' ),
+				);
+			}
+		}
+		return null;
+	}, 10, 2 );
+	add_filter( 'wpml_get_element_translations', static function ( $value, $trid = null, $type = null ) {
+		$map = array();
+		foreach ( $GLOBALS['B5_WPML_SET'] ?? array() as $recorded ) {
+			if ( (int) $trid > 0 && (int) ( $recorded['trid'] ?? 0 ) === (int) $trid ) {
+				$lc = (string) ( $recorded['language_code'] ?? '' );
+				if ( '' !== $lc ) {
+					$map[ $lc ] = array(
+						'element_id'           => (int) ( $recorded['element_id'] ?? 0 ),
+						'language_code'        => $lc,
+						'source_language_code' => (string) ( $recorded['source_language_code'] ?? '' ),
+					);
+				}
+			}
+		}
+		return array() === $map ? null : $map;
+	}, 10, 3 );
 	b5_require_runtime();
 
 	$decision = hossam_get_integration_decision( 'wpml' );
@@ -1376,8 +1428,37 @@ function b5_mode_translate( string $project ): void {
 		&& 'ar' === ( $set_entry['language_code'] ?? '' ) && 'en' === ( $set_entry['source_language_code'] ?? '' )
 		&& false !== strpos( (string) ( $data['edit_url'] ?? '' ), 'panel=edit-article' );
 	b5_check( 'W-NEW', $new_ok,
-		'translate creating a linked draft → {post_id,edit_url,existing:false} with the draft authored by the current user and the real wpml_set_element_language_details payload (trid/source/lang)',
+		'translate creating a linked draft → {post_id,edit_url,existing:false} with the draft authored by the current user, the real wpml_set_element_language_details payload (trid/source/lang), AND the two-contract read-back match (details + translations) — v1.0.6 §4/§6: no success before the target-language key carries the new article',
 		'got ' . json_encode( $r ) . '; set=' . json_encode( $set_entry ) );
+
+	// v1.0.6 §4/§6 (fail-closed is the contract): freeze the read-back to a
+	// mismatching answer — the link is attempted (do_action recorded) but the
+	// endpoint must refuse success, delete the created draft (cleanup=done),
+	// and report translation_link_failed. Stubs prove the branch; the live
+	// WPML read-back stays a field gate (G-WPML).
+	b5_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
+	b5_post( 5, 'post', 'publish', 3, 'Source article' );
+	$GLOBALS['B5_WPML_LANGS']           = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
+	$GLOBALS['B5_WPML_OBJECT_ID']       = array();
+	$GLOBALS['B5_WPML_TRID']            = 5;
+	$GLOBALS['B5_WPML_SOURCE']          = 'en';
+	$GLOBALS['B5_WPML_DETAILS_FROZEN']  = true;
+	$GLOBALS['B5_WPML_DETAILS_EXPLICIT'] = array( 'trid' => 6, 'language_code' => 'fr', 'source_language_code' => 'en' );
+	$failclosed_before = count( $GLOBALS['B5_POSTS'] );
+	$r = b5_call_ajax( 'wp_ajax_hossam_translate_article' );
+	$failclosed_data = b5_exit_data( $r );
+	$failclosed_new_id = 0;
+	foreach ( $GLOBALS['B5_WPML_SET'] as $attempt ) {
+		if ( 5 === (int) ( $attempt['trid'] ?? 0 ) && 'ar' === (string) ( $attempt['language_code'] ?? '' ) ) {
+			$failclosed_new_id = (int) ( $attempt['element_id'] ?? 0 );
+		}
+	}
+	b5_check( 'W-NEW-FAILCLOSED', b5_exit_is( $r, 500, false ) && 'translation_link_failed' === ( $failclosed_data['code'] ?? '' )
+		&& 'done' === ( $failclosed_data['cleanup'] ?? '' )
+		&& $failclosed_new_id >= 1 && ! isset( $GLOBALS['B5_POSTS'][ $failclosed_new_id ] )
+		&& count( $GLOBALS['B5_POSTS'] ) === $failclosed_before,
+		'translate with an unverifiable link → 500 translation_link_failed (cleanup=done): the created draft is deleted and no success is reported before the read-back match',
+		'got ' . json_encode( $r ) . '; set=' . json_encode( $GLOBALS['B5_WPML_SET'] ) );
 
 	b5_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array( 'edit_post_5' => true ) );
 	b5_post( 5, 'post', 'publish', 3, 'Source article' );

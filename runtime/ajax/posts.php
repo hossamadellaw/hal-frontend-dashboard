@@ -71,6 +71,38 @@ if ( ! function_exists( 'hossam_send_article_error' ) ) {
     }
 }
 
+if ( ! function_exists( 'hossam_article_link_payload' ) ) {
+    /**
+     * v1.0.6 §4 — view_url for published posts only, preview_url for
+     * draft/pending/future, both behind an explicit current_user_can(
+     * 'edit_post', $post_id ) check (get_preview_post_link performs none —
+     * link-template.php). No slug is ever accepted or returned here.
+     *
+     * @return array{view_url:string,preview_url:string}
+     */
+    function hossam_article_link_payload( int $post_id ): array {
+        $payload = [ 'view_url' => '', 'preview_url' => '' ];
+        if ( $post_id < 1 || ! current_user_can( 'edit_post', $post_id ) ) {
+            return $payload;
+        }
+        $status = function_exists( 'get_post_status' ) ? get_post_status( $post_id ) : false;
+        if ( ! is_string( $status ) || '' === $status ) {
+            $post_object = get_post( $post_id );
+            $status = ( $post_object && isset( $post_object->post_status ) ) ? (string) $post_object->post_status : '';
+        }
+        if ( 'publish' === $status ) {
+            if ( function_exists( 'get_permalink' ) ) {
+                $payload['view_url'] = (string) get_permalink( $post_id );
+            }
+        } elseif ( in_array( $status, [ 'draft', 'pending', 'future' ], true ) ) {
+            if ( function_exists( 'get_preview_post_link' ) ) {
+                $payload['preview_url'] = (string) get_preview_post_link( $post_id );
+            }
+        }
+        return $payload;
+    }
+}
+
 // ══════════════════════════════════════════════════════════════
 // [AR-02-endpoint] Endpoint: hossam_restore_article
 // الدفعة الثانية (2026-08-24): المنطق انتقل إلى hossam_restore_article()
@@ -135,6 +167,18 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         wp_send_json_error( [ 'message' => hossam_t( 'Invalid language.' ) ], 400 );
     }
 
+    // v1.0.6 §14 — named permission check (pair-contract replacement: no
+    // public WPML API proves translator assignment, so edit_post on the
+    // source + nonce + an active target language + no existing translation
+    // is the documented gate). When the official wpml_language_is_active
+    // interface is registered it is authoritative and rejects here —
+    // before wp_insert_post, with no draft left behind. When it is not
+    // registered the active-languages membership above stays the guard.
+    if ( has_filter( 'wpml_language_is_active' )
+        && ! (bool) apply_filters( 'wpml_language_is_active', false, $lang_code ) ) {
+        wp_send_json_error( [ 'message' => hossam_t( 'You do not have permission to create this translation.' ), 'code' => 'translation_forbidden' ], 403 );
+    }
+
     $user_id = get_current_user_id();
 
     $existing = hossam_wpml_get_translation_id( $post_id, $lang_code );
@@ -143,10 +187,62 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         if ( ! $translated_post || 'post' !== $translated_post->post_type || ! current_user_can( 'edit_post', $existing ) ) {
             wp_send_json_error( [ 'message' => hossam_t( 'You do not have permission to edit this translation.' ) ], 403 );
         }
+        // v1.0.6 §14 + عقد 6.4 — membership and language are verified on
+        // every translate call, not only at creation. A proven mismatch
+        // (translation carries another trid/language, or the group map
+        // points the target key at another element) rejects the edit;
+        // states the read-back cannot prove keep the legacy edit_post-only
+        // contract (1.0.5 behaviour — documented, no regression).
+        $existing_trid   = hossam_wpml_get_element_trid( $post_id );
+        $existing_source = hossam_wpml_get_element_language_code( $post_id );
+        if ( $existing_trid > 0 && has_filter( 'wpml_element_language_details' ) && has_filter( 'wpml_get_element_translations' ) ) {
+            $membership_type = 'post_post';
+            if ( has_filter( 'wpml_element_type' ) ) {
+                $filtered_membership_type = apply_filters( 'wpml_element_type', 'post_post' );
+                if ( is_string( $filtered_membership_type ) && '' !== $filtered_membership_type ) {
+                    $membership_type = $filtered_membership_type;
+                }
+            }
+            $membership_details = apply_filters( 'wpml_element_language_details', null, [ 'element_id' => $existing, 'element_type' => $membership_type ] );
+            if ( is_object( $membership_details ) ) {
+                $membership_details = get_object_vars( $membership_details );
+            }
+            if ( is_array( $membership_details ) && isset( $membership_details['trid'], $membership_details['language_code'] ) ) {
+                $membership_trid = (int) $membership_details['trid'];
+                $membership_lang = is_string( $membership_details['language_code'] ) ? sanitize_key( $membership_details['language_code'] ) : '';
+                if ( $membership_trid !== $existing_trid || $membership_lang !== $lang_code ) {
+                    wp_send_json_error( [ 'message' => hossam_t( 'This translation does not belong to the requested article.' ), 'code' => 'translation_mismatch' ], 403 );
+                }
+            }
+            $membership_map = apply_filters( 'wpml_get_element_translations', null, $existing_trid, $membership_type );
+            if ( is_array( $membership_map ) && isset( $membership_map[ $lang_code ] ) ) {
+                $membership_entry = $membership_map[ $lang_code ];
+                if ( is_object( $membership_entry ) ) {
+                    $membership_entry = get_object_vars( $membership_entry );
+                }
+                if ( is_array( $membership_entry ) ) {
+                    $membership_entry_id = 0;
+                    if ( isset( $membership_entry['element_id'] ) ) {
+                        $membership_entry_id = (int) $membership_entry['element_id'];
+                    } elseif ( isset( $membership_entry['translation_id'] ) ) {
+                        $membership_entry_id = (int) $membership_entry['translation_id'];
+                    }
+                    if ( $membership_entry_id > 0 && $membership_entry_id !== $existing ) {
+                        wp_send_json_error( [ 'message' => hossam_t( 'This translation does not belong to the requested article.' ), 'code' => 'translation_mismatch' ], 403 );
+                    }
+                }
+            }
+        }
         wp_send_json_success( [
             'post_id'  => $existing,
             'edit_url' => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $existing ], hossam_dashboard_url() ),
             'existing' => true,
+            // عقد 4/6 — verified translation data travels with the result.
+            'translation' => [
+                'trid'                 => $existing_trid,
+                'language_code'        => $lang_code,
+                'source_language_code' => $existing_source,
+            ],
         ] );
     }
 
@@ -167,7 +263,19 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         wp_send_json_error( [ 'message' => $new_post_id->get_error_message() ], 500 );
     }
 
-    if ( ! hossam_wpml_set_element_language( $new_post_id, $trid, $lang_code, $source_lang ) ) {
+    // v1.0.6 §4/§6: the adapter links then reads back (details +
+    // translations); the endpoint re-verifies through the same contract —
+    // no success before the target-language key carries the new article.
+    // The existing-translation branch above (:146-150) is untouched apart
+    // from the §14 membership proof and the verified payload, and the
+    // §14 named permission check (edit_post + nonce + wpml_language_is_active
+    // when registered + no existing translation) already rejected before
+    // wp_insert_post with no draft left behind.
+    $hossam_link_ok = hossam_wpml_set_element_language( $new_post_id, $trid, $lang_code, $source_lang );
+    if ( $hossam_link_ok && function_exists( 'hossam_wpml_verify_element_link' ) ) {
+        $hossam_link_ok = hossam_wpml_verify_element_link( $new_post_id, $trid, $lang_code, $source_lang );
+    }
+    if ( ! $hossam_link_ok ) {
         $deleted = wp_delete_post( $new_post_id, true );
         if ( ! $deleted || is_wp_error( $deleted ) ) {
             error_log( 'Hossam Dashboard translation cleanup failed for post ' . $new_post_id );
@@ -180,6 +288,13 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         'post_id'  => $new_post_id,
         'edit_url' => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $new_post_id ], hossam_dashboard_url() ),
         'existing' => false,
+        // عقد 4/6 — the link + two-contract read-back above verified these
+        // values before any success is reported.
+        'translation' => [
+            'trid'                 => $trid,
+            'language_code'        => $lang_code,
+            'source_language_code' => $source_lang,
+        ],
     ] );
 } );
 
@@ -228,9 +343,12 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
         hossam_send_article_error( $post_id );
     }
 
+    $hossam_links = hossam_article_link_payload( $post_id );
     wp_send_json_success( [
-        'post_id'  => $post_id,
-        'edit_url' => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $post_id ], hossam_dashboard_url() ),
+        'post_id'     => $post_id,
+        'edit_url'    => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $post_id ], hossam_dashboard_url() ),
+        'view_url'    => $hossam_links['view_url'],
+        'preview_url' => $hossam_links['preview_url'],
     ] );
 } );
 
@@ -281,7 +399,12 @@ add_action( 'wp_ajax_hossam_update_article', function(): void {
         hossam_send_article_error( $result );
     }
 
-    wp_send_json_success();
+    $hossam_links = hossam_article_link_payload( $post_id );
+    wp_send_json_success( [
+        'post_id'     => $post_id,
+        'view_url'    => $hossam_links['view_url'],
+        'preview_url' => $hossam_links['preview_url'],
+    ] );
 } );
 
 

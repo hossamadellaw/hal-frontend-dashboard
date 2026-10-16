@@ -10,15 +10,10 @@
  * ajax/seo.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 5
  * (build/source-inventory-batch-5.json). صفر تعديل في العقود.
  *
- * حالة التحميل — عقد §16: «يبقى التحميل تابعًا لحالة registry المعتمدة؛
- * limited read-only» — منقولة كما في المصدر حرفيًا: الملف مشحون في
- * الـrelease لكنه غير مستدعى من runtime/bootstrap.php؛ السجل يثبت
- * verified_fields=false (runtime/core/setup.php) وبوابة المقارنة الحية
- * المؤجلة رسميًا للمقارنة postmeta/المخرجات لم تُجتَز، فلا يُسجَّل هذا
- * الـendpoint في التشغيل الفعلي. تحميله اليوم سيضيف
- * wp_ajax_hossam_save_seo إلى action inventory ويخالف بوابة إغلاق
- * الدفعة 5 («action inventory لا يتغير»). الشرط الوثائقي للتحميل لاحقًا:
- * قرار السجل rank_math = available مع plugin_contract وverified_fields.
+ * حالة التحميل — v1.0.6 §8.3 (القرار الموحد أ/ج): يُحمَّل تاسعًا من
+ * runtime/bootstrap.php؛ البوابة كشف وقت التشغيل (verified_fields في
+ * السجل) + مفتاح المالك rank_math_seo للإظهار. عند غياب Rank Math
+ * تبقى النقطة 503 والقالب قراءة فقط (تراجع آمن لا يعطل شيئًا آخر).
  *
  * العقد المنقول كما هو: check_ajax_referer('hossam_nonce','nonce') ثم
  * حارس 401؛ 503 بأسباب السجل عند غير available أو غياب
@@ -57,6 +52,17 @@ add_action( 'wp_ajax_hossam_save_seo', function(): void {
 	}
 
 	$data = [];
+	if ( isset( $_POST['title'] ) ) {
+		if ( ! is_string( $_POST['title'] ) ) {
+			wp_send_json_error( [ 'message' => hossam_t( 'Invalid title.' ) ], 400 );
+		}
+		// v1.0.6 §8.4: title اختياري — نفس حد القالب (maxlength=255).
+		$title_length = function_exists( 'mb_strlen' ) ? mb_strlen( $_POST['title'] ) : strlen( $_POST['title'] );
+		if ( $title_length > 255 ) {
+			wp_send_json_error( [ 'message' => hossam_t( 'Invalid title.' ) ], 400 );
+		}
+		$data['title'] = $_POST['title'];
+	}
 	if ( isset( $_POST['focus_keyword'] ) ) {
 		if ( ! is_string( $_POST['focus_keyword'] ) ) {
 			wp_send_json_error( [ 'message' => hossam_t( 'Invalid focus keyword.' ) ], 400 );

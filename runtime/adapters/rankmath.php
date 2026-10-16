@@ -16,6 +16,9 @@
  *     الحي الموصوف فى dashboard-unified-execution-reference.md سطر 245
  *     (var_dump(get_post_meta($id)) على مقال حقيقي + مقارنة postmeta
  *     قبل/بعد على staging)، وليس بمجرد تشابه اسم المفتاح.
+ *   - v1.0.6 §7: أُضيف rank_math_title (مفتاحه مثبت في المصدر الرسمي
+ *     rest/class-sanitize.php:50 ومؤكد حيًّا في probe 2026-10-14)
+ *     بالقراءة الراجعة والاستعادة نفسها — خامد حتى بوابة بند 8.
  *   - rank_math_seo_score للقراءة فقط — لا مسار كتابة له عمدًا
  *     (مُحسَّب داخليًا بواسطة Rank Math نفسه).
  *   - robots قائمة مغلقة من hossam_get_allowed_rank_math_robots() —
@@ -39,8 +42,9 @@ if ( ! function_exists( 'hossam_get_rankmath_seo_data' ) ) {
 	 */
 	function hossam_get_rankmath_seo_data( int $post_id ): array {
 		return [
-			// الأربعة المؤكَّدة أصلًا من الكود الفعلي — بلا تغيير.
+			// الأربعة المؤكَّدة أصلًا من الكود الفعلي + title (v1.0.6 §7) — بلا تغيير في العقود.
 			'seo_score'     => (int) get_post_meta( $post_id, 'rank_math_seo_score', true ), // قراءة فقط، لا تُكتَب
+			'title'         => (string) get_post_meta( $post_id, 'rank_math_title', true ), // v1.0.6 §7
 			'focus_keyword' => (string) get_post_meta( $post_id, 'rank_math_focus_keyword', true ), // قد تحتوي كلمات مفصولة بفواصل
 			'description'   => (string) get_post_meta( $post_id, 'rank_math_description', true ),
 			'robots'        => get_post_meta( $post_id, 'rank_math_robots', true ),
@@ -84,14 +88,37 @@ if ( ! function_exists( 'hossam_update_rankmath_meta' ) ) {
 	}
 }
 
+if ( ! function_exists( 'hossam_restore_rankmath_meta_snapshot' ) ) {
+	/**
+	 * v1.0.6 §7 — استعادة لقطة سابقة: meta غائبة تُحذف، وموجودة فارغة تُكتب ''.
+	 *
+	 * @param array<string,array{exists:bool,value:mixed}> $snapshot
+	 */
+	function hossam_restore_rankmath_meta_snapshot( int $post_id, array $snapshot ): void {
+		foreach ( $snapshot as $meta_key => $previous ) {
+			if ( empty( $previous['exists'] ) ) {
+				delete_post_meta( $post_id, $meta_key );
+			} else {
+				update_post_meta( $post_id, $meta_key, $previous['value'] );
+			}
+		}
+	}
+}
+
 if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 	/**
-	 * الكتابة — لا تكتب rank_math_seo_score عمدًا. الأربعة المثبتة فقط.
+	 * الكتابة — لا تكتب rank_math_seo_score عمدًا. الحقول المثبتة:
+	 * title/focus_keyword/description/robots (v1.0.6 §7 أضاف title).
 	 * robots صار يقبل القيم المسموحة فقط من hossam_get_allowed_rank_math_robots()
 	 * — القيم الغريبة تُهمَل، والكتابة تُتخطى كليًا إن لم تبقَ قيمة صالحة.
 	 *
+	 * v1.0.6 §7 (نمط الفشل الجزئي — خامد حتى بوابة بند 8): قبل أي كتابة
+	 * تُقرأ القيم السابقة للحقول المستهدفة (وجودًا وقيمة) → كتابة →
+	 * إعادة قراءة ومطابقة لكل حقل → عند أي فشل تُستعاد السابقة كاملة
+	 * قبل return false.
+	 *
 	 * @param int   $post_id
-	 * @param array $data ['focus_keyword','description','robots']
+	 * @param array $data ['title','focus_keyword','description','robots']
 	 * @return bool
 	 */
 	function hossam_save_rankmath_seo_data( int $post_id, array $data ): bool {
@@ -100,6 +127,7 @@ if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 		}
 
 		$fields_map = [
+			'title'         => 'rank_math_title',
 			'focus_keyword' => 'rank_math_focus_keyword',
 			'description'   => 'rank_math_description',
 		];
@@ -118,6 +146,15 @@ if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 				: sanitize_text_field( wp_unslash( $data[ $data_key ] ) );
 		}
 
+		if ( isset( $clean_fields['rank_math_title'] ) ) {
+			$title_length = function_exists( 'mb_strlen' )
+				? mb_strlen( $clean_fields['rank_math_title'] )
+				: strlen( $clean_fields['rank_math_title'] );
+			if ( $title_length > 255 ) {
+				return false;
+			}
+		}
+
 		$robots = [];
 		foreach ( $data['robots'] as $robot ) {
 			if ( ! is_string( $robot ) ) {
@@ -130,18 +167,31 @@ if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 			return false;
 		}
 
-		foreach ( $clean_fields as $meta_key => $value ) {
-			if ( ! hossam_update_rankmath_meta( $post_id, $meta_key, $value ) ) {
+		// اللقطة قبل أي كتابة — للحقول المستهدفة فقط.
+		$targets = $clean_fields;
+		$targets['rank_math_robots'] = $clean_robots;
+		$snapshot = [];
+		foreach ( $targets as $meta_key => $new_value ) {
+			$snapshot[ $meta_key ] = [
+				'exists' => metadata_exists( 'post', $post_id, $meta_key ),
+				'value'  => get_post_meta( $post_id, $meta_key, true ),
+			];
+		}
+
+		foreach ( $targets as $meta_key => $new_value ) {
+			if ( ! hossam_update_rankmath_meta( $post_id, $meta_key, $new_value ) ) {
+				hossam_restore_rankmath_meta_snapshot( $post_id, $snapshot );
 				return false;
 			}
-		}
-		if ( ! hossam_update_rankmath_meta( $post_id, 'rank_math_robots', $clean_robots ) ) {
-			return false;
+			if ( get_post_meta( $post_id, $meta_key, true ) !== $new_value ) {
+				hossam_restore_rankmath_meta_snapshot( $post_id, $snapshot );
+				return false;
+			}
 		}
 
 		return true;
 	}
 }
 
-// لا حقول Rank Math موسّعة فى هذا الملف أصلًا — انظر رأس الملف لشرط التحقق الحي
-// المطلوب قبل إضافة أي حقل موسّع مستقبلاً.
+// v1.0.6 §7: أُضيف rank_math_title بالقراءة الراجعة والاستعادة نفسها
+// (خامد حتى بوابة بند 8) — لا حقول موسّعة أخرى في هذا الملف.

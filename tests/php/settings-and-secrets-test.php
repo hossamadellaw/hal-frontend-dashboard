@@ -613,7 +613,9 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			b2s_require_runtime();
 			$defaults = HAL_Frontend_Dashboard_Settings_Repository::get_all();
 			$expected_features = array_fill_keys( HAL_Frontend_Dashboard_Settings_Repository::FEATURES, true );
-			b2s_check( 'SR1', count( $expected_features ) === 11 && $defaults['features'] === $expected_features && 0 === $defaults['branding_attachment_id'] && 'auto' === $defaults['ai_preference'] && '1.0.0' === $defaults['schema_version'], 'defaults preserve the migrated behavior: 11 features enabled, no logo (text fallback), auto AI preference', 'defaults mismatch: ' . json_encode( $defaults ) );
+			// v1.0.6 §9 (doc:121): rich_editor مسجل بافتراضي مغلق مقصود.
+			$expected_features['rich_editor'] = false;
+			b2s_check( 'SR1', count( $expected_features ) === 12 && $defaults['features'] === $expected_features && 0 === $defaults['branding_attachment_id'] && 'auto' === $defaults['ai_preference'] && '1.0.0' === $defaults['schema_version'], 'defaults preserve the migrated behavior: 11 features enabled + rich_editor default-closed, no logo (text fallback), auto AI preference', 'defaults mismatch: ' . json_encode( $defaults ) );
 			$saved = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'features' => array( 'posts' => false ), 'ai_preference' => 'wp_ai_client' ) );
 			$after = HAL_Frontend_Dashboard_Settings_Repository::get_all();
 			b2s_check( 'SR2', true === $saved && false === $after['features']['posts'] && true === $after['features']['files'] && 'wp_ai_client' === $after['ai_preference'], 'typed save merges validated features and the enum-checked AI preference', 'save/merge mismatch' );

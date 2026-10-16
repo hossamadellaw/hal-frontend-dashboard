@@ -132,10 +132,13 @@ function makeSandbox({ i18n = {}, responses = [] } = {}) {
   sandbox.location = { href: 'https://site.test/dashboard/', hash: '', reloaded: false, reload() { sandbox.location.reloaded = true; } };
   sandbox.history = { replaceState(state, label, url) { sandbox.__lastReplace = url; } };
 
-  const timers = { fired: [] };
+  const timers = { fired: [], calls: [] };
   sandbox.__timers = timers;
   sandbox.setInterval = () => 0;
-  sandbox.setTimeout = (fn, ms) => { timers.fired.push(ms); return 0; };
+  // v1.0.6 P1: capture deferred-transition callbacks as well as delays, so
+  // the harness can prove the P1 contract (success card BEFORE any
+  // navigation) and then run the deferred hop. timers.fired keeps its shape.
+  sandbox.setTimeout = (fn, ms) => { timers.fired.push(ms); timers.calls.push({ fn, ms }); return 0; };
   sandbox.clearTimeout = () => {};
   sandbox.confirm = () => true;
 
@@ -283,6 +286,8 @@ function testPostsClassification() {
 async function testPostsFlows() {
   // Every module sandbox loads the real dependency chain first:
   // dashboard.js (showToast/esc/t/skeletonHTML) then the module itself.
+  // v1.0.6 P1 (contract: clickable success card BEFORE any deferred
+  // transition — stubs prove the branch; the live delayed hop is field).
   // Success with edit_url
   let sandbox = makeSandbox({ i18n: { published: 'Published', draftSaved: 'Draft saved' } });
   loadRealFile(sandbox, 'dashboard.js');
@@ -295,10 +300,21 @@ async function testPostsFlows() {
     json: async () => ({ success: true, data: { edit_url: 'https://site.test/?p=9' } }),
   }]);
   await sandbox.hossamCreateArticle(form);
+  const card = form.querySelector('.hossam-post-success-card');
+  const cardLinks = card ? card.children.filter((c) => c.href) : [];
+  // The toast dismiss timer (4000ms) shares the stub; the P1 hop is the only
+  // 6000ms location.href callback.
+  const deferredCreate = sandbox.__timers.calls.filter((c) => c.ms === 6000 && /location\.href/.test(String(c.fn)));
+  const cardBeforeHop = null !== card
+    && cardLinks.some((c) => c.href === 'https://site.test/?p=9')
+    && 'https://site.test/?p=9' !== sandbox.location.href
+    && 1 === deferredCreate.length
+    && 1 === toastBox.children.length;
+  runDeferredTimers(sandbox);
   check('B9J-8-posts-create-success',
-    sandbox.location.href === 'https://site.test/?p=9' && toastBox.children.length === 1,
-    'create success shows a toast and follows the server edit_url',
-    `create success flow broken: href=${sandbox.location.href}`);
+    cardBeforeHop && sandbox.location.href === 'https://site.test/?p=9',
+    'create success shows a toast and a clickable success card before any navigation; the edit_url hop stays deferred (6s) per the P1 card-before-transition contract',
+    `create success flow broken: card=${!!card} href=${sandbox.location.href} timers=${JSON.stringify(sandbox.__timers.fired)}`);
 
   // Security rejection (403) — toast only, fallback stays closed
   sandbox = makeSandbox({ i18n: { networkError: 'Network error' } });
@@ -364,6 +380,11 @@ async function testPostsFlows() {
     'restore success reloads the list',
     'restore success did not reload');
 
+  // v1.0.6 §14: the translations panel reuses this endpoint; success AND
+  // failure both surface a result by the button first and the edit_url hop
+  // waits (4s) so the result stays usable. Without a button stub no result
+  // box is planted (early return) — the deferred hop is still proven here;
+  // live panel wiring is field.
   // Translate success with translated id
   sandbox = makeSandbox({ i18n: { translationCreated: 'Created' } });
   loadRealFile(sandbox, 'dashboard.js');
@@ -374,24 +395,54 @@ async function testPostsFlows() {
     json: async () => ({ success: true, data: { translated_id: 9 } }),
   }]);
   await sandbox.translateArticle(4, 'en');
+  const hrefBeforeHop = String(sandbox.location.href);
+  // The toast dismiss timer is also 4000ms; the §14 hop is the 4000ms
+  // location.href callback.
+  const deferredTranslate = sandbox.__timers.calls.filter((c) => c.ms === 4000 && /location\.href/.test(String(c.fn)));
+  const hopDeferred = hrefBeforeHop.indexOf('post_id=9') === -1 && 1 === deferredTranslate.length;
+  runDeferredTimers(sandbox);
   const translateUrl = String(sandbox.location.href);
   check('B9J-13-posts-translate-success',
-    translateUrl.includes('post_id=9') && translateUrl.includes('panel=edit-article'),
-    'translate success navigates to the new translation editor',
-    'translate success navigation broken: ' + translateUrl);
+    hopDeferred && translateUrl.includes('post_id=9') && translateUrl.includes('panel=edit-article'),
+    'translate success defers the editor hop (4s) so the by-button result stays usable, then navigates to the new translation editor',
+    'translate success navigation broken: before=' + hrefBeforeHop + ' after=' + translateUrl);
 }
 
 function makeForm(sandbox, fields) {
-  return {
+  // v1.0.6 P1: the form model mock grows insertBefore/children/firstChild so
+  // the real hossamShowPostSuccessCard() can plant its card (product
+  // contract unchanged — card before any deferred transition).
+  const children = [];
+  const form = {
+    children,
+    firstChild: null,
     querySelector(sel) {
+      if (sel === '.hossam-post-success-card') {
+        return children.find((c) => String(c.className || '').split(/\s+/).includes('hossam-post-success-card')) || null;
+      }
       const name = (sel.match(/name="([a-z_]+)"/) || [])[1];
       if (name && Object.prototype.hasOwnProperty.call(fields, name)) {
         return { value: fields[name] };
       }
       return null;
     },
+    insertBefore(child, ref) {
+      const at = ref ? children.indexOf(ref) : -1;
+      if (at >= 0) { children.splice(at, 0, child); } else { children.unshift(child); }
+      form.firstChild = children[0] || null;
+      return child;
+    },
+    appendChild(child) { children.push(child); form.firstChild = children[0] || null; return child; },
     reset() {},
   };
+  return form;
+}
+
+// v1.0.6 P1: run the captured deferred-transition callbacks (proves the hop
+// still happens — after the card, never before it).
+function runDeferredTimers(sandbox) {
+  for (const c of sandbox.__timers.calls) { c.fn(); }
+  sandbox.__timers.calls.length = 0;
 }
 
 /* ════════════════════════════════════════════════════════════════
