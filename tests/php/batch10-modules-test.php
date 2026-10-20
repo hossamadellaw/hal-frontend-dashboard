@@ -283,12 +283,18 @@ $undefined = array_values( array_filter( array_keys( $used_keys ), static functi
 } ) );
 sort( $undefined );
 
-$expected_fallback_only = array(
+// v1.0.7 REC-5: the former 13-key gap is closed by the real map except
+// loadFailed (owner-approved exclusion — stays fallback-only); the full
+// former list is kept (sorted) for the legacy-gap cross-check below, and
+// the remaining no-legacy gap is asserted as {loadFailed}.
+$expected_fallback_only = array( 'loadFailed' );
+sort( $expected_fallback_only );
+$closed_gap_keys = array(
 	'aiApply', 'aiDismiss', 'aiFailed', 'aiNoResult', 'aiSubmitFailed',
 	'aiSuggestion', 'aiThinking', 'aiTimeout',
 	'contractError', 'forbidden', 'integrationUnavailable', 'loadFailed', 'requestFailed',
 );
-sort( $expected_fallback_only );
+sort( $closed_gap_keys );
 
 // Fallback presence per module, against comment-stripped sources so a
 // docblock mention can never satisfy the check.
@@ -360,24 +366,24 @@ $legacy_i18n_path = dirname( $GLOBALS['B10_PROJECT'], 2 ) . '/dashboard/Dahboard
 if ( ! $B10_LEGACY ) {
 	b10_check( 'B10-I1b-fallback-set-nolegacy',
 		$expected_fallback_only === $undefined && array() === $fallbacks_missing,
-		'the only t() keys without an i18n entry are the exact 13-key set with inline fallbacks (live-legacy gap cross-check skipped: root absent)',
+		'the only t() key without an i18n entry is loadFailed (intentionally fallback-only — owner-approved exclusion) with its inline fallbacks (live-legacy gap cross-check skipped: root absent)',
 		'unexpected i18n gap: undefined=' . json_encode( $undefined )
 			. ' fallbacks_missing=' . json_encode( $fallbacks_missing ) );
 	b10_skip( 'B10-I1b-fallback-only-set-exact', 'exclusive legacy root absent — live-legacy gap equivalence deferred to runs with the reference tree' );
 } else {
 	$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
-	$legacy_same_gap = '' !== $legacy_i18n;
-	foreach ( $expected_fallback_only as $key ) {
+	$legacy_keeps_gap = '' !== $legacy_i18n;
+	foreach ( $closed_gap_keys as $key ) {
 		if ( false !== strpos( $legacy_i18n, "'" . $key . "'" ) ) {
-			$legacy_same_gap = false;
+			$legacy_keeps_gap = false;
 		}
 	}
 	b10_check( 'B10-I1b-fallback-only-set-exact',
-		$expected_fallback_only === $undefined && array() === $fallbacks_missing && $legacy_same_gap,
-		'the only t() keys without an i18n entry are the exact 13-key set, each carries its inline fallback at its call sites (comment-stripped), and the legacy i18n has the same gap (equivalence, not drift)',
+		$expected_fallback_only === $undefined && array() === $fallbacks_missing && $legacy_keeps_gap,
+		'the only t() key without an i18n entry is loadFailed; it carries its inline fallback at its call sites (comment-stripped), and the legacy i18n keeps the historic 13-key gap (documented deliberate divergence, not drift)',
 		'unexpected i18n gap: undefined=' . json_encode( $undefined )
 			. ' fallbacks_missing=' . json_encode( $fallbacks_missing )
-			. ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
+			. ' legacy_keeps_gap=' . var_export( $legacy_keeps_gap, true ) );
 }
 
 /* ── BYTE identity vs exclusive source and batch-10 inventory ───── */

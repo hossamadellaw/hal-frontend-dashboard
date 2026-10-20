@@ -173,6 +173,44 @@ add_action( 'init', function(): void {
         'You do not have permission to create this translation.',
         'You do not have permission to edit this translation.',
         'This translation does not belong to the requested article.',
+        // v1.0.7 REC-5 (5.1): كل سلاسل hossam_t() الحرفية المتبقية في runtime
+        // (قوالب + ajax) — قائمة الفجوة المرصودة (118 سلسلة — جرد PHP 8.4).
+        'AI Writing Assistant', 'API', 'API Key', 'About',
+        'Account settings are unavailable.', 'Active', 'Active languages on this site:', 'Additional links',
+        'Advanced SEO Dashboard', 'All Members', 'All Posts', 'All articles have a focus keyword set.',
+        'All users & roles', 'Allowed types', 'Amelia Integration Health', 'Appointments',
+        'Appointments Backend', 'Arabic content is displayed right-to-left automatically when Arabic is the active language.', 'Article could not be moved to trash.', 'Article could not be restored.',
+        'Article forms management', 'Blog', 'Cache Settings', 'Cells reflect default WordPress capabilities per role. Specific-article Edit/Delete/Trash always re-check edit_post or delete_post for that resource, so direct capability grants follow the capability itself rather than the role name. Store Products requires edit_products, Store Orders require manage_woocommerce or manage_options, and calendar sections also require their integration to be available.',
+        'Checked routes', 'Choose at least one valid robots directive.', 'Configured', 'Contact',
+        'Contact your editor to request new translations or to update existing ones.', 'Could not load appointments.', 'Deleted', 'Edit %s',
+        'File could not be deleted.', 'File could not be restored.', 'Form Builder', 'Full SEO analytics',
+        'Full administration panel', 'Full booking management', 'Full content management', 'Go to My Articles',
+        'Grammar Check', 'Home', 'Inactive', 'Inbox status unavailable',
+        'Invalid article data.', 'Invalid article.', 'Invalid categories.', 'Invalid description.',
+        'Invalid featured image.', 'Invalid focus keyword.', 'Invalid robots directive.', 'Invalid title.',
+        'Invoices', 'Language Manager', 'Language switcher is unavailable.', 'Languages & Translations',
+        'Last checked', 'Last error', 'MU Plugin Dashboard', 'Manage staff accounts and roles.',
+        'Members could not be loaded.', 'Missing', 'Missing Focus Keywords', 'No file types are currently enabled for upload.',
+        'No noindex articles.', 'Noindex Articles', 'Open Amelia settings', 'Orders',
+        'Orders could not be loaded.', 'PHP hooks and shortcodes managed via hossam-dashboard.php', 'Password change is unavailable.', 'Payment Methods',
+        'Payment methods could not be loaded.', 'Performance & cache exclusions', 'Plugin', 'Privacy Policy',
+        'Products', 'Products could not be loaded.', 'Profile form is unavailable.', 'Reachable',
+        'Restore recently deleted articles.', 'Roles', 'SEO Dashboard', 'SEO Health Overview',
+        'SEO Meta Description', 'SEO Settings', 'SEO editing is read-only until Rank Math fields are verified.', 'SEO settings could not be saved.',
+        'Saved Cards', 'Saved payment tokens could not be loaded.', 'Score Distribution', 'Security',
+        'Select an article from %s and click Delete to load the confirmation form here.', 'Select an article from %s and click Edit to load the form here.', 'Services', 'Settings',
+        'Shop', 'Site Settings', 'Suggest Improvements', 'Suggest SEO',
+        'Suggest Translation', 'Summary could not be loaded.', 'Target language code', 'Terms',
+        'To translate an article, find it in All My Articles and use the translation option next to each article.', 'Translate to %s', 'Translation contract is unavailable.', 'Translation could not be linked.',
+        'Translation editing is managed through the site administration area.', 'Translation management', 'Trash is empty.', 'Ultimate Member status',
+        'Unreachable', 'Upload', 'User Management', 'WooCommerce status',
+        'You do not have permission to view appointments.', 'You do not have permission to view products.',
+        // v1.0.7 REC-5 (5.2): نصوص مفاتيح JS الجديدة التي لا نظير مسجَّل لها
+        // (الباقي منها مسجَّل أعلاه ضمن كتلة 5.1 حرفيًا؛ وloadFailed مستبعد من
+        // الخريطة بموافقة المالك — يبقى fallback-only بلا نص جديد).
+        'AI is working on it…', 'Could not start the AI request.', 'The AI request took too long. Please try again.',
+        'AI request failed.', 'No suggestion returned.', 'AI suggestion', 'Apply', 'Dismiss',
+        'Invalid server response', 'Appointment integration is unavailable.', 'Request failed',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -331,6 +369,24 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'richEditorUnavailable' => hossam_t('Rich editor unavailable — using the plain text field.'), // posts.js
             'richUploadFailed'  => hossam_t('Media upload failed.'), // posts.js
             'keepCategoriesNote'  => hossam_t('Leave all unchecked to keep the current categories.'), // قالب posts.php
+            // v1.0.7 REC-5 (5.2): مفاتيح t() الـ14 المعرَّفة — القيم مطابقة
+            // حرفيًا لنصوص fallback في ملفات JS (والجديدة منها مسجَّلة أعلاه).
+            // loadFailed مستبعد بقرار مالك — يبقى fallback-only (انظر المخاطر).
+            // ملفات JS لا تُلمس إطلاقًا.
+            'aiThinking'             => hossam_t('AI is working on it…'),                        // ai.js:58
+            'aiSubmitFailed'         => hossam_t('Could not start the AI request.'),             // ai.js:77
+            'aiTimeout'              => hossam_t('The AI request took too long. Please try again.'), // ai.js:124
+            'aiFailed'               => hossam_t('AI request failed.'),                          // ai.js:146
+            'aiNoResult'             => hossam_t('No suggestion returned.'),                     // ai.js:164
+            'aiSuggestion'           => hossam_t('AI suggestion'),                               // ai.js:170
+            'aiApply'                => hossam_t('Apply'),                                       // ai.js:173
+            'aiDismiss'              => hossam_t('Dismiss'),                                     // ai.js:174
+            'contractError'          => hossam_t('Invalid server response'),                     // bookings.js:42,59؛ inbox.js:49,80,160؛ members.js:52,54
+            'forbidden'              => hossam_t('You do not have permission to view appointments.'), // bookings.js:52
+            'integrationUnavailable' => hossam_t('Appointment integration is unavailable.'),     // bookings.js:53
+            'requestFailed'          => hossam_t('Request failed'),                              // inbox.js:51؛ members.js:53
+            'allFocusKeywords'       => hossam_t('All articles have a focus keyword set.'),      // seo.php:306 (JS مضمّن)
+            'noNoindexArticles'      => hossam_t('No noindex articles.'),                        // seo.php:307 (JS مضمّن)
         ];
     }
 }

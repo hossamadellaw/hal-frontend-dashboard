@@ -285,12 +285,14 @@ $undefined = array_values( array_filter( array_keys( $used_keys ), static functi
 } ) );
 sort( $undefined );
 
-$expected_fallback_only = array( 'contractError', 'loadFailed', 'requestFailed' );
+// v1.0.7 REC-5: the former fallback-only gap is closed by the real map except
+// loadFailed (owner-approved exclusion — a single-value entry would visibly
+// change 4 contexts); the inline fallbacks stay asserted below.
+$expected_fallback_only = array( 'loadFailed' );
 
 $members_src = $js_sources['js/modules/members.js'];
 $uploads_src = $js_sources['js/modules/uploads.js'];
-// Audit C1: all three fallback-only keys are asserted, including the
-// loadFailed inline fallback in uploads.js (previously unchecked).
+// Audit C1 + v1.0.7 REC-5: the three former-gap keys still carry their inline fallbacks, including the loadFailed fallback in uploads.js.
 $fallbacks_present = false !== strpos( $members_src, "t('contractError','Invalid server response')" )
 	&& false !== strpos( $members_src, "t('requestFailed','Request failed')" )
 	&& false !== strpos( $uploads_src, "t('loadFailed','Could not load files.')" );
@@ -299,19 +301,19 @@ $legacy_i18n_path = dirname( $GLOBALS['B9_PROJECT'], 2 ) . '/dashboard/Dahboard-
 if ( ! $B9_LEGACY ) {
 	b9_check( 'B9-I1b-fallback-only-set-nolegacy',
 		$expected_fallback_only === $undefined && $fallbacks_present,
-		'the only t() keys without an i18n entry are contractError/loadFailed/requestFailed with inline fallbacks (live-legacy gap cross-check skipped: root absent)',
+		'the only t() key without an i18n entry is loadFailed with its inline fallback (live-legacy gap cross-check skipped: root absent)',
 		'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) );
 	b9_skip( 'B9-I1b-fallback-only-set-exact', 'exclusive legacy root absent — live-legacy gap equivalence deferred to runs with the reference tree' );
 } else {
 	$legacy_i18n = file_exists( $legacy_i18n_path ) ? (string) file_get_contents( $legacy_i18n_path ) : '';
-	$legacy_same_gap = '' !== $legacy_i18n
+	$legacy_keeps_gap = '' !== $legacy_i18n
 		&& false === strpos( $legacy_i18n, 'contractError' )
 		&& false === strpos( $legacy_i18n, 'loadFailed' )
 		&& false === strpos( $legacy_i18n, 'requestFailed' );
 	b9_check( 'B9-I1b-fallback-only-set-exact',
-		$expected_fallback_only === $undefined && $fallbacks_present && $legacy_same_gap,
-		'the only t() keys without an i18n entry are contractError/loadFailed/requestFailed, each carries its inline fallback in members.js/uploads.js, and the legacy i18n has the same gap (equivalence, not drift)',
-		'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) . ' legacy_same_gap=' . var_export( $legacy_same_gap, true ) );
+		$expected_fallback_only === $undefined && $fallbacks_present && $legacy_keeps_gap,
+		'the only t() key without an i18n entry is loadFailed with its inline fallback, and the legacy i18n keeps the historic gap (documented deliberate divergence, not drift)',
+		'unexpected i18n gap: undefined=' . json_encode( $undefined ) . ' fallbacks_present=' . var_export( $fallbacks_present, true ) . ' legacy_keeps_gap=' . var_export( $legacy_keeps_gap, true ) );
 }
 
 // Split assertions so each failure is actionable:
@@ -408,6 +410,10 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 // [B9-06] (lazy media check at click, thumbnail_id '0' removal, success
 // card links) + [B9-08] (rich-editor serialize — newest); the harness tracks
 // the newest marker while every older marker stays literally in the file.
+// v1.0.7 (REC-1/3/4): posts.js keeps [B9-08] (kept) and carries the new
+// v1.0.7 audit marker [B9-09] (sync write-guard, idempotent init with roots
+// registry + inner root host, iframe-signal probe — newest); the mapping
+// follows the newest marker (same pattern as P1/P2).
 // members.js stays byte-identical.
 // v1.0.6 (P2 §10 + §12-أ): dashboard.js carries [B9-02] (kept) + [B9-07] (icons);
 // dashboard.css carries [B9-U1] (kept) + [B9-U2] (P4-prep) + [B9-U3]
@@ -417,7 +423,7 @@ $audit_deltas = array(
 	'theme/assets/css/dashboard.css'        => array( 'runtime/assets/css/dashboard.css', 'B9-U3' ),
 	'theme/assets/js/dashboard.js'       => array( 'runtime/assets/js/dashboard.js', 'B9-07' ),
 	'theme/assets/js/modules/uploads.js' => array( 'runtime/assets/js/modules/uploads.js', 'B9-01' ),
-	'theme/assets/js/modules/posts.js'   => array( 'runtime/assets/js/modules/posts.js', 'B9-08' ),
+	'theme/assets/js/modules/posts.js'   => array( 'runtime/assets/js/modules/posts.js', 'B9-09' ),
 );
 
 foreach ( $audit_deltas as $legacy_rel => $pair ) {
