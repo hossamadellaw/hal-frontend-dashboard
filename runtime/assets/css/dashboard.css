@@ -1028,16 +1028,6 @@ select.form-input{
 .hossam-post-success-card p{flex-basis:100%;margin:0;font-size:13px;font-weight:600;color:var(--txt-1)}
 .hossam-post-success-card .btn{margin:0}
 .hossam-cat-scroll{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;background:var(--white)}
-.hossam-cat-tree{list-style:none;margin:0;padding:0}
-.hossam-cat-tree ul{list-style:none;margin:0;padding-inline-start:18px}
-.hossam-cat-group{margin:2px 0}
-.hossam-cat-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--txt-2);font-size:13px;background:none;border:none;padding:2px 4px}
-.hossam-cat-toggle:hover{color:var(--gold)}
-.hossam-cat-children{overflow:hidden}
-.hossam-cat-children.collapsed{display:none}
-.hossam-lang-badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:var(--info-bg);color:var(--info);margin-inline-start:6px;white-space:nowrap}
-[dir="rtl"] .hossam-cat-tree ul{padding-inline-start:0;padding-inline-end:18px}
-[dir="rtl"] .hossam-cat-toggle{flex-direction:row-reverse}
 
 /* ══════════════════════════════════════════════════════════════
    [B9-U3] v1.0.6 §9 — تنسيق المحرر الغني داخل قالب HAL

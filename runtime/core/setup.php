@@ -610,7 +610,8 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // داخل غلاف HAL، بلا محرك/كتل بديلة وبلا Experimental.
     // البوابات (كلها fail-closed):
     //   - مفتاح المالك rich_editor (نمط is_feature_enabled) بوابة إظهار؛
-    //     المفتاح خارج FEATURES حاليًا فيُغلق العرض حتى تخصيصه من مالك
+    //     المفتاح مسجل في FEATURES (class-settings-repository.php:41-45)
+    //     وبافتراضي مغلق مقصود (:85-87) فيُغلق العرض حتى تخصيصه من مالك
     //     الإعدادات — والـtextarea يبقى حقل النموذج.
     //   - مسار تحرير مسموح واحد على الأقل: edit_posts (إنشاء — ولو مُنع
     //     المستخدم من تحرير مقال آخر) أو edit_post لمقال بعينه مطلوب

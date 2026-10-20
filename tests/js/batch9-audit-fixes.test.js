@@ -347,7 +347,7 @@ function testCssCoversFragments(renderedJson) {
   const u1Start = runtimeCss.indexOf('\n/* [B9-U1]');
   const u1End = runtimeCss.indexOf('.text-center{text-align:center}') + '.text-center{text-align:center}'.length;
   const u1Block = u1Start >= 0 ? runtimeCss.slice(u1Start, u1End) : '';
-  const u2Anchor = '[dir="rtl"] .hossam-cat-toggle{flex-direction:row-reverse}';
+  const u2Anchor = '.hossam-cat-scroll{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;background:var(--white)}';
   const u2Mark = runtimeCss.indexOf('[B9-U2]');
   const u2Start = u2Mark >= 0 ? runtimeCss.lastIndexOf('/*', u2Mark) - 1 : -1;
   // The [B9-U2] block is followed by exactly one blank line before the
