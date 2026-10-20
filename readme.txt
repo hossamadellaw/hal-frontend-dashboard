@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.0.6.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.0.7.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,12 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.0.7 =
+* Local implementation of Docs/versions/v1.0.7.md clauses on the existing files only: posts.js rich-editor capture fixes marked [B9-09] — silent skip when the editor state is absent (user text preserved) with diagnostics only for not-ready/sequencing states, an idempotent editor-root registry with an inner container, and deferred textarea hiding only on the first real frame signal (a 10s probe cap leaves the textarea visible when no signal arrives).
+* i18n closure on the existing files: 14 keys added to the translation map and 129 strings added to the registered set (registered set 376, map 142, zero missing literal calls; loadFailed stays fallback-only by owner decision); the batch9/batch10 witnesses were updated to assert the exact fallback-only set, and stale comments plus the dead [B9-U2] CSS were cleaned with their test anchor updated.
+* Version identity 1.0.7 across the plugin header, version constant, stable tag, and installation ZIP name.
+* UNVERIFIED: field gates stay unverified — the live ZT-1 hybrid round for the prepared (not yet installed) REC-2 dequeue block, owner entry of the Arabic strings in WPML String Translation, the triple-snapshot and console/timeline field checks of the posts.js rounds, and release_sequence (recorded locally as 6; v1.0.6 published manifest=5 verified; release workflow gate pending).
 
 = 1.0.6 =
 * Local implementation of Docs/versions/v1.0.6.md clauses on the existing files only: lazy media check at click with a visible message, thumbnail_id '0' removal, clickable success-card links (view/preview/edit) kept usable before any deferred transition, parent-children category tree with RTL indent and per-term language badge (display only, categories[] contract unchanged), read-only Permalink with a draft-temporary label, edit-panel-only SEO group behind the owner key plus runtime detection, official block-editor instance inside the HAL shell with textarea fallback (server contract stays plain text), and a manual article-translations list reusing the existing endpoint with read-back verification and fail-closed cleanup.
