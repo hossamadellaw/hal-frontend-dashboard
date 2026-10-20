@@ -68,8 +68,9 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
     && ! empty( $posts_frontend_admin['capabilities']['shortcode'] )
     && shortcode_exists( 'frontend_admin' );
 // v1.0.6 §9: بوابة إظهار المحرر الغني — مفتاح المالك rich_editor (نمط
-// is_feature_enabled)؛ fail-closed (المفتاح خارج FEATURES حتى تخصيصه من مالك
-// الإعدادات — والـtextarea يبقى حقل النموذج). فحص القدرة لكل لوحة عند موضعها.
+// is_feature_enabled)؛ fail-closed (المفتاح مسجل في FEATURES بافتراضي مغلق
+// مقصود حتى تخصيصه من مالك الإعدادات — والـtextarea يبقى حقل النموذج).
+// فحص القدرة لكل لوحة عند موضعها.
 $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
     && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'is_feature_enabled' )
     && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rich_editor' );

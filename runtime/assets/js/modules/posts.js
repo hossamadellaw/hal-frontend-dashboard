@@ -428,8 +428,11 @@ document.addEventListener('click',e=>{const b=e.target.closest('.js-translate-ar
      نجاح التهيئة؛ عند أي فشل (سكربت مفقود/استثناء/تعذر iframe)
      يبقى ظاهرًا مع تنبيه قصير. التهيئة عند أول فتح اللوحة.
      العنوان/التصنيفات/الصورة/SEO/الحالة تبقى حقول HAL.
+   [B9-09] v1.0.7 REC-1/3/4 — حارس كتابة المزامنة (لا محو لنص المستخدم
+   عند غياب الحالة أو فشل التسلسل)، تهيئة idempotent بسجل جذور وحاوية
+   جذر داخلية، ومسبار إنهاء بإشارة iframe حقيقية — الأحدث؛ [B9-08] باقٍ.
    ══════════════════════════════════════════════════════════════ */
-var hossamRichState={inited:{}};
+var hossamRichState={inited:{},roots:{},coreBlocks:false}; /* [B9-09] v1.0.7 REC-3: جذور الحاويات؛ S2: تسجيل الكتل مرة واحدة */
 function hossamRichConfig(){
   try{
     if(typeof window!=='undefined'&&window.hossamRichEditor&&typeof window.hossamRichEditor==='object') return window.hossamRichEditor;
@@ -442,6 +445,28 @@ function hossamRichWp(){
     if(typeof wp!=='undefined') return wp;
   }catch(e){}
   return null;
+}
+/* [B9-09] v1.1 A6/D6: إشارة المسبار = إطار مرئي فعليًا وله محتوى جاهز —
+   وجود عنصر iframe وحده لا يكفي (بوابة v4 تشترط الرؤية + المحتوى). مستند
+   غير متاح/غير مكتمل = غير جاهز: يستمر الاقتراع حتى السقف ثم fallback. */
+function hossamRichFrameReady(frame){
+  try{
+    if(!frame) return false;
+    var rect=frame.getBoundingClientRect?frame.getBoundingClientRect():null;
+    var visible=!!rect&&rect.width>0&&rect.height>0;
+    if(visible&&typeof getComputedStyle==='function'){
+      var style=getComputedStyle(frame);
+      if(style) visible=style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)>0;
+    }
+    if(!visible) return false;
+    var content=frame.contentDocument;
+    if(!content||content.readyState!=='complete') return false;
+    /* حاوية block-editor فعلية داخل body — البحث في descendants فقط كي لا
+       يطابق body نفسه (class ‏block-editor-iframe__body) فيُعدّ محتوى وهميًا.
+       غيابها = استمرار الاقتراع حتى السقف ثم fallback. */
+    var scope=(content.body&&content.body.querySelector)?content.body:content;
+    try{return !!scope.querySelector('[class*="block-editor"],[data-type],.block-editor-block-list__layout');}catch(e){return false;}
+  }catch(e){return false;}
 }
 function hossamRichNotice(){
   try{showToast(t('richEditorUnavailable','Rich editor unavailable — using the plain text field.'),'error');}catch(e){}
@@ -504,7 +529,13 @@ function hossamRichOpenLibrary(onSelect){
   }catch(e){hossamRichUploadFailed();}
 }
 function hossamRichInitEditor(containerId){
-  if(hossamRichState.inited[containerId]&&hossamRichState.inited[containerId].ready) return true;
+  var prior=hossamRichState.inited[containerId]||null;
+  /* [B9-09] v1.1 A11: الحالات النهائية (fallback/error) معلّقة — لا إعادة
+     محاولة تلقائية؛ المحاولة التالية بعد إعادة تحميل الصفحة فقط. */
+  if(prior&&(prior.phase==='fallback'||prior.phase==='error')) return true;
+  if(prior&&prior.phase==='ready'&&prior.ready) return true;
+  /* [B9-09] v1.0.7 REC-3: تهيئة واحدة idempotent — جذر قائم لهذه الحاوية لا يُعاد إنشاؤه. */
+  if(hossamRichState.roots[containerId]) return true;
   var cfg=hossamRichConfig();
   if(!cfg||!cfg.enabled) return false;
   var docRef=(typeof document!=='undefined')?document:null;
@@ -514,6 +545,12 @@ function hossamRichInitEditor(containerId){
   var textareaId=container.getAttribute?container.getAttribute('data-textarea'):'';
   var textarea=textareaId?docRef.getElementById(textareaId):null;
   if(!textarea) return false;
+  var host=null, root=null;
+  function failFallback(reason){
+    hossamRichState.inited[containerId]={ready:false,phase:'fallback',confirmed:false,blocks:null,initialHtml:textarea.value||'',textareaId:textareaId,root:null,probe:reason,latch:true};
+    try{container.setAttribute('hidden','');}catch(e){}
+    hossamRichNotice();
+  }
   try{
     var wp0=hossamRichWp();
     if(!wp0||!wp0.element||!wp0.blocks||!wp0.data||!wp0.blockEditor) throw new Error('missing-packages');
@@ -531,14 +568,26 @@ function hossamRichInitEditor(containerId){
     var MediaUploadCheck=be.MediaUploadCheck||function(props){return props&&props.children?props.children:null;};
     /* علني حصرًا — ExperimentalBlockCanvas مرفوض هنا. */
     if(typeof BlockEditorProvider==='undefined'||typeof BlockCanvas==='undefined'||typeof BlockList==='undefined') throw new Error('missing-components');
-    /* تسجيل الكتل الأساسية الرسمية للنسخة المثبتة — بلا تثبيت حزم. */
-    try{
-      if(wp0.blockLibrary&&typeof wp0.blockLibrary.registerCoreBlocks==='function') wp0.blockLibrary.registerCoreBlocks();
-      else if(typeof blocksPkg.registerCoreBlocks==='function') blocksPkg.registerCoreBlocks();
-    }catch(regErr){}
+    /* [B9-09] v1.1 A4/S2: تسجيل الكتل الأساسية مرة واحدة عبر اللوحتين —
+       تُعلَّم المحاولة قبل الاستدعاء كي لا يتكرر الرمي/التسجيل عند إعادة
+       تهيئة اللوحة الأخرى. */
+    if(!hossamRichState.coreBlocks){
+      hossamRichState.coreBlocks=true;
+      try{
+        if(wp0.blockLibrary&&typeof wp0.blockLibrary.registerCoreBlocks==='function') wp0.blockLibrary.registerCoreBlocks();
+        else if(typeof blocksPkg.registerCoreBlocks==='function') blocksPkg.registerCoreBlocks();
+      }catch(regErr){}
+    }
     var initialHtml=textarea.value||'';
+    /* [B9-09] v1.1 A7/D8: فشل parse أو كتل فارغة لمحتوى غير فارغ = fallback
+       صريح — لا تُركَّب واجهة ميتة ولا يُمَس نص المستخدم. */
     var initialBlocks=[];
-    try{initialBlocks=blocksPkg.parse(initialHtml)||[];}catch(parseErr){initialBlocks=[];}
+    var parseFailed=false;
+    try{initialBlocks=blocksPkg.parse(initialHtml)||[];}catch(parseErr){parseFailed=true;}
+    if(parseFailed||((!initialBlocks||!initialBlocks.length)&&String(initialHtml).trim()!=='')){
+      failFallback(parseFailed?'parse-error':'parse-empty');
+      return false;
+    }
     var canUpload=!!cfg.canUpload;
     var settings={
       canUpload:canUpload,
@@ -552,9 +601,17 @@ function hossamRichInitEditor(containerId){
       var useState=el.useState;
       var state=useState(initialBlocks);
       var blocks=state[0], setBlocks=state[1];
-      hossamRichState.inited[containerId]={ready:true,blocks:blocks,textareaId:textareaId};
-      function handleChange(next){hossamRichState.inited[containerId].blocks=next;setBlocks(next);}
-      function handleInput(next){hossamRichState.inited[containerId].blocks=next;setBlocks(next);}
+      /* [B9-09] v1.1 A3/D2: تحديث الحقول الحية فقط — لا استبدال للسجل
+         (phase/confirmed/initialHtml/root تبقى كما هي). */
+      var rec=hossamRichState.inited[containerId]||null;
+      if(rec&&(rec.phase==='mounting'||rec.phase==='ready')) rec.blocks=blocks;
+      function keep(next){
+        var live=hossamRichState.inited[containerId]||null;
+        if(live&&(live.phase==='mounting'||live.phase==='ready')) live.blocks=next;
+        setBlocks(next);
+      }
+      function handleChange(next){keep(next);}
+      function handleInput(next){keep(next);}
       function insertImage(img){
         try{
           var nb=blocksPkg.createBlock?blocksPkg.createBlock('core/image',{id:img.id,url:img.url,caption:img.caption||''}):null;
@@ -602,31 +659,65 @@ function hossamRichInitEditor(containerId){
       }
       return el.createElement(BlockEditorProvider,{value:blocks,onInput:handleInput,onChange:handleChange,settings:settings},providerKids);
     }
-    var host=container;
-    var root=null;
+    /* [B9-09] v1.1 A1: سجل الحالة يبدأ mounting — لا ready قبل إشارة صالحة. */
+    var record={ready:false,phase:'mounting',confirmed:false,blocks:initialBlocks,initialHtml:initialHtml,textareaId:textareaId,root:null,probe:'pending',latch:false};
+    hossamRichState.inited[containerId]=record;
+    /* [B9-09] v1.0.7 REC-3: الجذر على حاوية داخلية مستحدثة داخل غلاف المحرر —
+       أول commit يمسح محتوى حاوية الجذر وحدها، فتبقى حوامل القالب
+       (portal targets) موصولة في DOM ولا تسقط الوصلات. */
+    host=container.querySelector?container.querySelector('.hossam-rich-root'):null;
+    if(!host){host=docRef.createElement('div');host.className='hossam-rich-root';container.appendChild(host);}
     if(typeof el.createRoot==='function') root=el.createRoot(host);
     else if(typeof el.render==='function'){el.render(el.createElement(HossamRichApp,null),host);root={rendered:true};}
     else throw new Error('missing-root');
+    hossamRichState.roots[containerId]=root; /* v1.0.7 REC-3 */
+    record.root=root;
     if(root&&typeof root.render==='function') root.render(el.createElement(HossamRichApp,null));
-    hossamRichState.inited[containerId]={ready:true,blocks:initialBlocks,textareaId:textareaId,root:root};
     container.removeAttribute('hidden');
-    /* الـtextarea يُخفى فقط بعد نجاح التهيئة — ثم يُتحقق من الـiframe. */
-    textarea.classList.add('hossam-rich-hidden');
-    setTimeout(function(){
-      try{
-        var frame=container.querySelector?container.querySelector('iframe'):null;
-        if(!frame){
-          /* تعذر الـiframe: عودة آمنة — الـtextarea يبقى حقل النموذج. */
-          textarea.classList.remove('hossam-rich-hidden');
-          hossamRichState.inited[containerId]={ready:false,blocks:null,textareaId:textareaId};
+    /* [B9-09] v1.0.7 REC-4/v1.1 A6-D6: الـtextarea لا يُخفى في التهيئة —
+       يُخفى فقط عند إشارة صالحة: iframe مرئي فعليًا وله محتوى جاهز
+       (وليس مجرد وجود عنصر iframe). السقف 40×250ms = 10s. */
+    var probeTries=0, probeEvery=250, probeLimit=40, confirmed=false;
+    var hossamRichProbe=function(){
+      if(confirmed) return;
+      var frame=null;
+      try{frame=container.querySelector?container.querySelector('[data-role="canvas"] iframe, .hossam-rich-root iframe'):null;}catch(e){frame=null;}
+      if(frame&&hossamRichFrameReady(frame)){
+        /* [B9-09] v1.1 A2/D1: نص الـtextarea تغيّر أثناء التركيب = المستخدم
+           سبق المحرر؛ النص اليدوي يفوز: إخفاء الواجهة + notice + fallback
+           معلّق، ولا sync لاحقًا. */
+        if(textarea.value!==initialHtml){
+          record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='dirty-textarea';record.latch=true;
+          try{container.setAttribute('hidden','');}catch(e){}
           hossamRichNotice();
+          return;
         }
-      }catch(e){}
-    },2500);
+        confirmed=true;
+        record.ready=true;record.phase='ready';record.confirmed=true;record.probe='iframe-ready';
+        textarea.classList.add('hossam-rich-hidden');
+        return;
+      }
+      probeTries++;
+      if(probeTries<probeLimit){setTimeout(hossamRichProbe,probeEvery);return;}
+      /* [B9-09] v1.1 A5/D4: السقف بلا إشارة صالحة = fallback صريح:
+         إخفاء الواجهة الميتة، إبقاء textarea ظاهرًا، لا sync. */
+      try{console.warn('[HAL] rich probe: no ready iframe within '+(probeEvery*probeLimit/1000)+'s - fallback (not a clean finish)');}catch(e){}
+      record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='timeout';record.latch=true;
+      textarea.classList.remove('hossam-rich-hidden');
+      try{container.setAttribute('hidden','');}catch(e){}
+      hossamRichNotice();
+    };
+    setTimeout(hossamRichProbe,probeEvery);
     return true;
   }catch(err){
-    /* أي فشل: الـtextarea ظاهر + تنبيه قصير — لا يعطل بقية اللوحة. */
+    /* [B9-09] v1.1 A8: تنظيف كامل قبل التنبيه — unmount + إزالة الحاوية
+       الداخلية + حذف سجل الجذر + حالة error معلّقة؛ الـtextarea يبقى ظاهرًا. */
+    try{if(root&&typeof root.unmount==='function') root.unmount();}catch(e){}
+    try{if(host&&host.parentNode) host.parentNode.removeChild(host);}catch(e){}
+    try{delete hossamRichState.roots[containerId];}catch(e){}
+    hossamRichState.inited[containerId]={ready:false,phase:'error',confirmed:false,blocks:null,initialHtml:textarea.value||'',textareaId:textareaId,root:null,probe:'error',latch:true};
     try{container.setAttribute('hidden','');}catch(e){}
+    try{textarea.classList.remove('hossam-rich-hidden');}catch(e){}
     hossamRichNotice();
     return false;
   }
@@ -652,16 +743,40 @@ function hossamRichInitVisible(){
   }catch(e){}
 }
 /* سلْسِل الكتل إلى الـtextarea قبل hossamCreate/UpdateArticle. */
+/* [B9-09] v1.0.7 REC-1: لا كتابة فوق الـtextarea إلا بتسلسل ناجح من الحالة الحية؛
+   غياب الحالة = تخطٍّ صامت، وحالة غير جاهزة/فشل تسلسل = بقاء النص + أثر تشخيصي. */
 function hossamSyncRichEditorToTextarea(form){
   try{
     if(!form||!form.querySelector) return;
     var ta=form.querySelector('[name="content"]');
     if(!ta||!ta.id) return;
     var id=ta.id==='hossam-new-content'?'hossam-rich-editor-new':(ta.id==='hossam-edit-content'?'hossam-rich-editor-edit':null);
-    if(!id||!hossamRichState.inited[id]||!hossamRichState.inited[id].ready||!hossamRichState.inited[id].blocks) return;
+    var st=(id&&hossamRichState.inited[id])||null;
+    if(!st) return; /* لا حالة بعد — تخطٍّ صامت سليم: نص المستخدم يبقى كما هو. */
+    /* [B9-09] v1.1 A9: الكتابة فقط بعد إشارة صالحة (phase/confirmed) وبكتل حية. */
+    if(st.phase!=='ready'||!st.confirmed||!st.ready||!st.blocks){
+      try{console.warn('[HAL] rich sync: state not ready - textarea kept as-is');}catch(e){}
+      return;
+    }
+    /* [B9-09] v1.1 A9: لمس المستخدم للـtextarea يدويًا يمنع الكتابة فوقه. */
+    if(ta.value!==st.initialHtml){
+      try{console.warn('[HAL] rich sync: textarea edited manually - textarea kept as-is');}catch(e){}
+      return;
+    }
     var wp0=hossamRichWp();
-    if(!wp0||!wp0.blocks||typeof wp0.blocks.serialize!=='function') return;
-    ta.value=wp0.blocks.serialize(hossamRichState.inited[id].blocks);
+    if(!wp0||!wp0.blocks||typeof wp0.blocks.serialize!=='function'){
+      try{console.warn('[HAL] rich sync: serializer unavailable - textarea kept as-is');}catch(e){}
+      return;
+    }
+    var out=null;
+    try{out=wp0.blocks.serialize(st.blocks);}catch(serErr){out=null;}
+    if(typeof out!=='string'){
+      try{console.warn('[HAL] rich sync: serialize failed - textarea kept as-is');}catch(e){}
+      return;
+    }
+    ta.value=out;
+    /* خط الأساس يُحدَّث بعد كتابتنا كي يبقى الحفظ التالي صالحًا. */
+    st.initialHtml=out;
   }catch(e){}
 }
 if(typeof document!=='undefined'&&document&&typeof document.addEventListener==='function'){
