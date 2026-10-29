@@ -628,6 +628,34 @@ function testB10() {
     'display:none iframe confirmed readiness');
 }
 
+/* O9 (v1.0.8) — re-initializing the embed on the same page after the
+ * B9R-8a teardown (and on the B9R-8c fresh reload) never re-runs
+ * registerCoreBlocks: the posts.js guard flags the attempt before the
+ * call, so the counter stays at exactly 1 and the real-WP crash
+ * `Format "core/footnote" is already registered.` cannot come from
+ * HAL's embed path. */
+function testO9() {
+  const sb = makeSandbox({ createRootThrows: true });
+  const { id } = registerPanel(sb, 'edit');
+  loadPosts(sb);
+  const first = initEditor(sb, id);
+  const again = initEditor(sb, id);
+
+  const reload = makeSandbox();
+  const fresh = registerPanel(reload, 'edit');
+  loadPosts(reload);
+  const retryOk = initEditor(reload, fresh.id);
+
+  check('B9R-O9-reinit-no-reregister',
+    first === false && again === true
+      && sb.__counts.register === 1
+      && sb.hossamRichState.coreBlocks === true
+      && retryOk === true && reload.__counts.register === 1,
+    'after teardown, same-page re-init and fresh reload each keep registerCoreBlocks at one call (no Format "core/footnote" is already registered.)',
+    `registerCoreBlocks calls: same-page=${sb.__counts.register}, reload=${reload.__counts.register}`);
+  runAllTimers(reload);
+}
+
 testB1();
 testB2();
 testB3();
@@ -638,6 +666,7 @@ testB7();
 testB8();
 testB9();
 testB10();
+testO9();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
