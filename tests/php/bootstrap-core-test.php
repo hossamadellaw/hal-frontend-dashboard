@@ -578,6 +578,8 @@ function hal_test_main(): void {
 		array( 'action', 'init', 10 ),
 		array( 'action', 'admin_init', 10 ),
 		array( 'action', 'wp_enqueue_scripts', 20 ),
+		// v1.0.7 REC-2: كتلة dequeue ZIP AI على HAL (بعد setup.php:754، أولوية 20).
+		array( 'action', 'wp_enqueue_scripts', 20 ),
 		array( 'action', 'wp_enqueue_scripts', 999 ),
 		array( 'action', 'wp_enqueue_scripts', 999 ),
 		array( 'filter', 'body_class', 10 ),

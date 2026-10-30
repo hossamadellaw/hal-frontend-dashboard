@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build:
     name: Gates, tests, build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -449,7 +449,7 @@ jobs:
   sign:
     name: Sign raw manifest bytes
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -528,7 +528,7 @@ jobs:
   assemble:
     name: Assemble carrier tree, freeze manifest
     needs: [build, sign]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -613,7 +613,7 @@ jobs:
   sign-carrier:
     name: Sign carrier manifest bytes
     needs: [build, assemble]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -691,7 +691,7 @@ jobs:
   publish:
     name: Draft, re-download verify, publish
     needs: [build, sign, assemble, sign-carrier]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -792,7 +792,7 @@ jobs:
           TAG="v$VERSION"
           ASSET="hal-frontend-dashboard-$VERSION.zip"
           ( cd "$FINAL" && gh release create "$TAG" --draft --title "$TAG" \
-            --notes "HAL Frontend Dashboard $TAG. Fix: register the unauthenticated health-check loopback handler in the runtime bootstrap (wp_ajax_nopriv_hal_frontend_dashboard_boot_health) so release activation acknowledgement is reachable; verified against the unpacked carrier runtime. Verify: sha256 $(cut -d' ' -f1 < "$ASSET.sha256"), runtime $(cut -d' ' -f1 < "$PUB/runtime-$VERSION.zip.sha256")." \
+            --notes "HAL Frontend Dashboard $TAG. Editor recovery: the rich editor stays the v1.0.7 embed path inside the HAL panel (no modes switch, no official-editor interface; the textarea stays the field of truth); the overview gates appointments behind Amelia readiness (plugin active and its three tables present, fail-closed) so the dashboard home no longer surfaces the lazy endpoint's 503; ZIP AI front assets (zip-ai-sidebar) are dequeued on HAL pages only with safe existence checks, admin path untouched (REC-2, classification recorded at post-release acceptance); re-initialization regression test O9 keeps registerCoreBlocks at one call per page (29/29); PHP 8.3 pinned in CI. Verify: sha256 $(cut -d' ' -f1 < "$ASSET.sha256"), runtime $(cut -d' ' -f1 < "$PUB/runtime-$VERSION.zip.sha256")." \
             "$ASSET#$ASSET" "$ASSET.sha256" "$PUB/runtime-manifest.json" "$PUB/runtime-manifest.sig" )
           DL="$RUNNER_TEMP/hal-redl" && rm -rf "$DL" && mkdir -p "$DL"
           gh release download "$TAG" --dir "$DL" --pattern "$ASSET"

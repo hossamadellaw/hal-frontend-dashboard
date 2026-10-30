@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -12,11 +12,11 @@ Carrier metadata and installation entry point for HAL Frontend Dashboard.
 
 == Description ==
 
-HAL Frontend Dashboard ships as a small WordPress Carrier with an independently managed, signed MU Runtime release. The runtime bootstrap registers the unauthenticated health-check loopback handler so release activation acknowledgement is reachable, and the unpacked carrier runtime is verified with the health wiring regression test before publishing.
+HAL Frontend Dashboard ships as a small WordPress Carrier with an independently managed, signed MU Runtime release. The runtime serves the HAL frontend dashboard on the owned page — posts with the rich editor embedded in the HAL panel (the textarea stays the field of truth), files, and appointments behind an Amelia readiness gate (plugin active and its three tables present) — the runtime bootstrap registers the health-check loopback handler so release activation acknowledgement is reachable, and the unpacked carrier runtime is verified with the health wiring regression test before publishing.
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.0.7.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.0.8.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,15 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.0.8 =
+* Editor recovery release (Docs/versions/v1.0.8.md REV3.1): the rich editor stays the v1.0.7 embed path inside the HAL panel — no modes switch and no official-editor interface in this version (OEB is a separate v1.0.9 draft).
+* S4/503 fix: the overview readiness gate requires the Amelia plugin active AND its three tables present (fail-closed function_exists guards) before $sees_calendar turns true, so the appointments card/script, the quick-actions branch, and the My Schedule button follow real readiness instead of surfacing the lazy endpoint's 503.
+* REC-2 self-hardening: ZIP AI front assets (the zip-ai-sidebar script and style) are dequeued on HAL dashboard pages only, after the registration priority with safe existence checks; the admin path is untouched and the classification (أ/ب/ج) is recorded at post-release acceptance.
+* Re-initialization regression test O9: re-initializing the embed after teardown keeps registerCoreBlocks at exactly one call per page (no Format "core/footnote" is already registered.); batch9-rich-editor is now 29/29.
+* CI: PHP 8.3 pinned explicitly — batch12-cutover requires 8.3.x literally and rejects 8.4+.
+* Version identity 1.0.8 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 7 (basis: archived A2 evidence).
+* UNVERIFIED: field gates stay unverified — the live acceptance session (classification أ/ب/ج + dequeue proof + A1-SEAL measurements), the non-admin writer checklist, and release_sequence (recorded locally as 7; the tag/publish chain is a separate owner-delegated step).
 
 = 1.0.7 =
 * Local implementation of Docs/versions/v1.0.7.md clauses on the existing files only: posts.js rich-editor capture fixes marked [B9-09] — silent skip when the editor state is absent (user text preserved) with diagnostics only for not-ready/sequencing states, an idempotent editor-root registry with an inner container, and deferred textarea hiding only on the first real frame signal (a 10s probe cap leaves the textarea visible when no signal arrives).

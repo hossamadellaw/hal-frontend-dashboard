@@ -1068,6 +1068,53 @@ function b7_mode_main( string $project ): void {
 		'overview renders from explicit named args (no get_defined_vars)',
 		'overview output missing expected markers' );
 
+	/* 9.5 v1.0.8 S4 (2026-10-29) — readiness gate on the locally recomputed
+	 * $sees_calendar (document §3.2). The part recomputes the variable, so
+	 * the explicit 'sees_calendar' arg does not reach the gate; the amelia
+	 * decision is seeded and the stub flag flips the table state per case
+	 * (the real helper's static cache never loads — see the stubs above).
+	 * Line references below follow the v1.0.7 numbering used by the
+	 * governing document (:98/:143/:214/:242). */
+	$GLOBALS['B7_CAPS'] = array( 'manage_options' => true );
+	b7_enable_all_features();
+	b7_seed_amelia_registry();
+	/* Dedicated args: sees_content=false keeps the :98 card reachable and
+	 * can_upload=true gives the :214 no-calendar card its only unique
+	 * textual marker ("Upload File"). esc_html encodes apostrophes, so
+	 * markers avoid them. */
+	$s4_args = array(
+		'sees_content' => false, 'sees_calendar' => false, 'stat_all' => 3, 'stat_pending' => 1,
+		'stat_published' => 2, 'stat_draft' => 0, 'activity_query' => new B7_WpQuery(),
+		'can_upload' => true,
+	);
+	$GLOBALS['B7_AMELIA_TABLES_READY'] = true;
+	$s4_ready_html = b7_capture_part( 'overview', $s4_args );
+	b7_check( 'S4-ready-card-and-script',
+		false !== strpos( $s4_ready_html, 'id="appts-wrap"' )
+		&& false !== strpos( $s4_ready_html, 'hossam_get_upcoming_appointments' ),
+		'three amelia tables present -> the appointments card and its lazy-load script render from the overview',
+		'ready state missing the appointments card or its script' );
+	b7_check( 'S4-ready-calendar-items-track-variable',
+		false !== strpos( $s4_ready_html, 'View My Schedule' )
+		&& false !== strpos( $s4_ready_html, "data-panel=appointments]'),'appointments'" )
+		&& false === strpos( $s4_ready_html, 'Upload File' ),
+		'with readiness, the :98 card and the :242 My Schedule button render and the :214 no-calendar card does not',
+		'ready state did not track the calendar items' );
+	$GLOBALS['B7_AMELIA_TABLES_READY'] = false;
+	$s4_notready_html = b7_capture_part( 'overview', $s4_args );
+	b7_check( 'S4-notready-no-card-no-script-no-call',
+		false === strpos( $s4_notready_html, 'id="appts-wrap"' )
+		&& false === strpos( $s4_notready_html, 'hossam_get_upcoming_appointments' ),
+		'one missing amelia table -> no appointments card, no script and no lazy call from the overview',
+		'not-ready state still rendered the appointments card or script' );
+	b7_check( 'S4-notready-calendar-items-track-variable',
+		false === strpos( $s4_notready_html, 'View My Schedule' )
+		&& false === strpos( $s4_notready_html, "data-panel=appointments]'),'appointments'" )
+		&& false !== strpos( $s4_notready_html, 'Upload File' ),
+		'without readiness, the :98 card and the :242 My Schedule button disappear and the :214 no-calendar card renders',
+		'not-ready state did not track the calendar items' );
+	$GLOBALS['B7_AMELIA_TABLES_READY'] = true;
+
 	/* 10. Static scan (code only — comments stripped via tokens): no
 	 * get_template_part / child-theme path helpers remain in the migrated
 	 * template surfaces and the shared controller. */
@@ -1671,6 +1718,32 @@ function b7_mode_controller_wpml( string $project ): void {
 		'the WPML translation of the owned page receives the runtime template',
 		'translation page did not resolve to the runtime template' );
 	b7_result_line( 'controller-wpml' );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * v1.0.8 S4 stubs (2026-10-29) — defined BEFORE the first
+ * b7_require_runtime() call in every process: adapters/amelia.php
+ * guards both helpers with function_exists (PROBE1=PASS, adjudication
+ * appendix 3), so these definitions win and the real helpers — with
+ * their per-process static cache (adapters/amelia.php:107-127) — never
+ * load. The flag below is the per-case switch (tables ready / one
+ * table missing) that the static cache would otherwise forbid within
+ * one process. Default is ready=true so every pre-existing mode keeps
+ * its pre-v1.0.8 behaviour.
+ * ════════════════════════════════════════════════════════════════ */
+if ( ! function_exists( 'hossam_amelia_is_active' ) ) {
+	function hossam_amelia_is_active(): bool {
+		return true;
+	}
+}
+if ( ! function_exists( 'hossam_amelia_table_exists' ) ) {
+	function hossam_amelia_table_exists( string $table_suffix ): bool {
+		if ( true !== ( $GLOBALS['B7_AMELIA_TABLES_READY'] ?? true ) ) {
+			/* Negative case: exactly one of the three tables is missing. */
+			return 'amelia_employees' !== $table_suffix;
+		}
+		return true;
+	}
 }
 
 /* ════════════════════════════════════════════════════════════════

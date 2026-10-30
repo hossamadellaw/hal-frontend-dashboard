@@ -28,11 +28,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 $overview_amelia = function_exists( 'hossam_get_integration_decision' )
     ? hossam_get_integration_decision( 'amelia' )
     : [ 'status' => 'unavailable' ];
-$sees_calendar = 'unavailable' !== $overview_amelia['status'] && (
-    current_user_can( 'manage_options' )
-    || current_user_can( 'view_amelia_calendar_all' )
-    || current_user_can( 'view_amelia_calendar' )
-    )
+// v1.0.8 (2026-10-29) — بوابة جاهزية S4 على $sees_calendar (توصية الفرق الثلاثة المعتمدة — D13:
+// النقطة الكسولة تقيس الجداول في ajax/appointments.php:52-55 فتقيسها البوابة أيضًا).
+// تعديل تعريف المتغير يجري المواضع الخمسة تلقائيًا — والآثار الثلاثة مقصودة:
+// اختفاء بطاقة «جدول اليوم» (:98)، اختفاء بطاقة المواعيد وسكربتها (:143)،
+// تبديل الإجراءات السريعة وإخفاء زر «جدولي» (:214/:242).
+// خارج النطاق في v1.0.8: لوحة المواعيد الصريحة (ترجع 503 بالتصميم عند الفتح) والقائمة الجانبية (dashboard.php).
+// fail-closed: غياب أي دالة → $sees_calendar = false. شرطا القدرات والميزة باقيان كما هما.
+$sees_calendar = 'unavailable' !== $overview_amelia['status']
+    && function_exists( 'hossam_amelia_is_active' )
+    && hossam_amelia_is_active()
+    && function_exists( 'hossam_amelia_table_exists' )
+    && hossam_amelia_table_exists( 'amelia_appointments' )
+    && hossam_amelia_table_exists( 'amelia_employees' )
+    && hossam_amelia_table_exists( 'amelia_services' )
+    && (
+        current_user_can( 'manage_options' )
+        || current_user_can( 'view_amelia_calendar_all' )
+        || current_user_can( 'view_amelia_calendar' )
+        )
     && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'amelia' );
 ?>
     <!-- ══ PANEL: OVERVIEW ══ -->

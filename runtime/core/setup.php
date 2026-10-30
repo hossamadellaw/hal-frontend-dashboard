@@ -754,6 +754,19 @@ add_action( 'wp_enqueue_scripts', function(): void {
     ] );
 }, 20 );
 
+// v1.0.8 (2026-10-29) — REC-2 — تحصين ذاتي معتمد من المالك؛ التصنيف أ/ب/ج
+// بقبول ما بعد النشر (§4/2)؛ قابل للإزالة بمعزل.
+add_action( 'wp_enqueue_scripts', function(): void {
+    if ( ! hossam_is_dashboard() ) return;
+
+    if ( function_exists( 'wp_script_is' ) && wp_script_is( 'zip-ai-sidebar', 'enqueued' ) ) {
+        wp_dequeue_script( 'zip-ai-sidebar' );
+    }
+    if ( function_exists( 'wp_style_is' ) && wp_style_is( 'zip-ai-sidebar', 'enqueued' ) ) {
+        wp_dequeue_style( 'zip-ai-sidebar' );
+    }
+}, 20 );
+
 add_action( 'wp_enqueue_scripts', function(): void {
     if ( ! hossam_is_dashboard() ) return;
     wp_dequeue_style( 'elementor-frontend' );
