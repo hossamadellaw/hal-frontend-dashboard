@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build:
     name: Gates, tests, build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -449,7 +449,7 @@ jobs:
   sign:
     name: Sign raw manifest bytes
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -528,7 +528,7 @@ jobs:
   assemble:
     name: Assemble carrier tree, freeze manifest
     needs: [build, sign]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -613,7 +613,7 @@ jobs:
   sign-carrier:
     name: Sign carrier manifest bytes
     needs: [build, assemble]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -691,7 +691,7 @@ jobs:
   publish:
     name: Draft, re-download verify, publish
     needs: [build, sign, assemble, sign-carrier]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
