@@ -297,6 +297,8 @@ define( 'ABSPATH', $ws . '/wp/' );
 $GLOBALS['wp_version'] = '7.1';
 function wp_die( $message = '', $title = '', $args = array() ) { echo 'WPDIE:' . $message; exit; }
 function register_activation_hook( $file, $callback ) { return true; }
+// تفويض المالك #1 (2026-11-02): stub لتوقيع النواة register_deactivation_hook — يدوّن النداء في سجل يُفحص لاحقًا (الملف الرئيسي :91)
+function register_deactivation_hook( $file, $callback ) { $GLOBALS['HAL_TEST_DEACTIVATION_HOOKS'][] = array( 'file' => $file, 'callback' => $callback ); }
 function plugin_dir_path( $file ) { return rtrim( dirname( $file ), '/\\' ) . DIRECTORY_SEPARATOR; }
 function wp_parse_url( string $url, int $component = -1 ) { return parse_url( $url, $component ); }
 function home_url( string $path = '' ): string { return 'https://example.test/' . ltrim( $path, '/' ); }

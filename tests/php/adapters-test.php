@@ -812,8 +812,9 @@ function b4_mode( string $mode, array $args, string $project ): void {
 					return false === strpos( $path, '/runtime/bootstrap.php' );
 				}
 			) );
-		b4_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-			'exactly 30 runtime module files load (bootstrap aside: 18 through batch 4 + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
+		// تفويض المالك #1 (2026-11-02): 30→32 — الملفان المصرحان core/rate-limits.php وcore/audit-log.php (مرحلة 1) داخل الجرد الصارم نفسه.
+		b4_check( 'L2', count( array_unique( $module_included ) ) === 32 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+			'exactly 32 runtime module files load (bootstrap aside: 20 through batch 4 incl. the batch-14 core/rate-limits.php + core/audit-log.php + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 				'unexpected runtime file set: ' . json_encode( $relative ) );
 
 			$signatures = array(

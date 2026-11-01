@@ -88,3 +88,4 @@ function hal_frontend_dashboard_activate( $network_wide = false ) {
 }
 
 register_activation_hook( __FILE__, 'hal_frontend_dashboard_activate' );
+register_deactivation_hook( __FILE__, static function (): void { wp_clear_scheduled_hook( 'hossam_dashboard_retention_sweep_event' ); } );

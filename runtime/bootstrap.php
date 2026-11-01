@@ -73,6 +73,8 @@ require_once $hal_runtime_root . 'core/i18n.php';
 require_once $hal_runtime_root . 'core/tables.php';
 require_once $hal_runtime_root . 'core/permissions.php';
 require_once $hal_runtime_root . 'core/notifications.php';
+require_once $hal_runtime_root . 'core/rate-limits.php';
+require_once $hal_runtime_root . 'core/audit-log.php';
 
 // ══════════════════════════════════════════════════════════════
 // BACKEND — الدفعة 3: الإعدادات والأسرار وسجل التكاملات والصحة

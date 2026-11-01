@@ -43,6 +43,11 @@ function register_activation_hook( $file, $callback ) {
 	$GLOBALS['HAL_TEST_ACTIVATION_HOOK'] = array( 'file' => $file, 'callback' => $callback );
 	return true;
 }
+// تفويض المالك #1 (2026-11-02): stub لتوقيع النواة register_deactivation_hook — يدوّن النداء في سجل يُفحص لاحقًا (الملف الرئيسي :91)
+function register_deactivation_hook( $file, $callback ) {
+	$GLOBALS['HAL_TEST_DEACTIVATION_HOOKS'][] = array( 'file' => $file, 'callback' => $callback );
+	return true;
+}
 function plugin_dir_path( $file ) {
 	return rtrim( dirname( $file ), '/\\' ) . DIRECTORY_SEPARATOR;
 }
@@ -1073,6 +1078,8 @@ $act_state_dir = rtrim( WPMU_PLUGIN_DIR, '\\' ) . '/hal-frontend-dashboard/state
 
 function plugin_dir_path( $f ) { return rtrim( dirname( $f ), '/\\' ) . DIRECTORY_SEPARATOR; }
 function register_activation_hook( $f, $cb ) { $GLOBALS['HAL_ACT_HOOK'] = $cb; }
+// تفويض المالك #1 (2026-11-02): stub لتوقيع النواة register_deactivation_hook — يدوّن النداء في سجل يُفحص لاحقًا (الملف الرئيسي :91)
+function register_deactivation_hook( $f, $cb ) { $GLOBALS['HAL_TEST_DEACTIVATION_HOOKS'][] = array( 'file' => $f, 'callback' => $cb ); }
 function get_filesystem_method() { return 'direct'; }
 function is_multisite() { return false; }
 // Batch-3 acceptance (§15.14): the real activation path must grant the
@@ -1289,6 +1296,8 @@ function is_wp_error( $t ) { return false; }
 function wp_remote_retrieve_response_code( $r ) { return $r['code']; }
 function wp_remote_retrieve_body( $r ) { return $r['body']; }
 function register_activation_hook( $f, $c ) { return true; }
+// تفويض المالك #1 (2026-11-02): stub لتوقيع النواة register_deactivation_hook — يدوّن النداء في سجل يُفحص لاحقًا (الملف الرئيسي :91)
+function register_deactivation_hook( $f, $c ) { $GLOBALS['HAL_TEST_DEACTIVATION_HOOKS'][] = array( 'file' => $f, 'callback' => $c ); }
 function get_filesystem_method() { return 'direct'; }
 function is_multisite() { return false; }
 
@@ -1751,6 +1760,8 @@ $script0 = <<<'PHP'
 define( 'ABSPATH', $argv[2] );
 $GLOBALS['HAL_TEST_ACTIVATION_HOOK'] = null;
 function register_activation_hook( $f, $c ) { $GLOBALS['HAL_TEST_ACTIVATION_HOOK'] = array( $f, $c ); return true; }
+// تفويض المالك #1 (2026-11-02): stub لتوقيع النواة register_deactivation_hook — يدوّن النداء في سجل يُفحص لاحقًا (الملف الرئيسي :91)
+function register_deactivation_hook( $f, $c ) { $GLOBALS['HAL_TEST_DEACTIVATION_HOOKS'][] = array( 'file' => $f, 'callback' => $c ); }
 function plugin_dir_path( $f ) { return rtrim( dirname( $f ), '/\\' ) . DIRECTORY_SEPARATOR; }
 $main = $argv[1];
 require $main;
