@@ -401,7 +401,6 @@ foreach ( $inventory['files'] as $f ) {
 
 $mappings = array(
 	'theme/assets/js/modules/bookings.js'     => 'runtime/assets/js/modules/bookings.js',
-	'theme/assets/js/modules/finance.js'      => 'runtime/assets/js/modules/finance.js',
 	'theme/assets/js/modules/store.js'        => 'runtime/assets/js/modules/store.js',
 	'theme/assets/js/modules/translations.js' => 'runtime/assets/js/modules/translations.js',
 );
@@ -424,6 +423,36 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
 		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
+}
+
+// تفويض المالك #1 (2026-11-02): R20 esc->escAttr — تحديث قيمة لا صرامة
+// finance.js خرجت عن المصدر الحصري عمدًا: المرحلة 3 المصرحة عدّلتها
+// (esc→escAttr) والقيمة الحالية مملوكة أمنيًا ببصمة T9
+// (batch14-security-closures T9-PAYMENT-finance-js-render-safety).
+// الصرامة باقية: الـruntime مثبَّت حرفيًا على البصمة المصرحة ac0dca88…،
+// وحصر المصدر الحصري بالمخزون المرجعي (3392e72c…) باقٍ محفوظًا،
+// والانحراف نفسه مفروض (لا يسوى ولا يُغتفر).
+$finance_legacy_rel = 'theme/assets/js/modules/finance.js';
+$finance_runtime_rel = 'runtime/assets/js/modules/finance.js';
+$finance_inv         = $inv_by_path[ $finance_legacy_rel ] ?? null;
+$finance_src_hash    = hash_file( 'sha256', $source_root . '/' . $finance_legacy_rel );
+$finance_dst_hash    = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $finance_runtime_rel );
+if ( ! $B10_LEGACY ) {
+	b10_check( 'B10-B1b-runtime-matches-inventory-finance.js',
+		null !== $finance_inv
+			&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === $finance_dst_hash,
+		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision (owner delegation #1) — live-legacy byte comparison skipped: root absent",
+		"{$finance_runtime_rel}: dest={$finance_dst_hash} expected=ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2" );
+	b10_skip( 'B10-B1-byte-identity-finance.js', 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
+} else {
+	b10_check( 'B10-B1-byte-identity-finance.js',
+		null !== $finance_inv
+			&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === $finance_dst_hash
+			&& $finance_src_hash === $finance_inv['sha256']
+			&& (int) filesize( $source_root . '/' . $finance_legacy_rel ) === (int) $finance_inv['bytes']
+			&& $finance_src_hash !== $finance_dst_hash,
+		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision ac0dca88… (owner delegation #1; pre-R20 3392e72c… stays the legacy source + inventory provenance) and the divergence is real",
+		"{$finance_runtime_rel}: source={$finance_src_hash} dest={$finance_dst_hash} inventory=" . ( $finance_inv['sha256'] ?? 'missing' ) );
 }
 
 // Audit-mandated deltas (B10-01/B10-02): the two fixed files intentionally

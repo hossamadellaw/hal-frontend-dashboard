@@ -1932,6 +1932,71 @@ function b5_mode_editor_mode( string $project ): void {
 		'off × editor: zero rich containers while both truth textareas remain',
 		'off editor render deviated (containers leaked)' );
 
+	// T10 (v1.1.0): الحقل الشرطي oeb_url — بند قبول R38.
+	// create/update × official × مدير ⇒ oeb_url حاضرًا بقيمة رابط محرر
+	// official (esc_url لـ post.php?post={ID}&action=edit)؛ × embed أو off
+	// أو غير مدير ⇒ الحقل غائب عن ردّ النجاح كليًا — بنفس محاكاة الرد
+	// القائمة (b5_begin_case + b5_call_ajax على المسجلات الحقيقية).
+	$set_mode( 'official' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r           = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$oeb_data    = b5_exit_data( $r );
+	$oeb_new_id  = (int) ( $oeb_data['post_id'] ?? 0 );
+	b5_check( 'E-OEBURL-OFFICIAL-ADMIN-create-has-esc-url',
+		b5_exit_is( $r, 200, true ) && $oeb_new_id >= 1
+			&& isset( $oeb_data['oeb_url'] )
+			&& false !== strpos( (string) $oeb_data['oeb_url'], 'post.php?post=' . $oeb_new_id . '&action=edit' ),
+		'official × manage_options: create success carries the conditional oeb_url with the official editor link (esc_url of post.php?post={ID}&action=edit)',
+		'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'New' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$oeb_data = b5_exit_data( $r );
+	b5_check( 'E-OEBURL-OFFICIAL-ADMIN-update-has-esc-url',
+		b5_exit_is( $r, 200, true )
+			&& isset( $oeb_data['oeb_url'] )
+			&& false !== strpos( (string) $oeb_data['oeb_url'], 'post.php?post=9&action=edit' ),
+		'official × manage_options: update success carries the conditional oeb_url with the official editor link of the updated article',
+		'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $editor_caps );
+	$r          = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$oeb_data   = b5_exit_data( $r );
+	$oeb_new_id = (int) ( $oeb_data['post_id'] ?? 0 );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $editor_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r2        = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$oeb_data2 = b5_exit_data( $r2 );
+	b5_check( 'E-OEBURL-OFFICIAL-NON-ADMIN-field-absent',
+		b5_exit_is( $r, 200, true ) && $oeb_new_id >= 1 && ! array_key_exists( 'oeb_url', $oeb_data )
+			&& b5_exit_is( $r2, 200, true ) && ! array_key_exists( 'oeb_url', $oeb_data2 ),
+		'official × non-manager: create/update success contracts stay intact with the oeb_url field absent entirely',
+		'got ' . json_encode( $r ) . ' | ' . json_encode( $r2 ) );
+
+	$set_mode( 'embed' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$embed_create = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$embed_update = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+
+	$set_mode( 'off' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$off_create = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$off_update = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_check( 'E-OEBURL-EMBED-AND-OFF-field-absent',
+		$embed_create && $embed_update && $off_create && $off_update,
+		'embed × manager and off × manager: the conditional oeb_url field is absent from all four success responses (create/update × embed/off)',
+		'embed_create=' . var_export( $embed_create, true ) . ' embed_update=' . var_export( $embed_update, true )
+			. ' off_create=' . var_export( $off_create, true ) . ' off_update=' . var_export( $off_update, true ) );
+
 	/* E-BRIDGE — جسر POST عبر handle_save_settings (ثلاثية مستقلة بنمط
 	 * settings-and-secrets admin-access): forbidden بلا capability؛
 	 * فاسد → save_failed؛ saved ثم إعادة العرض. */

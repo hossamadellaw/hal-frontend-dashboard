@@ -295,6 +295,21 @@ function hossamShowPostSuccessCard(form,d,message){
     s.textContent=t('seoLink','SEO');
     card.appendChild(s);
   }
+  /* [R38] v1.1.0 (H1 §7-1): رابط فتح المحرر الرسمي (OEB) في بطاقة النجاح —
+     حاضر شرطيًا مع oeb_url الخادمي (esc_url) في ردّي الإنشاء/التحديث فقط.
+     createElement/textContent حصرًا (بلا أي HTML حرفي)؛ المعترض hossamOebOpen
+     القائم (.js-oeb-open) يلتقطه تلقائيًا: نافذة+مراقب+عودة. النص بمفتاح
+     i18n oeb_open بنفس آلية الوصول t() التي يستعملها R39 لـoeb_manual_update. */
+  const oebUrl=d&&d.data&&d.data.oeb_url;
+  if(oebUrl){
+    const o=document.createElement('a');
+    o.href=oebUrl;
+    o.target='_blank';
+    o.rel='noopener';
+    o.className='js-oeb-open';
+    o.textContent=t('oeb_open','Open in OEB');
+    card.appendChild(o);
+  }
   form.insertBefore(card,form.firstChild);
 }
 hossamBindThumbnailPicker('hossam-new-thumbnail-btn','hossam-new-thumbnail','hossam-new-thumbnail-preview','hossam-new-thumbnail-remove');

@@ -846,7 +846,7 @@ b14_check( 'T9-NONCE-static-single-conditional-site',
 	'nonce static deviated: sites=' . $nonce_sites . ' conditional=' . var_export( $conditional, true )
 		. ' guard=' . var_export( $guard_line, true ) );
 
-/* posts.js fingerprint: byte-identical to HEAD (normalized) and to the H3 §6 recorded hash. */
+/* posts.js fingerprint: byte-identical to the recorded authorized revision (raw + normalized). */
 $posts_js_path = $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/posts.js';
 $posts_js_raw  = (string) file_get_contents( $posts_js_path );
 $posts_js_raw_hash = hash( 'sha256', $posts_js_raw );
@@ -854,10 +854,11 @@ $posts_js_lf_hash  = hash( 'sha256', str_replace( "\r\n", "\n", $posts_js_raw ) 
 $posts_js_head     = (string) shell_exec( 'git -C ' . escapeshellarg( $GLOBALS['B14_PROJECT'] ) . ' show HEAD:runtime/assets/js/modules/posts.js 2>&1' );
 $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // T9-phase3 (v1.1.0): بصمة محدثة للتعديلات المصرحة R18-R20/R21/R39 — تحديث قيمة لا صرامة
+// تفويض المالك #1 (2026-11-02): R38/H1 §7-1 رابط OEB ببطاقة النجاح — تحديث قيمة لا صرامة
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'a3768d6f256a2689ee81633c8cc71a62bf3a4665bb285d01bebf832eef1ffd81' === $posts_js_raw_hash
-		&& $posts_js_lf_hash === $posts_js_head_hash,
-	'posts.js is byte-identical to the H3 §6 recorded fingerprint and to its HEAD blob (line-ending-normalized) — zero JS drift from the nonce row (H3 §1.5-4)',
+	'7038b5f0daeb7f442c651b469a63540d002aed40b71df7b75833fa0ec2b12965' === $posts_js_raw_hash
+		&& '32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_lf_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized R38 success-card row (H3 §1.5-4)',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════
