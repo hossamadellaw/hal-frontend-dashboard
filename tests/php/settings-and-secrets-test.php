@@ -305,6 +305,17 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 		return json_encode( $value, $flags );
 	}
 }
+// تفويض المالك #1 (2026-11-02): R29 — stub دالة نواة ناقصة بفئة (ب)
+// بنمط الـharness. نداء settings_save داخل مسار الحفظ (G4 §3-أ-15) ينادي
+// hossam_audit_log من runtime/core/audit-log.php — كاتبه الحقيقي يكتب في
+// جدول DB عبر $wpdb لا يحاكيه هذا الـharness إطلاقًا، فتعريفه هنا (قبل
+// التحميل) يجعل الguard الخاص بالنواة يتخطى التعريف الحقيقي. لا لمس لأي
+// تأكيد قائم ولا تغيير دلالة — صفر صفوف متوقعة في harness بلا DB.
+if ( ! function_exists( 'hossam_audit_log' ) ) {
+	function hossam_audit_log( string $event_action, array $context = array() ): bool {
+		return true;
+	}
+}
 if ( ! function_exists( 'wp_parse_url' ) ) {
 	function wp_parse_url( string $url, int $component = -1 ) {
 		return parse_url( $url, $component );

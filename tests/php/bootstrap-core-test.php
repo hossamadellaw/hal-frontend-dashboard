@@ -149,6 +149,16 @@ if ( ! function_exists( 'is_admin' ) ) {
 	}
 }
 
+// تفويض المالك #1 (2026-11-02): R31/R32 — stub دالة نواة ناقصة (فئة ب):
+// setup.php's init callback now opens with the R32 cron/CLI guard calling
+// wp_doing_cron(); this harness simulates ordinary front-end requests,
+// so the stub returns false and the guard falls through to is_admin().
+if ( ! function_exists( 'wp_doing_cron' ) ) {
+	function wp_doing_cron(): bool {
+		return false;
+	}
+}
+
 // Batch-4: the real wpml adapter is loaded, so setup.php's init callback
 // now reaches hossam_wpml_all_paths() — these WordPress boundary stubs
 // keep that callback executable in this harness (no pages exist → the

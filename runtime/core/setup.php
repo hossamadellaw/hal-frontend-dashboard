@@ -510,6 +510,7 @@ add_action( 'after_setup_theme', function(): void {
 } );
 
 add_action( 'init', function(): void {
+    if ( wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) ) { return; }
     if ( is_admin() ) return;
 
     $uri             = $_SERVER['REQUEST_URI'] ?? '';
@@ -686,13 +687,14 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // v1.0.6 §9: إعدادات المحرر الغني على hossam-dashboard-posts — كائن
     // مستقل hossamRichEditor (hossamAjax أعلاه كما هو بلا تغيير، B9-E3 سليم).
     // enabled=false يعني بقاء الـtextarea ظاهرًا؛ canUpload يعكس upload_files
-    // (شرط منفصل للوسائط)؛ REST/Nonce من WordPress لمسار الرفع الرسمي
-    // (uploadMedia) — لا endpoint جديد.
+    // (شرط منفصل للوسائط)؛ REST/Nonce يُصدر مشروطًا بتمكين المحرر وupload_files؛
+    // '' غيره (uploadMedia) — لا endpoint جديد.
+    $hossam_rich_can_upload = $hossam_rich_enabled && current_user_can( 'upload_files' );
     wp_localize_script( 'hossam-dashboard-posts', 'hossamRichEditor', [
         'enabled'   => $hossam_rich_enabled,
         'canUpload' => current_user_can( 'upload_files' ),
         'restRoot'  => function_exists( 'rest_url' ) ? rest_url() : '',
-        'restNonce' => wp_create_nonce( 'wp_rest' ),
+        'restNonce' => $hossam_rich_can_upload ? wp_create_nonce( 'wp_rest' ) : '',
         'isRtl'     => function_exists( 'hossam_wpml_is_rtl' ) ? hossam_wpml_is_rtl() : is_rtl(),
         'reason'    => $hossam_rich_reason,
     ] );

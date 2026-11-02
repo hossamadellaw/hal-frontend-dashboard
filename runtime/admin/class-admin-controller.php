@@ -217,6 +217,22 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 		}
 
 		$saved = HAL_Frontend_Dashboard_Settings_Repository::save( $settings );
+
+		// R29 (G4 §3-أ-15): settings_save بعد نجاح save() حصرًا وقبل
+		// redirect_back — بguard is_wp_error ففشل الحفظ صفر صفوف. meta
+		// keys بأسماء مفاتيح الأقسام المكتوبة حصرًا لا قيم إطلاقًا،
+		// object_id NULL بنمط الأشقاء، وقيمة الإرجاع تُتجاهل عمدًا
+		// (G4 §5) — لا مساس بمنطق الحفظ ولا بالقدرات ولا بالredirect.
+		if ( ! is_wp_error( $saved ) ) {
+			hossam_audit_log(
+				'settings_save',
+				array(
+					'object_id' => null,
+					'meta'      => array( 'keys' => array_keys( $settings ) ),
+				)
+			);
+		}
+
 		// B3-02: فشل كتابة فعلي (بعد اجتياز التحقق) يظهر save_failed —
 		// عدم التغيير يظهر saved دون كتابة زائفة.
 		self::redirect_back( self::requested_tab(), is_wp_error( $saved ) ? 'save_failed' : 'saved' );
