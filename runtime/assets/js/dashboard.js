@@ -253,6 +253,7 @@ updateClock();
    XSS ESCAPE HELPER
 ════════════════════════════════════════════════════════════════ */
 function esc(s){ const d=document.createElement('div'); d.textContent=String(s); return d.innerHTML; }
+function escAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 /* ════════════════════════════════════════════════════════════════
    SKELETON LOADING  [J-03]

@@ -52,6 +52,14 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	const AI_PREFERENCES = array( 'auto', 'wp_ai_client', 'direct_key' );
 
 	/**
+	 * OEB/1 (H1 §3): أوضاع المحرر الغني — مفتاح مستقل شقيق
+	 * ai_preference وليس عضوًا في FEATURES (عقد FEATURES منطقي بحت
+	 * لا يُكسر). الافتراضي embed = سلوك اليوم حرفيًا (fail-closed)
+	 * حتى قرار مالك صريح.
+	 */
+	const EDITOR_MODES = array( 'official', 'embed', 'off' );
+
+	/**
 	 * أنواع صور الشعار المسموحة (معمارية §7.6 Branding): PNG/JPEG/WebP؛
 	 * SVG مرفوض افتراضيًا ولا يقبل إلا Change Request مستقل.
 	 */
@@ -71,7 +79,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	/**
 	 * الحالة الكاملة بعد الدمج مع defaults والتحقق من schema.
 	 *
-	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string}
+	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string, rich_editor_mode:string}
 	 */
 	public static function get_all(): array {
 		$blog = self::cache_blog_id();
@@ -98,11 +106,21 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$ai_preference = (string) $stored['ai_preference'];
 		}
 
+		// OEB/1 (H1 §3): تطبيع وضع المحرر الغني fail-closed — غياب
+		// المفتاح أو أي قيمة خارج EDITOR_MODES يعود embed (نمط تطبيع
+		// ai_preference أعلاه): الترقية لا تغيّر شيئًا لأي موقع قبل
+		// قرار مالك صريح.
+		$editor_mode = 'embed';
+		if ( isset( $stored['rich_editor_mode'] ) && in_array( $stored['rich_editor_mode'], self::EDITOR_MODES, true ) ) {
+			$editor_mode = (string) $stored['rich_editor_mode'];
+		}
+
 		self::$cache[ $blog ] = array(
 			'schema_version'         => self::SCHEMA_VERSION,
 			'features'               => $features,
 			'branding_attachment_id' => $attachment_id > 0 ? $attachment_id : 0,
 			'ai_preference'          => $ai_preference,
+			'rich_editor_mode'       => $editor_mode,
 		);
 		return self::$cache[ $blog ];
 	}
@@ -131,6 +149,27 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 */
 	public static function get_ai_preference(): string {
 		return self::get_all()['ai_preference'];
+	}
+
+	/**
+	 * OEB/1 (H1 §3): الوضع المطبَّع الخام لمفتاح rich_editor_mode
+	 * الشقيق — غياب/فاسد طُبِّع embed في get_all() (fail-closed)؛
+	 * نمط get_ai_preference.
+	 */
+	public static function get_rich_editor_mode(): string {
+		return self::get_all()['rich_editor_mode'];
+	}
+
+	/**
+	 * OEB/1 (H1 §3): الوضع الفعلي للمحرر الغني — المفتاح القائم
+	 * rich_editor يبقى الرئيس fail-closed للسطح الغني كله: تعطيله
+	 * يجعل الوضع الفعلي off بغض النظر عن rich_editor_mode.
+	 */
+	public static function get_effective_editor_mode(): string {
+		if ( ! self::is_feature_enabled( 'rich_editor' ) ) {
+			return 'off';
+		}
+		return self::get_rich_editor_mode();
 	}
 
 	/**
@@ -163,7 +202,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 * المفاتيح المجهولة كليًا (لا shapes مجهولة — §14). لا تُقبل
 	 * أسرار هنا إطلاقًا.
 	 *
-	 * @param array{features?:array<string,bool>, branding_attachment_id?:int, ai_preference?:string} $settings
+	 * @param array{features?:array<string,bool>, branding_attachment_id?:int, ai_preference?:string, rich_editor_mode?:string} $settings
 	 * @return true|WP_Error
 	 */
 	public static function save( array $settings ) {
@@ -210,8 +249,18 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['ai_preference'] = $preference;
 		}
 
+		// OEB/1 (H1 §3): كتلة rich_editor_mode بنمط ai_preference حرفيًا
+		// — لا قيم خارج EDITOR_MODES إطلاقًا.
+		if ( array_key_exists( 'rich_editor_mode', $settings ) ) {
+			$editor_mode = $settings['rich_editor_mode'];
+			if ( ! is_string( $editor_mode ) || ! in_array( $editor_mode, self::EDITOR_MODES, true ) ) {
+				return new WP_Error( 'hal_settings_rich_editor_mode_invalid', 'rich_editor_mode must be one of the allowlisted values.' );
+			}
+			$current['rich_editor_mode'] = $editor_mode;
+		}
+
 		foreach ( $settings as $key => $value ) {
-			if ( ! in_array( $key, array( 'features', 'branding_attachment_id', 'ai_preference' ), true ) ) {
+			if ( ! in_array( $key, array( 'features', 'branding_attachment_id', 'ai_preference', 'rich_editor_mode' ), true ) ) {
 				return new WP_Error( 'hal_settings_unknown_key', 'Unknown settings key.' );
 			}
 		}
@@ -241,6 +290,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 		$payload['features'] = $merged_features;
 		$payload['branding_attachment_id'] = $current['branding_attachment_id'];
 		$payload['ai_preference'] = $current['ai_preference'];
+		$payload['rich_editor_mode'] = $current['rich_editor_mode'];
 		if ( ! $newer_schema ) {
 			$payload['schema_version'] = self::SCHEMA_VERSION;
 		}

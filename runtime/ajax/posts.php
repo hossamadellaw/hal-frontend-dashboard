@@ -447,7 +447,14 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
     ] );
 
     $hossam_links = hossam_article_link_payload( $post_id );
-    wp_send_json_success( [
+    // صف R38 (OEB/4 — H1 §6-6): oeb_url حقل استجابة فقط في ردّ النجاح —
+    // لا endpoint جديد. مشروط بالوضع الفعلي official (مصدره
+    // get_effective_editor_mode() حصرًا) × المسند الموحد
+    // current_user_can('manage_options')؛ قيمته رابط محرر official
+    // (post.php?post={ID}&action=edit) للحقل المُنشأ. عند عدم تحقق الشرط
+    // الحقل غير حاضر (posts.js يتجاهل المجهول) وعقود الاستجابة القائمة
+    // بلا تغيير.
+    $hossam_success = [
         'post_id'     => $post_id,
         'edit_url'    => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $post_id ], hossam_dashboard_url() ),
         'view_url'    => $hossam_links['view_url'],
@@ -455,7 +462,12 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
         // R8 دلتا 2: حقل language إضافي غير كاسر — posts.js يتجاهل المفاتيح
         // المجهولة (صفر لمس JS).
         'language'    => function_exists('hossam_wpml_get_post_language') ? hossam_wpml_get_post_language( $post_id ) : '',
-    ] );
+    ];
+    if ( 'official' === HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
+        && current_user_can( 'manage_options' ) ) {
+        $hossam_success['oeb_url'] = esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) );
+    }
+    wp_send_json_success( $hossam_success );
 } );
 
 
@@ -532,11 +544,20 @@ add_action( 'wp_ajax_hossam_update_article', function(): void {
     ] );
 
     $hossam_links = hossam_article_link_payload( $post_id );
-    wp_send_json_success( [
+    // صف R38 (OEB/4 — H1 §6-6): oeb_url حقل استجابة فقط — نفس شرط
+    // الإنشاء: الوضع الفعلي official (من get_effective_editor_mode()
+    // حصرًا) × manage_options؛ قيمته رابط محرر official للمقال
+    // المحدَّث؛ خلاف ذلك الحقل غير حاضر — عقود الاستجابة القائمة بلا تغيير.
+    $hossam_success = [
         'post_id'     => $post_id,
         'view_url'    => $hossam_links['view_url'],
         'preview_url' => $hossam_links['preview_url'],
-    ] );
+    ];
+    if ( 'official' === HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
+        && current_user_can( 'manage_options' ) ) {
+        $hossam_success['oeb_url'] = esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) );
+    }
+    wp_send_json_success( $hossam_success );
 } );
 
 

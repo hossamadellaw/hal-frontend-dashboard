@@ -90,7 +90,7 @@ async function loadNotifications(){
     list.innerHTML=data.length
       ? data.map(n=>{
           const msgHtml=n.url
-            ?`<a href="${esc(n.url)}" class="notif-msg">${esc(n.message_text||n.message)}</a>`
+            ?`<a href="${escAttr(n.url)}" class="notif-msg">${esc(n.message_text||n.message)}</a>`
             :`<div class="notif-msg">${esc(n.message_text||n.message)}</div>`;
           return `<div class="notif-item${String(n.is_read)==="0"?" unread":""}"
             onclick="markNotifRead(${parseInt(n.id,10)||0},this,event)" data-id="${parseInt(n.id,10)||0}">

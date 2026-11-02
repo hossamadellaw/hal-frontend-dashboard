@@ -596,6 +596,25 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' ) ) {
 			}
 			return false;
 		}
+		// تفويض المالك #1 (2026-11-02): R37/R38/R40 — stub نواة ناقصة (فئة ب):
+		// قارئا وضع OEB/1 على نمط الحقيقي
+		// (runtime/settings/class-settings-repository.php:159-173) ليتمكن
+		// هذا الجناح من بلوغ مسار الوضع في بوابة OEB/3 بsetup.php.
+		// get_rich_editor_mode يقرأ B9_EDITOR_MODE (افتراضي embed كالحقيقي)،
+		// وget_effective_editor_mode يطوي rich_editor مغلقًا → off. غياب
+		// B9_EDITOR_MODE يُبقي سلوك الفحوص القائمة R1-R5 كما هو حرفيًا —
+		// إكمال لا إضعاف: لا تأكيد حُذف ولا دلالة تغيّرت.
+		public static function get_rich_editor_mode(): string {
+			return isset( $GLOBALS['B9_EDITOR_MODE'] ) && in_array( $GLOBALS['B9_EDITOR_MODE'], array( 'official', 'embed', 'off' ), true )
+				? (string) $GLOBALS['B9_EDITOR_MODE']
+				: 'embed';
+		}
+		public static function get_effective_editor_mode(): string {
+			if ( ! self::is_feature_enabled( 'rich_editor' ) ) {
+				return 'off';
+			}
+			return self::get_rich_editor_mode();
+		}
 	}
 }
 

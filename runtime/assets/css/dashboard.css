@@ -1050,3 +1050,68 @@ textarea.hossam-rich-hidden{display:none}
 [dir="rtl"] .hossam-rich-editor{direction:rtl;text-align:right}
 [dir="rtl"] .hossam-rich-bar{flex-direction:row-reverse}
 [dir="rtl"] .hossam-rich-editor-canvas{direction:rtl}
+
+/* ══════════════════════════════════════════════════════════════
+   [OEB-U1] v1.1.0 (OEB/6 — H1 §6-7) — أنماط زر OEB و<dialog>
+   ([B9-U1]/[B9-U2]/[B9-U3] تبقى كما هي بلا لمس). RTL أولًا (القيد 3:
+   يُقاس على [dir="rtl"] أولًا بقواعد اتجاه صريحة ثم أساس منطقي
+   direction-agnostic). بلا أي مصدر أصل خارجي ولا دالة رابط ملف —
+   عقد B9-C1 (data: فقط). بلا تثبيت عائم على الشاشة (§ب — لا عائم
+   جديد؛ <dialog> يتموضع في top-layer الأصلي بلا أي تموضع يدوي).
+   بلا مكتبة ولا إطار. بلا لمس $audit_deltas. أسماء الأصناف البسيطة
+   لمستهلكها (صف R39): .hossam-oeb-btn / .hossam-oeb-dialog /
+   .hossam-oeb-dialog-head / .hossam-oeb-status / .hossam-oeb-actions.
+   الشكل النهائي بقبول بصري لاحق (H1 §9-1).
+   ══════════════════════════════════════════════════════════════ */
+[dir="rtl"] .hossam-oeb-btn{flex-direction:row-reverse}
+[dir="rtl"] dialog.hossam-oeb-dialog{direction:rtl;text-align:right}
+[dir="rtl"] .hossam-oeb-actions{flex-direction:row-reverse}
+.hossam-oeb-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;font-size:12.5px;font-weight:600;font-family:'DM Sans',sans-serif;color:var(--navy);background:var(--gold);border:1px solid var(--gold-dim);border-radius:var(--radius);cursor:pointer;transition:background var(--trans),border-color var(--trans)}
+.hossam-oeb-btn:hover{background:var(--gold-pale)}
+.hossam-oeb-btn:focus-visible{outline:2px solid var(--gold-dim);outline-offset:2px}
+dialog.hossam-oeb-dialog{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--white);color:var(--txt-1);box-shadow:var(--shadow-lg);padding:0;max-width:min(420px,90vw);width:100%}
+dialog.hossam-oeb-dialog::backdrop{background:rgba(23,24,37,.5)}
+.hossam-oeb-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);font-size:13.5px;font-weight:700}
+.hossam-oeb-status{padding:12px 14px;font-size:12.5px;color:var(--txt-2);margin:0}
+.hossam-oeb-actions{display:flex;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)}
+.hossam-oeb-actions .btn{margin:0}
+
+/* ══════════════════════════════════════════════════════════════
+   [R22] v1.1.0 (H6 §2/§4) — دمج v1.1.0: إسقاط PROPOSED + ضغط v2.8
+   (وسم مستقل مجاور لـ[OEB-U1] — بلا دمج بنيوي). يبقى كما هو بلا
+   لمس: media queries التجاوب الثلاثي (Fluid/768-1024/<768)؛ طي
+   الشريط الجانبي CSS حصرًا؛ ثبات شريط الأدوات فوق الكانفس مع
+   .hossam-rich-editor-toolbar:empty{display:none} (v2.5)؛ تحسينات
+   RTL للمحرر الغني (:1039-1052 وRTL :1050-1052).
+   [وسم دلتا — الحسم]: الشرطي المحمول «الشريط السفلي العائم (م18)
+   وأورب AI (م19) — لا يُنفذان إلا بعد قرار المالك» ⇒ محسوم
+   بالإسقاط بالقياس: النموذج v2.8 يثبّت الشريط ساكنًا في التدفق
+   بكل العروض — لا عائم سفلي للأفعال ولا أورب AI في أي عرض
+   (تصادم التوست المقاس: .toast-container :596 وRTL :631).
+   مواصفة §2.4 «Sticky» — ملغاة بأحدث قرار مالك (v2.8): صفر
+   تموضع ثابت/لاصق (fixed أو sticky) لأشرطة الأفعال
+   panel-write/panel-edit.
+   المعتمد الوحيد من م18: ضغط أشرطة الأفعال على ≤768px (CSS حصرًا:
+   حشو أقل/حد أعلى مثبت/أزرار أصغر بمقياس .btn-sm الموجود) والشريط
+   يبقى في التدفق (position:static صريح) بعد حقل المحتوى مباشرة.
+   RTL أولًا: يُقاس على [dir="rtl"] أولًا بلا انزياح — قاعدة RTL
+   معلنة أولًا بذات قيم القاعدة الأساسية، وكل خصائص الضغط على
+   الحافة العلوية المتماثلة اتجاهيًا وبلا أي تغيير ترتيب (لا
+   flex-direction)، فتسري على الاتجاهين بالقياس نفسه. بلا مكتبة
+   ولا إطار، وبلا نسخ شاشة WP (قيد 6). بنود القبول (H6 §2):
+   (1) صفر fixed|sticky جديد — (2) الشريط في التدفق بضغط v2.8 على
+   ≤768px — (3) RTL أولًا بلا انزياح — (4) وسم الإلغاء هذا هو
+   التوثيق (يوثقه التوثيق لاحقًا).
+   ══════════════════════════════════════════════════════════════ */
+@media(max-width:768px){
+  [dir="rtl"] #panel-write .form-actions,
+  [dir="rtl"] #panel-edit-article .form-actions{
+    position:static;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)
+  }
+  #panel-write .form-actions,
+  #panel-edit-article .form-actions{
+    position:static;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)
+  }
+  #panel-write .form-actions .btn,
+  #panel-edit-article .form-actions .btn{padding:5px 10px;font-size:11px}
+}

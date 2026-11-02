@@ -216,6 +216,23 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			$settings['ai_preference'] = sanitize_key( $preference );
 		}
 
+		// OEB/2 (H1 §3/§6-2): جسر حفظ وضع المحرر الغني — نمط ai_preference
+		// (isset → post_string → sanitize_key) مع تحقق EDITOR_MODES هنا:
+		// الخارج عن القائمة → save_failed، ثم الإسناد إلى settings ليُمرَّر
+		// إلى save() البوابة الموحَّدة. لا endpoint جديد ولا لمس لمنطق
+		// الحفظ/القدرات/الredirect ولا لنداء R29 أدناه.
+		if ( isset( $_POST['rich_editor_mode'] ) ) {
+			$editor_mode = self::post_string( 'rich_editor_mode' );
+			if ( null === $editor_mode ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$editor_mode = sanitize_key( $editor_mode );
+			if ( ! in_array( $editor_mode, HAL_Frontend_Dashboard_Settings_Repository::EDITOR_MODES, true ) ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$settings['rich_editor_mode'] = $editor_mode;
+		}
+
 		$saved = HAL_Frontend_Dashboard_Settings_Repository::save( $settings );
 
 		// R29 (G4 §3-أ-15): settings_save بعد نجاح save() حصرًا وقبل
@@ -394,6 +411,17 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 									</td>
 								</tr>
 							<?php endforeach; ?>
+							<?php // OEB/2 (H1 §3/§6-2): select وضع المحرر الغني بنمط select ai_preference القائم — الأوضاع الثلاثة مع الحالي من get_rich_editor_mode(). ?>
+							<tr>
+								<th scope="row"><label for="hal-rich-editor-mode"><?php esc_html_e( 'Rich editor mode', 'hal-frontend-dashboard' ); ?></label></th>
+								<td>
+									<select id="hal-rich-editor-mode" name="rich_editor_mode">
+										<?php foreach ( HAL_Frontend_Dashboard_Settings_Repository::EDITOR_MODES as $editor_mode ) : ?>
+											<option value="<?php echo esc_attr( $editor_mode ); ?>" <?php selected( HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode(), $editor_mode ); ?>><?php echo esc_html( $editor_mode ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</td>
+							</tr>
 						</table>
 						<?php submit_button( __( 'Save features', 'hal-frontend-dashboard' ), 'primary', 'submit', false ); ?>
 					</form>
