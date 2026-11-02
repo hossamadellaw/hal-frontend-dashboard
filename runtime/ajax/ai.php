@@ -118,6 +118,13 @@ if ( ! function_exists( 'hossam_ai_fail_job' ) ) {
 				$job_id
 			)
 		);
+
+		// R11 (G4 §3-أ-14 موضع 1/2): ai_fail بعد UPDATE أثّر فعلاً — guard
+		// rows_affected؛ meta reason منقّى sanitize_key مسبقًا؛ قيمة الإرجاع
+		// تُتجاهل عمدًا (G4 §5). كل مسارات الفشل تمر هنا.
+		if ( (int) $wpdb->rows_affected > 0 ) {
+			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => [ 'reason' => sanitize_key( $safe_reason ) ] ] );
+		}
 	}
 }
 
@@ -148,8 +155,16 @@ if ( ! function_exists( 'hossam_ai_fail_job_if_outstanding' ) ) {
 				$job_id
 			)
 		);
+		$outstanding = false !== $updated && (int) $updated > 0;
 
-		return false !== $updated && (int) $updated > 0;
+		// R11 (G4 §3-أ-14 موضع 2/2): ai_fail بعد UPDATE الشرطي — بguard على
+		// القيمة المرجعة true (rows_affected>0)؛ meta reason منقّى
+		// sanitize_key مسبقًا؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+		if ( $outstanding ) {
+			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => [ 'reason' => sanitize_key( $safe_reason ) ] ] );
+		}
+
+		return $outstanding;
 	}
 }
 
@@ -389,6 +404,21 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 		);
 	}
 
+	// R11 (G4 §3-أ-12): ai_submit بعد بوابة الخطأ وقبل كتلة الجدولة —
+	// موضع واحد يغطي مخرجي النجاح (:399/:408) حتى لو فشلت الجدولة؛
+	// لا input_data ولا محتوى في meta؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+	hossam_audit_log(
+		'ai_submit',
+		[
+			'object_id' => (int) $job_id,
+			'meta'      => [
+				'job_type'    => $job_type,
+				'post_id'     => (int) $post_id,
+				'strategy_id' => (string) $strategy,
+			],
+		]
+	);
+
 	// ── الجدولة الداخلية: hook واحد بمعاملاته، بلا تكرار، وبفحص نتيجة.
 	//    لا loopback ولا admin-ajax ولا nonce ولا cookies للعامل.
 	$hook = 'hossam_ai_process_job_event';
@@ -524,6 +554,13 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 			$job_id
 		)
 	);
+
+	// R11 (G4 §3-أ-13): ai_complete بعد UPDATE الاكتمال — بguard
+	// rows_affected>0؛ meta job_type حصرًا (لا result إطلاقًا)؛ قيمة
+	// الإرجاع تُتجاهل عمدًا (G4 §5).
+	if ( (int) $wpdb->rows_affected > 0 ) {
+		hossam_audit_log( 'ai_complete', [ 'object_id' => $job_id, 'meta' => [ 'job_type' => (string) $job['job_type'] ] ] );
+	}
 } );
 
 // ══════════════════════════════════════════════════════════════
@@ -610,6 +647,22 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 			[ '%d' ]
 		);
 	}
+
+	// (ج) زومبي pending — V110-H2: محاولات مستنفدة (Z1، وتسبق عند الجمع)
+	//     أو يتيمة next_run_at IS NULL (Z2 تراث سكيمة 1.1.1) — فشل نهائي بلا أي retry.
+	$zombies = $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT id, attempt_count FROM {$table} WHERE status = 'pending' AND ( attempt_count >= %d OR next_run_at IS NULL ) LIMIT 20",
+			$sweep['max_attempts']
+		),
+		ARRAY_A
+	);
+	foreach ( (array) $zombies as $zombie ) {
+		$reason = ( (int) $zombie['attempt_count'] >= $sweep['max_attempts'] )
+			? 'attempts_exhausted'
+			: 'orphaned_pending';
+		hossam_ai_fail_job_if_outstanding( (int) $zombie['id'], $reason );
+	}
 } );
 
 // ══════════════════════════════════════════════════════════════
@@ -644,6 +697,16 @@ add_action( 'wp_ajax_hossam_ai_get_job_status', function (): void {
 		wp_send_json_error( [ 'message' => 'Job not found' ], 404 );
 	}
 
+	// R11-(هـ) (G3 §1.3-12): consume استطلاع poll 120/د — قراءة اختيارية منفذة لبوابة الخريطة 15/15 (F-07)
+	$hossam_rl = hossam_rate_limit_consume( 'poll', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
+	if ( is_wp_error( $hossam_rl ) ) {
+		$hossam_rl_data = $hossam_rl->get_error_data();
+		wp_send_json_error(
+			[ 'message' => $hossam_rl->get_error_message() ],
+			is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+		);
+	}
+
 	wp_send_json_success( [
 		'status' => $job['status'],
 		'result' => $job['result'] ? json_decode( $job['result'], true ) : null,
@@ -670,6 +733,12 @@ add_action( 'wp_ajax_hossam_ai_set_preference', function (): void {
 	if ( ! hossam_ai_set_preference( $preference ) ) {
 		wp_send_json_error( [ 'message' => 'Invalid preference' ], 400 );
 	}
+
+	// R11 (G4 §3-أ-16): ai_preference_set بعد نجاح hossam_ai_set_preference
+	// وقبل wp_send_json_success — صف settings بلا object_id (NULL في
+	// القائمة المغلقة)، meta preference (القيمة المنقّاة sanitize_key
+	// أعلاه)؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+	hossam_audit_log( 'ai_preference_set', [ 'meta' => [ 'preference' => $preference ] ] );
 
 	wp_send_json_success( [ 'preference' => hossam_ai_get_preference() ] );
 } );

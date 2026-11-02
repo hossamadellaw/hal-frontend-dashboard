@@ -548,7 +548,8 @@ b14_check( 'T2-E1-init-retry-clean',
  * ════════════════════════════════════════════════════════════════ */
 
 $expected_events = array(
-	'article_create'        => array( 'object_type' => 'article', 'meta_keys' => array( 'status' ) ),
+	// R8-delta: meta يضيف lang بجانب status (تحديث بند قبول — يُحكم مع R8).
+	'article_create'        => array( 'object_type' => 'article', 'meta_keys' => array( 'status', 'lang' ) ),
 	'article_update'        => array( 'object_type' => 'article', 'meta_keys' => array( 'status' ) ),
 	'article_trash'         => array( 'object_type' => 'article', 'meta_keys' => array() ),
 	'article_restore'       => array( 'object_type' => 'article', 'meta_keys' => array() ),

@@ -377,6 +377,27 @@ if ( ! function_exists( 'delete_transient' ) ) {
 		return true;
 	}
 }
+// تفويض المالك #1 (2026-11-02): دوال نواة ناقصة في الـharness — صفوف
+// R9/R10 تستدعي core/rate-limits.php (wp_using_ext_object_cache — G3 §1.4)
+// وcore/audit-log.php (get_userdata من الجلسة، G4 §3-أ) وget_post_mime_type
+// لمفتاح mime المغلق في file_upload/file_delete. دلالة النواة: بلا object
+// cache خارجي ⇒ false؛ لا مستخدم ملتقط في هذا الـharness ⇒ false؛
+// نمط الـstub الثابت المعتمد في adapters-test (image/png).
+if ( ! function_exists( 'wp_using_ext_object_cache' ) ) {
+	function wp_using_ext_object_cache(): bool {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_userdata' ) ) {
+	function get_userdata( int $user_id ) {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_post_mime_type' ) ) {
+	function get_post_mime_type( $attachment_id ): string {
+		return 'image/png';
+	}
+}
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
 		public string $code = '';
@@ -835,11 +856,23 @@ function b5_new_wpdb() {
 	return new class() {
 		public string $prefix     = 'wp_';
 		public string $last_error = '';
+		// تفويض المالك #1 (2026-11-02): GET_LOCK/RELEASE_LOCK دلالة النواة
+		// (القفل يُمنح) + query() الموجودة في wpdb النووية — تستلزمهما صفوف
+		// R9/R10 عبر hossam_rate_limit_consume (عقد G3 §1.1-3: GET_LOCK=1 ⇒
+		// متابعة) وhossam_audit_log (INSERT مُحضَّر واحد). بلا هذه الدلالة
+		// كان كل consume يعيد 503 ويُسقط مسارات النجاح المشروعة.
 		public function prepare( string $query, ...$args ): string {
 			return $query;
 		}
-		public function get_var( string $query ) {
+		public function get_var( string $query = null ) {
+			$q = (string) $query;
+			if ( false !== strpos( $q, 'GET_LOCK' ) || false !== strpos( $q, 'RELEASE_LOCK' ) ) {
+				return 1;
+			}
 			return null;
+		}
+		public function query( string $sql ) {
+			return 1;
 		}
 		public function get_results( string $query, $output = null ) {
 			return array();
@@ -1108,11 +1141,16 @@ function b5_mode_posts( string $project ): void {
 	b5_check( 'P-R404', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
 		'restore missing post → adapter hossam_not_found translated to 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-R403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array() );
 	b5_post( 5, 'post', 'trash', 7 );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_article' );
-	b5_check( 'P-R403', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		'restore without edit_post on the article → adapter hossam_forbidden → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-R403', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'restore without edit_post on the article → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array( 'edit_post_5' => true ) );
 	$restored = b5_post( 5, 'post', 'trash', 3 );
@@ -1240,10 +1278,15 @@ function b5_mode_posts( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
 	b5_check( 'P-U404', b5_exit_is( $r, 404, false ), 'update missing post → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-U403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New' ), 3, true, array() );
 	b5_post( 6, 'post', 'publish', 7, 'Old' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
-	b5_check( 'P-U403', b5_exit_is( $r, 403, false ), 'update without edit_post on the article → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-U403', b5_exit_is( $r, 404, false ), 'update without edit_post on the article → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New', 'thumbnail_id' => array( 'bad' ) ), 3, true, array( 'edit_post_6' => true ) );
 	b5_post( 6, 'post', 'publish', 3, 'Old' );
@@ -1271,10 +1314,15 @@ function b5_mode_posts( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_trash_article' );
 	b5_check( 'P-D404', b5_exit_is( $r, 404, false ), 'trash missing post → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-D403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '6' ), 3, true, array() );
 	b5_post( 6, 'post', 'publish', 7, 'Old' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_trash_article' );
-	b5_check( 'P-D403', b5_exit_is( $r, 403, false ), 'trash without edit_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-D403', b5_exit_is( $r, 404, false ), 'trash without edit_post → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '6' ), 3, true, array( 'edit_post_6' => true ) );
 	$trashed = b5_post( 6, 'post', 'publish', 3, 'Old' );
@@ -1360,12 +1408,17 @@ function b5_mode_translate( string $project ): void {
 		'the real registry classifies the WPML fixture as available with the languages capability',
 		'got ' . json_encode( $decision ) );
 
+	// تفويض المالك #1 (2026-11-02): W-403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد في فرع الترجمة: الغائب والغير مملوك
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5', 'lang' => 'en' ), 3, true, array() );
 	b5_post( 5, 'post', 'publish', 7, 'Source' );
 	$GLOBALS['B5_WPML_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
 	$r = b5_call_ajax( 'wp_ajax_hossam_translate_article' );
-	b5_check( 'W-403', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		'translate source article without edit_post → 403 (registry gate passed, direct guard enforces)', 'got ' . json_encode( $r ) );
+	b5_check( 'W-403', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'translate source article without edit_post → 404 unified oracle (registry gate passed, existence+ownership swallowed by one gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '5', 'lang' => 'fr' ), 3, true, array( 'edit_post_5' => true ) );
 	b5_post( 5, 'post', 'publish', 3, 'Source' );
@@ -1573,11 +1626,16 @@ function b5_mode_feature_gates( string $project ): void {
 	HAL_Frontend_Dashboard_Settings_Repository::save(
 		array( 'features' => array( 'posts' => true, 'files' => true, 'wpml_translations' => true ) )
 	);
+	// تفويض المالك #1 (2026-11-02): G-REENABLE-CAP — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array() );
 	b5_post( 5, 'post', 'trash', 7, 'Other' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_article' );
-	b5_check( 'G-REENABLE-CAP', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		're-enabled posts with no edit_post → 403 by capability (enabling never bypasses authorization)',
+	b5_check( 'G-REENABLE-CAP', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		're-enabled posts with no edit_post → 404 unified oracle by capability (enabling never bypasses authorization)',
 		'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
@@ -1665,15 +1723,19 @@ function b5_mode_uploads( string $project ): void {
 	b5_check( 'U-R404', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ),
 		'restore_file missing attachment → 404 Not found', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): U-R403AUTHOR/U-R403CAP — التوقع حُدّث
+	// 403 → 404 'Not found' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.2/§1.5 — صف R9
+	// «دمج v1.1.0: 404 الموحد»؛ القديم: 403 Unauthorized — المرجع: CHECKLIST R9).
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array( 'edit_post_8' => true ) );
 	b5_post( 8, 'attachment', 'trash', 7, 'Not mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_file' );
-	b5_check( 'U-R403AUTHOR', b5_exit_is( $r, 403, false ), 'restore_file on another user’s attachment → 403 even with edit_post capability (ownership gate)', 'got ' . json_encode( $r ) );
+	b5_check( 'U-R403AUTHOR', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'restore_file on another user’s attachment → 404 unified oracle even with edit_post capability (existence+ownership swallowed by one gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array() );
 	b5_post( 8, 'attachment', 'trash', 3, 'Mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_file' );
-	b5_check( 'U-R403CAP', b5_exit_is( $r, 403, false ), 'restore_file own attachment without edit_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'U-R403CAP', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'restore_file own attachment without edit_post → 404 unified oracle', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array( 'edit_post_8' => true ) );
 	b5_post( 8, 'attachment', 'trash', 3, 'Mine', 'image/png' );
@@ -1693,15 +1755,18 @@ function b5_mode_uploads( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
 	b5_check( 'U-D404', b5_exit_is( $r, 404, false ), 'delete_file missing attachment → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): U-D403AUTHOR/U-D403CAP — التوقع حُدّث
+	// 403 → 404 'Not found' (404 الموحد — H3 §1.2/§1.5 — صف R9؛ القديم:
+	// 403 Unauthorized — المرجع: CHECKLIST R9).
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
 	b5_post( 9, 'attachment', 'inherit', 7, 'Not mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
-	b5_check( 'U-D403AUTHOR', b5_exit_is( $r, 403, false ), 'delete_file another user’s attachment → 403 even with delete_post capability', 'got ' . json_encode( $r ) );
+	b5_check( 'U-D403AUTHOR', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'delete_file another user’s attachment → 404 unified oracle even with delete_post capability', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array() );
 	b5_post( 9, 'attachment', 'inherit', 3, 'Mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
-	b5_check( 'U-D403CAP', b5_exit_is( $r, 403, false ), 'delete_file own attachment without delete_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'U-D403CAP', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'delete_file own attachment without delete_post → 404 unified oracle', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
 	b5_post( 9, 'attachment', 'inherit', 3, 'Mine', 'image/png' );

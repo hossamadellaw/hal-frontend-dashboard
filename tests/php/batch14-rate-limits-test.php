@@ -728,13 +728,37 @@ b14_check( 'T1-S11-raw-name-zero-in-new-unit',
 	'the raw inbox lock name hossam_msg_rate_{uid} has zero occurrences in the new unit (qualified recipe only)',
 	'raw lock name found in rate-limits.php' );
 
-/* ai.php untouched: zero hossam_rate_limit_consume calls inside it (G3 م8). */
+// تفويض المالك #1 (2026-11-02): T1-S11 حُدّث للعقد الجديد — R11-هـ consume poll مصرَّح به في get_job_status (G3 §1.3-12)؛ المنع §ب الحقيقي: صفر consume داخل insert_under_quota — القيمة لا الصرامة
 $ai_src = (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/ajax/ai.php' );
-b14_check( 'T1-S11-ai-php-untouched-by-consume',
-	0 === substr_count( $ai_src, 'hossam_rate_limit_consume' )
-		&& 0 === preg_match_all( '/hossam_rate_limit_consume/', $ai_src ),
-	'ai.php keeps its profile-driven trio: zero hossam_rate_limit_consume occurrences (G3 §1.1-7)',
-	'ai.php references the unified consume function' );
+$under_quota_body = '';
+$fn_pos = strpos( $ai_src, 'function hossam_ai_insert_job_under_quota' );
+if ( false !== $fn_pos ) {
+	$body_open = strpos( $ai_src, '{', $fn_pos );
+	$depth     = 0;
+	$src_len   = strlen( $ai_src );
+	for ( $i = (int) $body_open; false !== $body_open && $i < $src_len; $i++ ) {
+		$char = $ai_src[ $i ];
+		if ( '{' === $char ) {
+			$depth++;
+		} elseif ( '}' === $char ) {
+			$depth--;
+			if ( 0 === $depth ) {
+				$under_quota_body = substr( $ai_src, (int) $body_open, $i - (int) $body_open + 1 );
+				break;
+			}
+		}
+	}
+}
+b14_check( 'T1-S11-ai-consume-contract',
+	'' !== $under_quota_body
+		&& 0 === substr_count( $under_quota_body, 'hossam_rate_limit_consume' )
+		&& 0 === preg_match_all( '/hossam_rate_limit_consume/', $under_quota_body )
+		&& 1 === substr_count( $ai_src, 'hossam_rate_limit_consume' )
+		&& 1 === preg_match_all( '/hossam_rate_limit_consume/', $ai_src ),
+	'ai.php consume contract holds: zero hossam_rate_limit_consume inside hossam_ai_insert_job_under_quota, exactly one authorized R11-هـ poll consume in get_job_status (G3 §1.3-12)',
+	'ai.php consume contract deviated: body_extracted=' . var_export( '' !== $under_quota_body, true )
+		. ' body_count=' . var_export( substr_count( $under_quota_body, 'hossam_rate_limit_consume' ), true )
+		. ' file_count=' . var_export( substr_count( $ai_src, 'hossam_rate_limit_consume' ), true ) );
 
 /* ════════════════════════════════════════════════════════════════
  * T1-S12 (G3 §4-12) — revisions cap by the three-tier ladder

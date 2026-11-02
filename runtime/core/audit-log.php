@@ -253,7 +253,8 @@ if ( ! function_exists( 'hossam_audit_log_events' ) ) {
 	 */
 	function hossam_audit_log_events(): array {
 		return [
-			'article_create'       => [ 'object_type' => 'article', 'meta_keys' => [ 'status' ] ],
+			// [وسم دلتا R8 — v1.1.0]: meta يضيف lang بجانب status (العقد :148).
+			'article_create'       => [ 'object_type' => 'article', 'meta_keys' => [ 'status', 'lang' ] ],
 			'article_update'       => [ 'object_type' => 'article', 'meta_keys' => [ 'status' ] ],
 			'article_trash'        => [ 'object_type' => 'article', 'meta_keys' => [] ],
 			'article_restore'      => [ 'object_type' => 'article', 'meta_keys' => [] ],

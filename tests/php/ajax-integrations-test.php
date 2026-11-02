@@ -340,6 +340,15 @@ if ( ! function_exists( 'delete_transient' ) ) {
 		return true;
 	}
 }
+// تفويض المالك #1 (2026-11-02): دالة نواة ناقصة في الـharness — R7 حمّل
+// المسار core/rate-limits.php الذي ينادي wp_using_ext_object_cache() في كل
+// نداء consume (G3 §1.4). النواة تعيد false افتراضيًا بلا object cache خارجي
+// — نفس الدلالة هنا فتمر الحالات على مسار transient القائم (GET_LOCK).
+if ( ! function_exists( 'wp_using_ext_object_cache' ) ) {
+	function wp_using_ext_object_cache(): bool {
+		return false;
+	}
+}
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
 		public string $code = '';
@@ -709,6 +718,13 @@ if ( ! class_exists( 'B6_wpdb' ) ) {
 			$this->last_error = '';
 		}
 		public function prepare( string $query, ...$args ): string {
+			// تفويض المالك #1 (2026-11-02): فك مصفوفة الوسائط الواحدة — دالة
+			// wpdb::prepare النووية تقبل ($query, ...$args) أو ($query, $args[])
+			// (نمط audit-log.php:414 المصرح بصف R2، وR7/R9/R10/R11 تدقيقاتها
+			// تمر بالمسار نفسه)؛ الـstub لم يكن يفكها فكانت تحسب عنصرًا واحدًا.
+			if ( 1 === count( $args ) && is_array( $args[0] ) ) {
+				$args = $args[0];
+			}
 			foreach ( $args as $arg ) {
 				if ( false !== strpos( $query, '%s' ) ) {
 					$query = substr_replace( $query, (string) $arg, (int) strpos( $query, '%s' ), 2 );
@@ -1991,7 +2007,11 @@ function b6_mode_inbox( string $project ): void {
 	$r = b6_call_ajax( 'wp_ajax_hossam_mark_read' );
 	$step400 = b6_exit_is( $r, 400, false ) && 'Invalid ID' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array( 'notification_id' => '9' ), 3, true );
-	$GLOBALS['B6_DB_FAIL'] = true;
+	// تفويض المالك #1 (2026-11-02): تفويض الفشل ضُيّق إلى عملية update حصرًا
+	// (B6_DB_FAIL_OPS بدل B6_DB_FAIL الشامل) — R7 أضاف consume قراءة قبل
+	// الكتابة فصار فشل DB الشامل يصيب GET_LOCK أولًا (503 مغلق — عقد G3
+	// §1.1-3 الصحيح)؛ التأكيد ذاته (500 'Update failed') باقٍ حرفيًا.
+	$GLOBALS['B6_DB_FAIL_OPS'] = array( 'update' );
 	$r = b6_call_ajax( 'wp_ajax_hossam_mark_read' );
 	$step500 = b6_exit_is( $r, 500, false ) && 'Update failed' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array( 'notification_id' => '9' ), 3, true );
@@ -2011,8 +2031,10 @@ function b6_mode_inbox( string $project ): void {
 		'mark_read: 400/500/404/success contract with ownership (user_id) inside the WHERE', 'got ' . json_encode( array( $step400, $step500, $step404, $stepOK, $ownership ) ) );
 
 	// mark_all_read: 500 on failure, success otherwise.
+	// تفويض المالك #1 (2026-11-02): تفويض الفشل ضُيّق إلى update حصرًا —
+	// نفس سبب حالة mark_read أعلاه (R7 consume قبل الكتابة).
 	b6_begin_case( array(), 3, true );
-	$GLOBALS['B6_DB_FAIL'] = true;
+	$GLOBALS['B6_DB_FAIL_OPS'] = array( 'update' );
 	$r = b6_call_ajax( 'wp_ajax_hossam_mark_all_read' );
 	$step500 = b6_exit_is( $r, 500, false ) && 'Update failed' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array(), 3, true );
@@ -2035,19 +2057,25 @@ function b6_mode_inbox( string $project ): void {
 		'send_message: 403 non-admin / 400 invalid input / 404 unknown receiver', 'got ' . json_encode( array( $step403, $step400, $step404 ) ) );
 
 	// send_message quota paths under the real GET_LOCK contract.
+	// تفويض المالك #1 (2026-11-02): نصّا الـ503 ومفتاح البذر حُدّثا إلى
+	// العقد الموحد الجديد (E1/صف R7): 'Message service is busy/unavailable
+	// . Try again.' → 'Service is busy/unavailable. Try again.' (عائلة
+	// hossam_rate_limit_consume — G3 §1.1 حرفيًا)، والمفتاح
+	// _transient_hossam_msg_rate_3 → _transient_hossam_rl_msg_3 (مفتاح
+	// hossam_rl_{scope}_{uid} — G3 §1.1-2). لا إضعاف ولا حذف حالة.
 	b6_begin_case( array( 'receiver_id' => '2', 'message' => 'Hi' ), 3, true, array( 'manage_options' => true ) );
 	$GLOBALS['B6_USERS'] = array( b6_user( 2, 'Receiver' ) );
 	$GLOBALS['B6_DB']['lock_acquire'] = 0;
 	$r = b6_call_ajax( 'wp_ajax_hossam_send_message' );
-	$step503a = b6_exit_is( $r, 503, false ) && 'Message service is busy. Try again.' === ( b6_exit_data( $r )['message'] ?? '' );
+	$step503a = b6_exit_is( $r, 503, false ) && 'Service is busy. Try again.' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array( 'receiver_id' => '2', 'message' => 'Hi' ), 3, true, array( 'manage_options' => true ) );
 	$GLOBALS['B6_USERS'] = array( b6_user( 2, 'Receiver' ) );
 	$GLOBALS['B6_TRANSIENT_FAIL'] = true;
 	$r = b6_call_ajax( 'wp_ajax_hossam_send_message' );
-	$step503b = b6_exit_is( $r, 503, false ) && 'Message service is unavailable. Try again.' === ( b6_exit_data( $r )['message'] ?? '' );
+	$step503b = b6_exit_is( $r, 503, false ) && 'Service is unavailable. Try again.' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array( 'receiver_id' => '2', 'message' => 'Hi' ), 3, true, array( 'manage_options' => true ) );
 	$GLOBALS['B6_USERS'] = array( b6_user( 2, 'Receiver' ) );
-	$GLOBALS['B6_OPTIONS']['_transient_hossam_msg_rate_3'] = 10;
+	$GLOBALS['B6_OPTIONS']['_transient_hossam_rl_msg_3'] = 10;
 	$r = b6_call_ajax( 'wp_ajax_hossam_send_message' );
 	$step429 = b6_exit_is( $r, 429, false ) && 'Rate limit exceeded. Try later.' === ( b6_exit_data( $r )['message'] ?? '' );
 	$released = ! empty( $GLOBALS['B6_DB']['lock_releases'] );
@@ -2083,8 +2111,11 @@ function b6_mode_inbox( string $project ): void {
 	b6_check( 'IN-INBOX', $step500 && $stepOK, 'get_inbox: 500 on failure; success enriches sender_name via the real get_users path', 'got ' . json_encode( array( $step500, $stepOK ) ) );
 
 	// mark_message_read: 500 → 404 → success, receiver ownership in WHERE.
+	// تفويض المالك #1 (2026-11-02): تفويض الفشل ضُيّق إلى عملية query حصرًا
+	// (مسار الكتابة هنا $wpdb->query لا update) — نفس سبب حالة mark_read
+	// أعلاه (R7 consume قبل الكتابة).
 	b6_begin_case( array( 'message_id' => '5' ), 3, true );
-	$GLOBALS['B6_DB_FAIL'] = true;
+	$GLOBALS['B6_DB_FAIL_OPS'] = array( 'query' );
 	$r = b6_call_ajax( 'wp_ajax_hossam_mark_message_read' );
 	$step500 = b6_exit_is( $r, 500, false ) && 'Update failed' === ( b6_exit_data( $r )['message'] ?? '' );
 	b6_begin_case( array( 'message_id' => '5' ), 3, true );
@@ -3110,7 +3141,12 @@ function b6_mode_posts_translate_permissions( string $project ): void {
 		'got ' . json_encode( $r ) );
 	$GLOBALS['B6C_LANG_OFF'] = array();
 
-	// TP3: no edit_post on the source — 403, no draft.
+	// TP3: no edit_post on the source — 404 unified oracle, no draft.
+	// تفويض المالك #1 (2026-11-02): TP3 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد في فرع الترجمة: الغائب والغير مملوك
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b6_begin_case( array( 'post_id' => '5', 'lang' => 'ar' ), 3, true, array() );
 	b6c_reset_posts_state();
 	$GLOBALS['B6_PLUGIN_ACTIVE'] = array( 'sitepress-multilingual-cms/sitepress.php' );
@@ -3122,10 +3158,10 @@ function b6_mode_posts_translate_permissions( string $project ): void {
 	$rows_before = count( $GLOBALS['B6_POSTS'] );
 	$r    = b6_call_ajax( 'wp_ajax_hossam_translate_article' );
 	$data = b6_exit_data( $r );
-	b6_check( 'TP3', b6_exit_is( $r, 403, false )
-		&& 'You do not have permission to edit this article.' === ( $data['message'] ?? '' )
+	b6_check( 'TP3', b6_exit_is( $r, 404, false )
+		&& 'Article not found.' === ( $data['message'] ?? '' )
 		&& count( $GLOBALS['B6_POSTS'] ) === $rows_before,
-		'a source the user cannot edit rejects before wp_insert_post (no draft)',
+		'a source the user cannot edit rejects with the unified 404 before wp_insert_post (no draft)',
 		'got ' . json_encode( $r ) );
 
 	// TP4: bad nonce — 403 before any translation work, no draft.
