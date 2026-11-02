@@ -44,6 +44,11 @@
  *       of the size gate — live acceptance on the owner's WordPress
  *       (core 6.7.1 semantics are read-certified, not run here).
  *
+ *   T5-CLOSE (v1.1.0): بنود client R18-R20 — أضيفت أدناه (السياقات الخمسة
+ *   escAttr على JS الثلاثة + تطبيع paste قبل serialize في posts.js)؛ بعد
+ *   هذه التوسعة يُغلق T5 قياسًا للمرحلتين معًا. الباقي (wp_kses_post
+ *   الحقيقي ومسار REST لبوابة الحجم) قبول حي «بانتظار جلسة القبول — H1 §7».
+ *
  * Usage:  php -d extension=sodium tests/php/batch14-io-hardening-test.php  (exit 0 = all pass)
  */
 
@@ -779,10 +784,93 @@ b14_check( 'T5-G6-9-valve-sees-post-kses-payload',
 b14_t5_set_policy( 'normalize' ); // restore the production default for later sections
 
 /* ════════════════════════════════════════════════════════════════
- * Summary — T5 stays OPEN by contract (client part R18-R20 → phase 3)
+ * T5-CLOSE (v1.1.0): بنود client R18-R20 — الجزء القابل للقياس محليًا
+ * من round-trip الوسوم بعد kses من الجهة client، على المصادر الحقيقية
+ * للثلاثي (dashboard.js/inbox.js/finance.js/posts.js) بمسح ساكن بطريقتين
+ * (درس D1: substr_count + preg_match_all) وتثبيت المواضع الخمسة حصرًا.
  * ════════════════════════════════════════════════════════════════ */
 
-echo "T5 DEFERRED (لا يُغلق T5): جزء client من round-trip الوسوم (R18-R20) يُستكمل عند المرحلة 3؛ وكذلك round-trip wp_kses_post الحقيقي ومسار REST لبوابة الحجم — قبول حي.\n";
+$js_dir   = $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/';
+$dash_js  = (string) file_get_contents( $js_dir . 'dashboard.js' );
+$inbox_js = (string) file_get_contents( $js_dir . 'modules/inbox.js' );
+$fin_js   = (string) file_get_contents( $js_dir . 'modules/finance.js' );
+$posts_js = (string) file_get_contents( $js_dir . 'modules/posts.js' );
+
+/* R18 — escAttr واحدة: التعريف الوحيد في dashboard.js يهرّب المحارف الخمسة
+ * ب& أولًا (ترتيب الاستبدالات في المصدر: & قبل < > " '). */
+$def_count_raw  = substr_count( $dash_js, 'function escAttr(' );
+$def_count_preg = (int) preg_match_all( '/function\s+escAttr\s*\(/', $dash_js );
+$amp_first_pos  = strpos( $dash_js, "replace(/&/g,'&amp;')" );
+$lt_pos         = strpos( $dash_js, "replace(/</g,'&lt;')" );
+$gt_pos         = strpos( $dash_js, "replace(/>/g,'&gt;')" );
+$quot_pos       = strpos( $dash_js, 'replace(/"/g,\'&quot;\')' );
+$apos_pos       = strpos( $dash_js, "replace(/'/g,'&#39;')" );
+b14_check( 'T5-R18-escAttr-single-def-amp-first',
+	1 === $def_count_raw && 1 === $def_count_preg
+		&& false !== $amp_first_pos && false !== $lt_pos && false !== $gt_pos && false !== $quot_pos && false !== $apos_pos
+		&& $amp_first_pos < $lt_pos && $amp_first_pos < $gt_pos && $amp_first_pos < $quot_pos && $amp_first_pos < $apos_pos,
+	'escAttr is defined exactly once in dashboard.js and escapes the five characters with & first (no double-escape ordering)',
+	"escAttr definition deviated: raw={$def_count_raw} preg={$def_count_preg} positions=" . var_export( array( $amp_first_pos, $lt_pos, $gt_pos, $quot_pos, $apos_pos ), true ) );
+
+/* R19/R20 — السياقات الخمسة حصرًا: inbox href (1) + finance class/href/value/href
+ * (4)، ولا استخدام خارج dashboard (التعريف) وinbox/finance — الصفر في بقية
+ * الوحدات. وesc() باقية لنصوص العناصر في الملفين. */
+$inbox_href_ok = false !== strpos( $inbox_js, 'href="${escAttr(n.url)}"' )
+	&& 1 === substr_count( $inbox_js, 'escAttr(' );
+$fin_class_ok  = false !== strpos( $fin_js, 'pill-${escAttr(o.status_slug)}' );
+$fin_href_raw  = substr_count( $fin_js, 'href="${escAttr(o.view_url)}"' );
+$fin_value_ok  = false !== strpos( $fin_js, 'value="${escAttr(v)}"' );
+$fin_total_raw  = substr_count( $fin_js, 'escAttr(' );
+$fin_total_preg = (int) preg_match_all( '/escAttr\s*\(/', $fin_js );
+$other_modules_zero = true;
+$other_hits = array();
+foreach ( array( 'modules/members.js', 'modules/uploads.js', 'modules/store.js', 'modules/bookings.js', 'modules/ai.js', 'modules/translations.js', 'admin-settings.js' ) as $b14_other_js ) {
+	$b14_other_src = (string) file_get_contents( $js_dir . $b14_other_js );
+	$b14_other_n = substr_count( $b14_other_src, 'escAttr(' );
+	if ( 0 !== $b14_other_n ) {
+		$other_modules_zero = false;
+		$other_hits[] = "{$b14_other_js}={$b14_other_n}";
+	}
+}
+b14_check( 'T5-R19-five-attr-contexts-escAttr-only',
+	$inbox_href_ok && $fin_class_ok && 2 === $fin_href_raw && $fin_value_ok
+		&& 4 === $fin_total_raw && 4 === $fin_total_preg
+		&& $other_modules_zero && array() === $other_hits
+		&& false !== strpos( $inbox_js, 'esc(' ) && false !== strpos( $fin_js, 'esc(' ),
+	'the five attribute contexts use escAttr exactly (inbox href; finance class/href ×2/value), escAttr appears nowhere else in the shipped modules, and esc() stays for element texts',
+	'attribute-context deviated: inbox_ok=' . var_export( $inbox_href_ok, true ) . ' fin_class=' . var_export( $fin_class_ok, true )
+		. " fin_href={$fin_href_raw} fin_value=" . var_export( $fin_value_ok, true )
+		. " fin_total={$fin_total_raw}/{$fin_total_preg} others=" . json_encode( $other_hits ) );
+
+/* R20 — round-trip الوسوم بعد kses من الجهة client: تطبيع paste H1→H2 في
+ * posts.js يعمل قبل serialize إلى textarea (داخل keep() قبل setBlocks،
+ * ومعالجا paste على الحاوية ومستند iframe، بلا fetch جديد). */
+$norm_raw  = substr_count( $posts_js, 'normalizePastedH1' );
+$norm_preg = (int) preg_match_all( '/normalizePastedH1/', $posts_js );
+$keep_body = b14_t5_function_body( $posts_js, 'keep' );
+$normalize_pos  = false !== $keep_body ? strpos( $keep_body, 'normalizePastedH1' ) : false;
+$setblocks_pos  = false !== $keep_body ? strpos( $keep_body, 'setBlocks(' ) : false;
+$paste_handlers = substr_count( $posts_js, "addEventListener('paste',markPaste,true)" );
+b14_check( 'T5-R20-client-paste-normalize-before-serialize',
+	2 === $norm_raw && 2 === $norm_preg
+		&& false !== $normalize_pos && false !== $setblocks_pos && $normalize_pos < $setblocks_pos
+		&& 2 === $paste_handlers
+		&& false !== strpos( $posts_js, "b.attributes.level===1" )
+		&& false !== strpos( $posts_js, 'level:2' )
+		&& 6 === substr_count( $posts_js, 'await fetch(' ),
+	'the client round-trip normalizes pasted H1→H2 inside keep() BEFORE the state that serialize reads (container + iframe paste handlers, zero new fetch — the six create/update/trash/restore/translate/seo paths only)',
+	'client paste normalize deviated: norm=' . var_export( array( $norm_raw, $norm_preg ), true )
+		. ' keep_order=' . var_export( array( $normalize_pos, $setblocks_pos ), true )
+		. " paste_handlers={$paste_handlers} fetches=" . substr_count( $posts_js, 'await fetch(' ) );
+
+/* ════════════════════════════════════════════════════════════════
+ * Summary — T5 CLOSED (قياسا المرحلتين معًا): server valve (المرحلة 2)
+ * + client R18-R20 (المرحلة 3). الباقي قبول حي «بانتظار جلسة القبول —
+ * H1 §7»: wp_kses_post الحقيقي ومسار REST لبوابة الحجم ومشهد الكتابة
+ * المرجعي بالحسابين على مسار كلٍّ المعتمد.
+ * ════════════════════════════════════════════════════════════════ */
+
+echo "T5 CLOSED (قياسا المرحلتين معًا): server valve + client R18-R20 مقيسة. المتبقي «بانتظار جلسة القبول — H1 §7»: round-trip wp_kses_post الحقيقي، مسار REST لبوابة الحجم، مشهد الكتابة المرجعي بالحسابين على مسار كلٍّ المعتمد، بوابة 9 المصححة، قبول يدوي لحاجب النوافذ — قبول حي.\n";
 echo "B14-T5 RESULT: {$GLOBALS['B14_PASS']} pass, 0 skipped, {$GLOBALS['B14_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
 if ( $GLOBALS['B14_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B14_FAILS'] ) . "\n";

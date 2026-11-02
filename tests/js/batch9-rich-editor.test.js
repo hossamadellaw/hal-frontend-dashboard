@@ -17,6 +17,11 @@
  *   B8  catch cleanup: roots deleted, host removed, retry after reload works
  *   B9  suite passes on a copy with the [B9-09] markers stripped (behavioral)
  *   B10 present-but-unusable iframe (invisible/empty) never hides the textarea
+ *   O9  re-init after teardown/reload never re-runs registerCoreBlocks
+ *   O1–O8 (v1.1.0 T10) OEB cycle probes on the real posts.js: mirror
+ *       normalize fail-closed, non-official early-exit, official intercept +
+ *       monitor, popup-blocked tab fallback, 15-pulse cap, close → one
+ *       return-sync, changed-baseline manual toast, dirty-before-open state
  *
  * Usage:  node tests/js/batch9-rich-editor.test.js   (exit 0 = all pass)
  */
@@ -164,6 +169,22 @@ function makeSandbox(opts) {
   sandbox.__timers = timers;
   sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
   sandbox.clearTimeout = () => {};
+  // T10 (v1.1.0): توسعة بوابة العد إلى 37 — قرار ترقيم صيّاد القائمة.
+  // Additive sandbox surfaces for the OEB cycle probes (O1–O8): intervals,
+  // window.open, reload counting, and the collected document listeners.
+  // Existing timer/element behavior is untouched.
+  const intervals = [];
+  sandbox.__intervals = intervals;
+  let intervalSeq = 0;
+  sandbox.setInterval = (fn, ms) => { intervalSeq += 1; const id = intervalSeq; intervals.push({ id, fn, ms, cleared: false }); return id; };
+  sandbox.clearInterval = (id) => { const rec = intervals.find((i) => i.id === id); if (rec) rec.cleared = true; };
+  sandbox.__windowOpenCalls = [];
+  sandbox.__windowOpenResult = null;
+  sandbox.open = function windowOpen(url, name, features) {
+    sandbox.__windowOpenCalls.push({ url, name, features });
+    return sandbox.__windowOpenResult;
+  };
+  sandbox.__reloads = 0;
   sandbox.getComputedStyle = (node) => node.__style || { display: 'block', visibility: 'visible', opacity: '1' };
   sandbox.FormData = function FormData() { this.append = function append() {}; };
 
@@ -175,6 +196,7 @@ function makeSandbox(opts) {
   const elements = {};
   sandbox.__elements = elements;
   const listeners = {};
+  sandbox.__docListeners = listeners;
   const doc = {
     getElementById(id) { return elements[id] || null; },
     createElement(tag) { return makeNode(tag); },
@@ -185,7 +207,7 @@ function makeSandbox(opts) {
   sandbox.document = doc;
   sandbox.addEventListener = () => {};
   sandbox.hossamAjax = { ajaxurl: '', nonce: '', isRtl: true, i18n: {} };
-  sandbox.location = { href: '', reload() {} };
+  sandbox.location = { href: '', reload() { sandbox.__reloads += 1; } };
   sandbox.history = { replaceState() {} };
 
   const counts = { register: 0, createRoot: 0, unmount: 0, render: 0, serialize: 0, parse: 0 };
@@ -656,6 +678,240 @@ function testO9() {
   runAllTimers(reload);
 }
 
+/* T10 (v1.1.0): توسعة بوابة العد إلى 37 — قرار ترقيم صيّاد القائمة.
+ * O1–O8 — OEB window/monitor/return-sync cycle probes on the REAL posts.js
+ * (the same sandboxed-VM method as B1–B10/O9): mode cycle, carriers, and the
+ * dirty-before-open return path are driven through actual runtime callbacks,
+ * never marker reads. Checks marked [static] read the source text; all
+ * others execute runtime behavior in the sandbox. */
+
+/* Registers the OEB carrier elements (dialog/link/truth textareas) so the
+ * baseline is captured at module init (posts.js captures at load). */
+function attachOebDom(sb, opts) {
+  opts = opts || {};
+  const dlg = makeNode('dialog');
+  dlg.showModal = function () { dlg.__open = true; };
+  dlg.close = function () { dlg.__open = false; };
+  const link = makeNode('a');
+  sb.__elements['hossam-oeb-dialog'] = dlg;
+  sb.__elements['hossam-oeb-dialog-link'] = link;
+  const nc = makeNode('textarea');
+  nc.id = 'hossam-new-content';
+  nc.value = opts.newContent || '';
+  const ec = makeNode('textarea');
+  ec.id = 'hossam-edit-content';
+  ec.value = opts.editContent || '';
+  sb.__elements['hossam-new-content'] = nc;
+  sb.__elements['hossam-edit-content'] = ec;
+  return { dlg, link, nc, ec };
+}
+
+/* Dispatches a click on a .js-oeb-open anchor through the REAL delegated
+ * listener posts.js registered at load (all document click listeners run,
+ * exactly like a real click). */
+function makeOebBtn(href) {
+  return {
+    getAttribute(n) { return n === 'href' ? href : null; },
+    closest(sel) { return sel === '.js-oeb-open' ? this : null; },
+  };
+}
+
+function dispatchClick(sb, target, evt) {
+  (sb.__docListeners.click || []).forEach((fn) => fn(Object.assign({ target, preventDefault() {} }, evt || {})));
+}
+
+function dispatchVisibilityChange(sb) {
+  (sb.__docListeners.visibilitychange || []).forEach((fn) => fn({}));
+}
+
+function oebOpenCalls(sb) {
+  return sb.__windowOpenCalls.filter((c) => c.name === 'hossamOeb');
+}
+
+/* O1 — mirror normalize is fail-closed toward embed: missing config, a
+ * garbage value, and wrong-case values all normalize to embed; only the
+ * exact literal 'official' survives. [static + behavioral] */
+function testO1() {
+  const sb = makeSandbox();
+  attachOebDom(sb);
+  loadPosts(sb);
+  const missing = sb.hossamOebNormalizeMode();
+  sb.hossamRichEditor.mode = 'mirror';
+  const garbage = sb.hossamOebNormalizeMode();
+  sb.hossamRichEditor.mode = 'Official';
+  const wrongCase = sb.hossamOebNormalizeMode();
+  sb.hossamRichEditor.mode = 'official';
+  const official = sb.hossamOebNormalizeMode();
+  check('B9R-O1-mirror-normalize-fail-closed',
+    'embed' === missing && 'embed' === garbage && 'embed' === wrongCase && 'official' === official,
+    'mirror normalize fails closed: missing/garbage/wrong-case mode → embed; the exact literal official is the only pass-through',
+    `normalize deviated: missing=${missing} garbage=${garbage} wrongCase=${wrongCase} official=${official}`);
+}
+
+/* O2 — non-official mode never intercepts the anchor: no window.open, no
+ * preventDefault (target=_blank holds), no cycle, no dialog. */
+function testO2() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb);
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'embed';
+  let prevented = false;
+  dispatchClick(sb, makeOebBtn('https://wp.test/post.php?post=5&action=edit'), {
+    preventDefault() { prevented = true; },
+  });
+  check('B9R-O2-embed-mode-no-intercept',
+    0 === oebOpenCalls(sb).length && false === prevented && 0 === sb.__intervals.length
+      && !dom.dlg.__open && true === sb.hossamOebState.synced,
+    'embed mode: the .js-oeb-open click falls through untouched (no open call, no preventDefault, no monitor, no dialog, no cycle)',
+    `embed mode intercepted: open=${oebOpenCalls(sb).length} prevented=${prevented} intervals=${sb.__intervals.length}`);
+}
+
+/* O3 — official × working window.open: the anchor is intercepted with the
+ * fixed-size hossamOeb window, preventDefault lands, the monitor interval
+ * is armed, and the dialog opens carrying the editor URL. */
+function testO3() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb);
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'official';
+  sb.__windowOpenResult = { closed: false };
+  const url = 'https://wp.test/wp-admin/post.php?post=7&action=edit';
+  let prevented = false;
+  dispatchClick(sb, makeOebBtn(url), { preventDefault() { prevented = true; } });
+  const calls = oebOpenCalls(sb);
+  check('B9R-O3-official-open-intercepts-and-monitors',
+    1 === calls.length && calls[0].url === url && 'hossamOeb' === calls[0].name
+      && -1 !== String(calls[0].features).indexOf('width=1200') && true === prevented
+      && 1 === sb.__intervals.length && false === sb.__intervals[0].cleared
+      && true === dom.dlg.__open && url === dom.link.getAttribute('href'),
+    'official mode + a real window: the click is intercepted (fixed-size hossamOeb window), preventDefault lands, the monitor arms, and the dialog opens with the editor URL',
+    `official open deviated: calls=${JSON.stringify(calls)} prevented=${prevented} intervals=${sb.__intervals.length}`);
+}
+
+/* O4 — popup-blocked fallback: window.open ⇒ null drops the interception
+ * (no preventDefault — target=_blank holds), no dialog, and the tab path
+ * arms the one-shot visibilitychange latch whose return syncs once. */
+function testO4() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb);
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'official';
+  sb.__windowOpenResult = null;
+  let prevented = false;
+  dispatchClick(sb, makeOebBtn('https://wp.test/wp-admin/post.php?post=7&action=edit'), {
+    preventDefault() { prevented = true; },
+  });
+  const latched = true === sb.hossamOebState.pendingVisibility && false === sb.hossamOebState.synced;
+  sb.document.visibilityState = 'visible';
+  dispatchVisibilityChange(sb);
+  check('B9R-O4-popup-blocked-tab-fallback',
+    1 === oebOpenCalls(sb).length && null === sb.__windowOpenResult
+      && false === prevented && latched && !dom.dlg.__open
+      && true === sb.hossamOebState.synced && false === sb.hossamOebState.pendingVisibility
+      && 1 === sb.__reloads && 0 === sb.__intervals.length,
+    'popup blocker (open ⇒ null): no preventDefault (tab holds), the visibilitychange latch arms once, the dialog stays shut, and the visible-return syncs exactly once (reload, unchanged content) with no window monitor',
+    `tab fallback deviated: prevented=${prevented} latched=${latched} reloads=${sb.__reloads} synced=${sb.hossamOebState.synced}`);
+}
+
+/* O5 — the monitor asks win.closed only, every 1000ms, capped at 15 pulses:
+ * reaching the cap clears the interval with no sync (no reload, no toast) —
+ * no unbounded timer ever exists. */
+function testO5() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb);
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'official';
+  const win = { closed: false };
+  sb.__windowOpenResult = win;
+  dispatchClick(sb, makeOebBtn('https://wp.test/wp-admin/post.php?post=7&action=edit'));
+  const rec = sb.__intervals[0];
+  for (let i = 0; i < 15; i += 1) { rec.fn(); }
+  check('B9R-O5-monitor-cap-no-timer-no-sync',
+    15 === sb.hossamOebState.pulses && true === rec.cleared && null === sb.hossamOebState.interval
+      && 0 === sb.__reloads && 0 === sb.__toasts.length
+      && 1000 === rec.ms,
+    '15 pulses without close clear the monitor with no sync at all — no reload, no toast, no unbounded timer (cap contract)',
+    `monitor cap deviated: pulses=${sb.hossamOebState.pulses} cleared=${rec.cleared} reloads=${sb.__reloads} toasts=${sb.__toasts.length}`);
+}
+
+/* O6 — window closed: the monitor syncs the return exactly once (dialog
+ * auto-closed, one reload for unchanged content) and the per-cycle latch
+ * swallows every further signal. */
+function testO6() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb);
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'official';
+  const win = { closed: false };
+  sb.__windowOpenResult = win;
+  dispatchClick(sb, makeOebBtn('https://wp.test/wp-admin/post.php?post=7&action=edit'));
+  const rec = sb.__intervals[0];
+  rec.fn(); // one open pulse
+  win.closed = true;
+  rec.fn(); // the closing pulse
+  const once = 1 === sb.__reloads && false === dom.dlg.__open && true === sb.hossamOebState.synced && true === rec.cleared;
+  sb.hossamOebReturnSync();
+  rec.fn();
+  win.closed = true;
+  dispatchVisibilityChange(sb);
+  check('B9R-O6-close-return-sync-reload-once',
+    once && 1 === sb.__reloads,
+    'close ⇒ return-sync once: the dialog auto-closes, unchanged content reloads exactly once, and the cycle latch swallows repeat signals (no double reload)',
+    `return sync deviated: reloads=${sb.__reloads} dialogOpen=${!!dom.dlg.__open} once=${once}`);
+}
+
+/* O7 — content changed vs the load baseline ⇒ the return path never
+ * reloads: the manual-update toast (R41 key) is the alert. */
+function testO7() {
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb, { editContent: 'baseline-body' });
+  loadPosts(sb);
+  sb.hossamRichEditor.mode = 'official';
+  const win = { closed: false };
+  sb.__windowOpenResult = win;
+  dispatchClick(sb, makeOebBtn('https://wp.test/wp-admin/post.php?post=7&action=edit'));
+  dom.ec.value = 'baseline-body-edited-in-the-window';
+  const rec = sb.__intervals[0];
+  rec.fn();
+  win.closed = true;
+  rec.fn();
+  check('B9R-O7-changed-baseline-manual-toast',
+    0 === sb.__reloads && 1 === sb.__toasts.length
+      && 'success' === sb.__toasts[0].type && -1 !== String(sb.__toasts[0].msg).indexOf('Manual update started.'),
+    'changed vs baseline ⇒ no reload; the return path alerts with the manual-update toast (oeb_manual_update) instead',
+    `changed return deviated: reloads=${sb.__reloads} toasts=${JSON.stringify(sb.__toasts)}`);
+}
+
+/* O8 (§ح-3-7 «وسخ قبل الفتح») — dirtyBeforeOpen is material state: the
+ * field exists on hossamOebState [static], BeginCycle snapshots it from the
+ * open-time snapshot vs the load baseline [static], and a dirty-before-open
+ * cycle alerts (manual-update toast, no reload) in the return path even
+ * though the window itself wrote nothing. */
+function testO8() {
+  const staticOk = -1 !== source.indexOf('dirtyBeforeOpen:false')
+    && -1 !== source.indexOf('hossamOebState.dirtyBeforeOpen=hossamOebDiffers(')
+    && -1 !== source.indexOf('dirtyBeforeOpen') && source.indexOf('dirtyBeforeOpen') < source.indexOf('function hossamOebBeginCycle');
+  const sb = makeSandbox();
+  const dom = attachOebDom(sb, { editContent: 'clean-load-body' });
+  loadPosts(sb);
+  const pristine = false === sb.hossamOebState.dirtyBeforeOpen;
+  dom.ec.value = 'typed-before-open'; // dirt exists BEFORE the open cycle
+  sb.hossamRichEditor.mode = 'official';
+  const win = { closed: false };
+  sb.__windowOpenResult = win;
+  dispatchClick(sb, makeOebBtn('https://wp.test/wp-admin/post.php?post=7&action=edit'));
+  const captured = true === sb.hossamOebState.dirtyBeforeOpen
+    && 'typed-before-open' === sb.hossamOebState.snapshot.editContent;
+  const rec = sb.__intervals[0];
+  rec.fn();
+  win.closed = true;
+  rec.fn();
+  check('B9R-O8-dirty-before-open-materialized',
+    staticOk && pristine && captured && 0 === sb.__reloads && 1 === sb.__toasts.length,
+    '§ح-3-7: the pre-open dirt is materialized in hossamOebState.dirtyBeforeOpen at cycle begin and the return path alerts with the manual-update toast instead of reloading over unsaved work',
+    `dirty-before-open deviated: static=${staticOk} pristine=${pristine} captured=${captured} reloads=${sb.__reloads} toasts=${sb.__toasts.length}`);
+}
+
 testB1();
 testB2();
 testB3();
@@ -667,6 +923,14 @@ testB8();
 testB9();
 testB10();
 testO9();
+testO1();
+testO2();
+testO3();
+testO4();
+testO5();
+testO6();
+testO7();
+testO8();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

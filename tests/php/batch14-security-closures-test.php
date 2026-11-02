@@ -853,8 +853,9 @@ $posts_js_raw_hash = hash( 'sha256', $posts_js_raw );
 $posts_js_lf_hash  = hash( 'sha256', str_replace( "\r\n", "\n", $posts_js_raw ) );
 $posts_js_head     = (string) shell_exec( 'git -C ' . escapeshellarg( $GLOBALS['B14_PROJECT'] ) . ' show HEAD:runtime/assets/js/modules/posts.js 2>&1' );
 $posts_js_head_hash = hash( 'sha256', $posts_js_head );
+// T9-phase3 (v1.1.0): بصمة محدثة للتعديلات المصرحة R18-R20/R21/R39 — تحديث قيمة لا صرامة
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'98e5af2b008ee7586ddf848ad83401545ffb2f68baabba3f6270cec7c3deb558' === $posts_js_raw_hash
+	'a3768d6f256a2689ee81633c8cc71a62bf3a4665bb285d01bebf832eef1ffd81' === $posts_js_raw_hash
 		&& $posts_js_lf_hash === $posts_js_head_hash,
 	'posts.js is byte-identical to the H3 §6 recorded fingerprint and to its HEAD blob (line-ending-normalized) — zero JS drift from the nonce row (H3 §1.5-4)',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
@@ -892,12 +893,13 @@ b14_check( 'T9-PAYMENT-subscriber-200-contract',
  * consumes p.title/p.enabled only and never p.id (H3 §3.1/§3.4-1). */
 $finance_js_path = $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/finance.js';
 $finance_js_raw  = (string) file_get_contents( $finance_js_path );
+// T9-phase3 (v1.1.0): بصمة محدثة للتعديلات المصرحة R18-R20/R21/R39 — تحديث قيمة لا صرامة
 b14_check( 'T9-PAYMENT-finance-js-render-safety',
 	0 === preg_match_all( '/p\.id\b/', $finance_js_raw )
 		&& 0 === substr_count( $finance_js_raw, 'p.id' )
 		&& false !== strpos( $finance_js_raw, 'p.title' )
 		&& false !== strpos( $finance_js_raw, 'p.enabled' )
-		&& '3392e72c3b5ccda3c1ea333a652aad2767c9ab766c94d6f35f9f9e33d10341bc' === hash( 'sha256', $finance_js_raw ),
+		&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === hash( 'sha256', $finance_js_raw ),
 	'finance.js consumes p.title/p.enabled only (zero p.id reads) and is byte-identical to the H3 §6 recorded fingerprint — the member panel renders from the remaining fields',
 	'finance.js render-safety deviated: p_id_regex=' . preg_match_all( '/p\.id\b/', $finance_js_raw )
 		. ' hash=' . hash( 'sha256', $finance_js_raw ) );

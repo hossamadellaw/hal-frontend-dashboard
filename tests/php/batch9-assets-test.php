@@ -697,6 +697,49 @@ b9_check( 'B9-R7-rich-posts-deps-intact',
 	'hossam-dashboard-posts still depends only on hossam-dashboard-js and carries the separate hossamRichEditor map',
 	'posts.js contract drifted: deps=' . var_export( $r2['posts_deps'], true ) . ' rich=' . var_export( $r2['rich'], true ) );
 
+// T10 (v1.1.0): بروبات stub دورة الوضع — طبّع → embed عند الغياب/الفاسد؛
+// effective off عند التعطيل (صفوف OEB/1 القياسية على نمط القارئين الحقيقيين
+// runtime/settings/class-settings-repository.php:159-173). لا يُخفَّض أي فحص
+// قائم من ال32 — إضافة حصرًا.
+unset( $GLOBALS['B9_EDITOR_MODE'] );
+$b9_mode_missing = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'mirror';
+$b9_mode_garbage = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'Official';
+$b9_mode_wrongcase = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+b9_check( 'B9-O1-mode-normalize-fail-closed',
+	'embed' === $b9_mode_missing && 'embed' === $b9_mode_garbage && 'embed' === $b9_mode_wrongcase,
+	'stub get_rich_editor_mode fails closed: missing/garbage/wrong-case B9_EDITOR_MODE normalizes to embed (the real-reader contract)',
+	"mode normalize deviated: missing={$b9_mode_missing} garbage={$b9_mode_garbage} wrongcase={$b9_mode_wrongcase}" );
+
+$b9_trio_ok = true;
+foreach ( array( 'official', 'embed', 'off' ) as $b9_trio ) {
+	$GLOBALS['B9_EDITOR_MODE'] = $b9_trio;
+	if ( $b9_trio !== HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode() ) {
+		$b9_trio_ok = false;
+	}
+}
+b9_check( 'B9-O2-mode-trio-passes-through',
+	$b9_trio_ok,
+	'the exact EDITOR_MODES trio (official/embed/off) is the only pass-through of the raw reader',
+	'EDITOR_MODES pass-through deviated' );
+
+// off عند التعطيل: rich_editor مغلقة تُطوي الوضع إلى off حتى لو كانت القيمة official؛
+// والتشغيل يمرر القيمة كما هي (embed/official).
+$GLOBALS['B9_EDITOR_MODE'] = 'official';
+$GLOBALS['B9_FEATURES'] = array( 'rich_editor' => false );
+$b9_effective_disabled = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+$GLOBALS['B9_FEATURES'] = array( 'rich_editor' => true );
+$GLOBALS['B9_EDITOR_MODE'] = 'official';
+$b9_effective_official = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'embed';
+$b9_effective_embed = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+b9_check( 'B9-O3-effective-mode-folds-to-off-when-disabled',
+	'off' === $b9_effective_disabled && 'official' === $b9_effective_official && 'embed' === $b9_effective_embed,
+	'get_effective_editor_mode folds to off whenever rich_editor is disabled (even with mode=official) and passes the raw mode through when enabled',
+	"effective mode deviated: disabled={$b9_effective_disabled} official={$b9_effective_official} embed={$b9_effective_embed}" );
+unset( $GLOBALS['B9_EDITOR_MODE'], $GLOBALS['B9_FEATURES'] );
+
 // R8: المفتاح خارج FEATURES افتراضيًا → fail-closed (لا تمكين بلا تخصيص المالك).
 unset( $GLOBALS['B9_FEATURES'], $GLOBALS['B9_CAPS'], $GLOBALS['B9_UNREGISTERED'] );
 unset( $_REQUEST['post_id'] );
