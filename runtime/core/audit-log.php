@@ -225,7 +225,7 @@ if ( ! function_exists( 'hossam_audit_log_events' ) ) {
 	 *
 	 * | #  | event_action           | object_type | object_id            | meta (مفاتيح مغلقة)                    | موضع النداء (G4 §3-أ — المرحلة 2)                     |
 	 * |----|------------------------|-------------|----------------------|----------------------------------------|--------------------------------------------------------|
-	 * | 1  | article_create         | article     | id المقال الجديد     | status                                 | posts.php:347 قبل wp_send_json_success                 |
+	 * | 1  | article_create         | article     | id المقال الجديد     | status, lang                           | posts.php:347 قبل wp_send_json_success — دلتا R8: lang |
 	 * | 2  | article_update         | article     | id المقال            | status                                 | posts.php:403 قبل wp_send_json_success                 |
 	 * | 3  | article_trash          | article     | id المقال            | —                                      | posts.php:433 قبل wp_send_json_success                 |
 	 * | 4  | article_restore        | article     | id المقال            | —                                      | posts.php:131 قبل wp_send_json_success                 |
