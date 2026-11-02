@@ -1210,6 +1210,253 @@ b14_check( 'T2-E8-schedule-guard-idempotent',
 	'guard idempotency deviated: scheduled=' . count( $GLOBALS['B14_CRON_SCHEDULED'] ) . ' cleared=' . count( $GLOBALS['B14_CRON_CLEARED'] ) );
 
 /* ════════════════════════════════════════════════════════════════
+ * T2-R13 — KEY_MISMATCH full path (H3 §4 / G4 §7): WP_Error + hook once
+ * + audit row + ciphertext unchanged + the EXCLUSIVE scope (the hook fires
+ * on key_mismatch ONLY — never on match/missing/unavailable/decrypt-fail)
+ * ════════════════════════════════════════════════════════════════ */
+
+/* Boundary stubs needed by the store's associated_data (host+path of home URL). */
+if ( ! function_exists( 'get_home_url' ) ) {
+	function get_home_url( $blog_id = null, string $path = '', $scheme = null ): string {
+		return 'https://example.test';
+	}
+}
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( $url, $component = -1 ) {
+		return -1 === $component ? parse_url( (string) $url ) : parse_url( (string) $url, $component );
+	}
+}
+
+$ss_path = $GLOBALS['B14_PROJECT'] . '/runtime/security/class-secret-store.php';
+require $ss_path; // the REAL Secret Store — the R13 subject (sodium loaded via -d extension=sodium)
+$ss_src  = (string) file_get_contents( $ss_path );
+putenv( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY=' . str_repeat( 'ab', 32 ) ); // 64 hex chars → valid 32-byte key (harness fixture only)
+
+/* The hook recorder rides the real dispatch (registered AFTER the audit-log
+ * listener — both consume every firing; the listener count is asserted). */
+$GLOBALS['B14_R13_HOOK_CALLS'] = array();
+$km_recorder = static function ( $entry ) {
+	$GLOBALS['B14_R13_HOOK_CALLS'][] = $entry;
+};
+add_action( 'hal_frontend_dashboard_secret_audit', $km_recorder, 20, 1 );
+
+b14_reset();
+$GLOBALS['B14_USER_ID'] = 3;
+$GLOBALS['B14_USERS'][3] = (object) array( 'user_login' => 'hossam_lawyer' );
+$forged_fp = str_repeat( 'cd', 16 ); // 32 hex chars — a WRONG key fingerprint
+$GLOBALS['B14_OPTIONS'][ HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME ] = array(
+	'ai_key' => array(
+		'v'      => 1,
+		'key_fp' => $forged_fp,
+		'nonce'  => base64_encode( str_repeat( '0', SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES ) ),
+		'ct'     => base64_encode( 'forged-context-ciphertext' ),
+	),
+);
+b14_errlog_start();
+$before_hash = hash( 'sha256', (string) wp_json_encode( $GLOBALS['B14_OPTIONS'][ HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME ] ) );
+$km_result = HAL_Frontend_Dashboard_Secret_Store::get( 'ai_key' );
+$km_err    = b14_errlog_take();
+$after_hash = hash( 'sha256', (string) wp_json_encode( $GLOBALS['B14_OPTIONS'][ HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME ] ) );
+$km_entry = $GLOBALS['B14_R13_HOOK_CALLS'][0] ?? array();
+$km_entry_keys = array_keys( $km_entry );
+sort( $km_entry_keys );
+$km_rows = array_values( array_filter( $GLOBALS['wpdb']->queries, static fn( $q ) => false !== strpos( (string) $q, 'INSERT INTO wp_hossam_audit_log' ) ) );
+
+b14_check( 'T2-R13-wp-error-code-and-message',
+	is_wp_error( $km_result ) && 'hal_secret_key_mismatch' === $km_result->get_error_code()
+		&& 'The master key changed; the stored ciphertext is kept for diagnosis.' === $km_result->get_error_message(),
+	'get() over a forged fingerprint ⇒ WP_Error hal_secret_key_mismatch with the exact literal message (R13)',
+	'key_mismatch WP_Error deviated: ' . var_export( $km_result, true ) );
+b14_check( 'T2-R13-hook-once-four-field-payload-zero-secret-bytes',
+	1 === count( $GLOBALS['B14_R13_HOOK_CALLS'] )
+		&& array( 'action', 'actor', 'secret_id', 'time' ) === $km_entry_keys
+		&& 'key_mismatch' === $km_entry['action'] && 'ai_key' === $km_entry['secret_id'] && 3 === $km_entry['actor']
+		&& false === strpos( (string) wp_json_encode( $km_entry ), 'forged-context-ciphertext' )
+		&& false === strpos( (string) wp_json_encode( $km_entry ), $forged_fp ),
+	'the hook fires exactly once with the four-field payload {action,secret_id,actor,time} and ZERO secret bytes (no ct/nonce/key_fp/value anywhere)',
+	'hook payload deviated: calls=' . count( $GLOBALS['B14_R13_HOOK_CALLS'] ) . ' entry=' . var_export( $km_entry, true ) );
+b14_check( 'T2-R13-audit-row-secret-key-mismatch',
+	1 === count( $km_rows ) && false !== strpos( (string) $km_rows[0], "'secret_key_mismatch', 'secret', NULL, ''" )
+		&& false !== strpos( (string) $km_rows[0], addslashes( (string) wp_json_encode( array( 'secret_id' => 'ai_key' ) ) ) ),
+	'one secret_key_mismatch row was written (enabled=true default) with object_type=secret and meta secret_id only',
+	'audit row deviated: rows=' . count( $km_rows ) . ' sql=' . var_export( $km_rows[0] ?? '', true ) );
+b14_check( 'T2-R13-ciphertext-bytes-unchanged',
+	$before_hash === $after_hash
+		&& 0 === count( array_filter( $GLOBALS['B14_OPTION_WRITES'], static fn( $w ) => HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME === $w['option'] ) ),
+	'the stored ciphertext record is byte-identical before/after get() (hash equal) and the mismatch path writes ZERO options',
+	'ciphertext mutation deviated: before=' . $before_hash . ' after=' . $after_hash );
+b14_check( 'T2-R13-single-error-log-line',
+	1 === substr_count( $km_err, 'HAL secret audit: action=key_mismatch secret_id=ai_key actor=3' ),
+	'exactly one scrubbed error_log line for the key_mismatch audit (the audit() disclosure pattern)',
+	'error_log deviated: ' . var_export( $km_err, true ) );
+
+/* Exclusive scope: the hook fires on key_mismatch ONLY. */
+$listener_before = count( $GLOBALS['B14_R13_HOOK_CALLS'] );
+
+/* match: a REAL record encrypted with the CURRENT key — decrypts clean, no hook. */
+$km_key = hex2bin( str_repeat( 'ab', 32 ) );
+$km_ad  = (string) wp_json_encode( array( 'site' => 'example.test', 'id' => 'ai_key', 'schema' => 1 ) );
+$km_nonce = random_bytes( SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES );
+$km_ct = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt( 'unit-secret-value', $km_ad, $km_nonce, $km_key );
+$GLOBALS['B14_OPTIONS'][ HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME ]['ai_key'] = array(
+	'v'      => 1,
+	'key_fp' => HAL_Frontend_Dashboard_Secret_Store::get_key_fingerprint(),
+	'nonce'  => base64_encode( $km_nonce ),
+	'ct'     => base64_encode( $km_ct ),
+);
+$km_match = HAL_Frontend_Dashboard_Secret_Store::get( 'ai_key' );
+
+/* ERR_MISSING. */
+$km_missing = HAL_Frontend_Dashboard_Secret_Store::get( 'not_configured' );
+
+/* ERR_DECRYPT_FAILED: correct fingerprint, corrupted ciphertext. */
+$GLOBALS['B14_OPTIONS'][ HAL_Frontend_Dashboard_Secret_Store::OPTION_NAME ]['bad_ct'] = array(
+	'v'      => 1,
+	'key_fp' => HAL_Frontend_Dashboard_Secret_Store::get_key_fingerprint(),
+	'nonce'  => base64_encode( str_repeat( '1', SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES ) ),
+	'ct'     => base64_encode( 'corrupted-bytes' ),
+);
+$km_decrypt = HAL_Frontend_Dashboard_Secret_Store::get( 'bad_ct' );
+
+/* ERR_UNAVAILABLE: remove the external key source (env unset, constant absent). */
+putenv( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY' );
+$km_unavailable = HAL_Frontend_Dashboard_Secret_Store::get( 'ai_key' );
+putenv( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY=' . str_repeat( 'ab', 32 ) );
+
+$hook_after_scope = count( $GLOBALS['B14_R13_HOOK_CALLS'] ) - $listener_before;
+b14_check( 'T2-R13-scope-exclusive-key-mismatch-only',
+	'unit-secret-value' === $km_match
+		&& is_wp_error( $km_missing ) && 'hal_secret_missing' === $km_missing->get_error_code()
+		&& is_wp_error( $km_decrypt ) && 'hal_secret_decrypt_failed' === $km_decrypt->get_error_code()
+		&& is_wp_error( $km_unavailable ) && 'hal_secret_store_unavailable' === $km_unavailable->get_error_code()
+		&& 0 === $hook_after_scope,
+	'the hook NEVER fires on match / ERR_MISSING / ERR_DECRYPT_FAILED / ERR_UNAVAILABLE — its scope is exclusively key_mismatch (H3 §4.4-2/§4.5)',
+	'exclusive scope deviated: match=' . var_export( $km_match, true )
+		. ' missing=' . var_export( $km_missing->get_error_code() ?? $km_missing, true )
+		. ' decrypt=' . var_export( $km_decrypt->get_error_code() ?? $km_decrypt, true )
+		. ' unavailable=' . var_export( $km_unavailable->get_error_code() ?? $km_unavailable, true )
+		. ' extra_hook_calls=' . $hook_after_scope );
+
+/* Static: the audit() docblock documents set|delete|key_mismatch; get_failed is gone (C3-1). */
+b14_check( 'T2-R13-docblock-set-delete-key-mismatch',
+	false !== strpos( $ss_src, '@param string $action set|delete|key_mismatch' )
+		&& 0 === substr_count( $ss_src, 'get_failed' )
+		&& 1 === substr_count( $ss_src, "self::audit( 'key_mismatch'" ),
+	'static: audit() docblock = set|delete|key_mismatch, zero get_failed mentions in the store (C3-1 removal final), exactly one key_mismatch audit call site',
+	'docblock/call-site deviated: doc=' . var_export( false !== strpos( $ss_src, '@param string $action set|delete|key_mismatch' ), true )
+		. ' get_failed=' . substr_count( $ss_src, 'get_failed' ) );
+putenv( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY' ); // clean the harness fixture key
+
+/* ════════════════════════════════════════════════════════════════
+ * T2-INVENTORY — the physical audit inventory is EXACTLY 20 (two ways):
+ * 19 hossam_audit_log( call sites across runtime/ (excluding the definition
+ * and the two docblock mentions in audit-log.php) + the single
+ * self::audit('key_mismatch') line in class-secret-store.php (G4 §5 / H3 §4.4-6)
+ * ════════════════════════════════════════════════════════════════ */
+
+$b14_inv_dir    = $GLOBALS['B14_PROJECT'] . '/runtime';
+$b14_inv_raw    = 0;
+$b14_inv_token  = 0;
+$b14_inv_files  = 0;
+$b14_inv_detail = array();
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $b14_inv_dir, FilesystemIterator::SKIP_DOTS ) ) as $b14_inv_file ) {
+	if ( ! $b14_inv_file->isFile() || 'php' !== $b14_inv_file->getExtension() ) {
+		continue;
+	}
+	$b14_inv_files++;
+	$b14_inv_src = (string) file_get_contents( $b14_inv_file->getPathname() );
+
+	/* Way 1 — raw line scan: skip docblock/comment lines and the definition. */
+	foreach ( preg_split( '/\r\n|\r|\n/', $b14_inv_src ) as $line ) {
+		if ( false === strpos( $line, 'hossam_audit_log(' ) ) {
+			continue;
+		}
+		$trim = ltrim( $line );
+		if ( '' === $trim || '*' === $trim[0] || '//' === substr( $trim, 0, 2 ) ) {
+			continue; // docblock/comment mention
+		}
+		if ( 1 === preg_match( '/function\s+hossam_audit_log\s*\(/', $line ) ) {
+			continue; // the definition
+		}
+		$b14_inv_raw++;
+		$b14_inv_detail[] = $b14_inv_file->getBasename();
+	}
+
+	/* Way 2 — token scan: T_STRING hossam_audit_log + '(' minus the T_FUNCTION definition. */
+	$tokens = token_get_all( $b14_inv_src );
+	$n = count( $tokens );
+	for ( $i = 0; $i < $n; $i++ ) {
+		$tk = $tokens[ $i ];
+		if ( ! is_array( $tk ) || T_STRING !== $tk[0] || 'hossam_audit_log' !== $tk[1] ) {
+			continue;
+		}
+		$j = $i + 1;
+		while ( $j < $n && is_array( $tokens[ $j ] ) && T_WHITESPACE === $tokens[ $j ][0] ) {
+			$j++;
+		}
+		if ( $j >= $n || '(' !== $tokens[ $j ] ) {
+			continue;
+		}
+		$k = $i - 1;
+		while ( $k >= 0 && is_array( $tokens[ $k ] ) && T_WHITESPACE === $tokens[ $k ][0] ) {
+			$k--;
+		}
+		if ( $k >= 0 && is_array( $tokens[ $k ] ) && T_FUNCTION === $tokens[ $k ][0] ) {
+			continue; // the definition
+		}
+		$b14_inv_token++;
+	}
+}
+
+/* The store's key_mismatch audit line — counted on comment-stripped source. */
+$ss_code = '';
+foreach ( token_get_all( $ss_src ) as $token ) {
+	if ( is_array( $token ) ) {
+		if ( in_array( $token[0], array( T_COMMENT, T_DOC_COMMENT, T_WHITESPACE, T_OPEN_TAG ), true ) ) {
+			continue;
+		}
+		$ss_code .= $token[1];
+	} else {
+		$ss_code .= $token;
+	}
+}
+$km_call_sites = (int) preg_match_all( "/self::audit\(\s*'key_mismatch'/", $ss_code );
+b14_check( 'T2-INVENTORY-20-physical-calls-two-ways',
+	19 === $b14_inv_raw && 19 === $b14_inv_token && 1 === $km_call_sites
+		&& 20 === $b14_inv_raw + $km_call_sites && 20 === $b14_inv_token + $km_call_sites,
+	"the audit inventory is EXACTLY 20 both ways: 19 hossam_audit_log( call sites across runtime/ ({$b14_inv_files} php files; definition + 2 docblock mentions excluded) + 1 self::audit('key_mismatch') in class-secret-store.php (G4 §5)",
+	'inventory deviated: raw=' . $b14_inv_raw . ' token=' . $b14_inv_token . ' km=' . $km_call_sites
+		. ' files=' . json_encode( array_count_values( $b14_inv_detail ) ) );
+
+/* ════════════════════════════════════════════════════════════════
+ * T2-ZOMBIE — meta.reason values of the zombie sweep survive sanitize_key
+ * intact (static + behavioral through the REAL fail_job_if_outstanding)
+ * ════════════════════════════════════════════════════════════════ */
+
+require $GLOBALS['B14_PROJECT'] . '/runtime/ajax/ai.php';
+
+b14_reset();
+$GLOBALS['B14_USER_ID'] = 3;
+$GLOBALS['B14_USERS'][3] = (object) array( 'user_login' => 'hossam_lawyer' );
+$zombie_static = 'attempts_exhausted' === sanitize_key( 'attempts_exhausted' )
+	&& 'orphaned_pending' === sanitize_key( 'orphaned_pending' );
+$z1 = hossam_ai_fail_job_if_outstanding( 88, 'attempts_exhausted' );
+$z2 = hossam_ai_fail_job_if_outstanding( 89, 'orphaned_pending' );
+$zombie_rows = array_values( array_filter( $GLOBALS['wpdb']->queries, static fn( $q ) => false !== strpos( (string) $q, 'INSERT INTO wp_hossam_audit_log' ) ) );
+$z1_needle = addslashes( (string) wp_json_encode( array( 'reason' => 'attempts_exhausted' ) ) );
+$z2_needle = addslashes( (string) wp_json_encode( array( 'reason' => 'orphaned_pending' ) ) );
+b14_check( 'T2-ZOMBIE-meta-reason-survives-sanitize-key',
+	$zombie_static && true === $z1 && true === $z2
+		&& 2 === count( $zombie_rows )
+		&& false !== strpos( (string) $zombie_rows[0], $z1_needle )
+		&& false !== strpos( (string) $zombie_rows[1], $z2_needle )
+		&& false !== strpos( (string) $zombie_rows[0], "'ai_fail'" ) && false !== strpos( (string) $zombie_rows[1], "'ai_fail'" ),
+	'both zombie reasons (attempts_exhausted / orphaned_pending) pass sanitize_key byte-intact — statically and behaviorally through the REAL fail_job_if_outstanding writing ai_fail rows (V110-H2)',
+	'zombie reasons deviated: static=' . var_export( $zombie_static, true )
+		. ' z1=' . var_export( $z1, true ) . ' z2=' . var_export( $z2, true )
+		. ' rows=' . count( $zombie_rows ) );
+
+/* ════════════════════════════════════════════════════════════════
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 

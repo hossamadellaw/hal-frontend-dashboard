@@ -983,6 +983,51 @@ b14_check( 'T1-S15-static-hygiene',
 	'static hygiene failed on rate-limits.php' );
 
 /* ════════════════════════════════════════════════════════════════
+ * T1-S16 (G3 §4-11 بعد R7) — الاسم الخام hossam_msg_rate_ صفر عبر runtime/ كله
+ * ════════════════════════════════════════════════════════════════ */
+
+/* Way 1: raw byte scan (substr_count) across every runtime/ file. */
+$b16_root      = $GLOBALS['B14_PROJECT'] . '/runtime';
+$b16_rit       = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $b16_root, FilesystemIterator::SKIP_DOTS ) );
+$b16_files     = 0;
+$b16_raw_hits  = 0;
+$b16_raw_files = array();
+foreach ( $b16_rit as $b16_file ) {
+	if ( ! $b16_file->isFile() ) {
+		continue;
+	}
+	$b16_files++;
+	$b16_count = substr_count( (string) file_get_contents( $b16_file->getPathname() ), 'hossam_msg_rate_' );
+	if ( $b16_count > 0 ) {
+		$b16_raw_hits += $b16_count;
+		$b16_raw_files[] = $b16_file->getPathname();
+	}
+}
+
+/* Way 2: regex scan (preg_match_all) across the same tree — D1 lesson: two
+ * independent counting mechanisms, never one shell wrapper. */
+$b16_re_hits  = 0;
+$b16_re_files = array();
+foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $b16_root, FilesystemIterator::SKIP_DOTS ) ) as $b16_file ) {
+	if ( ! $b16_file->isFile() ) {
+		continue;
+	}
+	$b16_n = preg_match_all( '/hossam_msg_rate_/', (string) file_get_contents( $b16_file->getPathname() ) );
+	if ( $b16_n > 0 ) {
+		$b16_re_hits += $b16_n;
+		$b16_re_files[] = $b16_file->getPathname();
+	}
+}
+
+b14_check( 'T1-S16-raw-name-zero-runtime-two-ways',
+	$b16_files > 0 && 0 === $b16_raw_hits && array() === $b16_raw_files
+		&& 0 === $b16_re_hits && array() === $b16_re_files
+		&& 0 === substr_count( $rl_src, 'hossam_msg_rate_' ),
+	"the raw inbox lock name hossam_msg_rate_ has ZERO occurrences across runtime/ ({$b16_files} files) by two independent scans (substr_count + preg_match_all) — G3 §4-11 repo-wide retirement measured after R7",
+	'raw name found: raw=' . $b16_raw_hits . ' files=' . json_encode( $b16_raw_files )
+		. ' regex=' . $b16_re_hits . ' files=' . json_encode( $b16_re_files ) );
+
+/* ════════════════════════════════════════════════════════════════
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
