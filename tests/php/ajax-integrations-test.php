@@ -1800,9 +1800,11 @@ function b6_mode_finance_wc( string $project ): void {
 	);
 	$r = b6_call_ajax( 'wp_ajax_hossam_get_payment_methods' );
 	$data = b6_exit_data( $r );
-	b6_check( 'FINC-GW', b6_exit_is( $r, 200, true ) && 1 === count( $data ) && 'stripe' === ( $data[0]['id'] ?? '' )
+	// تفويض المالك #1 (2026-11-02): R15/R33 — تحديث قيمة لا صرامة
+	// (R33/H3 §3: حذف id من الحمولة — تبقى {title, enabled}؛ البنية والـ === بلا تغيير).
+	b6_check( 'FINC-GW', b6_exit_is( $r, 200, true ) && 1 === count( $data ) && '' === ( $data[0]['id'] ?? '' )
 		&& 'Stripe' === ( $data[0]['title'] ?? '' ) && true === ( $data[0]['enabled'] ?? false ),
-		'payment methods: registered+enabled gateways only, legacy {id,title,enabled} contract', 'got ' . json_encode( $r ) );
+		'payment methods: registered+enabled gateways only, {title,enabled} contract (id removed — R33/H3 §3)', 'got ' . json_encode( $r ) );
 
 	// Saved tokens: last4 only — malformed last4 and non-token objects skipped.
 	b6_begin_case( array(), 3, true, $MGR );

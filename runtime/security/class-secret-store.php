@@ -44,6 +44,7 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	const ERR_EMPTY_VALUE   = 'hal_secret_empty_value';
 	const ERR_MISSING       = 'hal_secret_missing';
 	const ERR_KEY_MISMATCH  = 'hal_secret_key_mismatch';
+	const ERR_PERSIST_FAILED = 'hal_secret_persist_failed';
 	const ERR_DECRYPT_FAILED = 'hal_secret_decrypt_failed';
 	const ERR_UNSUPPORTED_VERSION = 'hal_secret_unsupported_version';
 
@@ -126,7 +127,7 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 			'ct'     => base64_encode( $ct ),
 		);
 		if ( ! update_option( self::OPTION_NAME, $records, false ) && get_option( self::OPTION_NAME ) !== $records ) {
-			return new WP_Error( self::ERR_DECRYPT_FAILED, 'Persisting the encrypted secret failed.' );
+			return new WP_Error( self::ERR_PERSIST_FAILED, 'Persisting the encrypted secret failed.' );
 		}
 
 		self::audit( 'set', $secret_id );
@@ -163,6 +164,7 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 			return new WP_Error( self::ERR_UNAVAILABLE, 'HAL encrypted storage is unavailable: no external key source or sodium extension.' );
 		}
 		if ( ! is_string( $record['key_fp'] ) || ! hash_equals( $record['key_fp'], (string) self::get_key_fingerprint() ) ) {
+			self::audit( 'key_mismatch', $secret_id );
 			// تغيّر master key: ciphertext يبقى كما هو (لا يمسح) وينتج
 			// حالة blocked قابلة للتشخيص — §8.4.
 			return new WP_Error( self::ERR_KEY_MISMATCH, 'The master key changed; the stored ciphertext is kept for diagnosis.' );
@@ -301,7 +303,7 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	 * audit metadata بلا قيمة ولا prefix ولا request/response خام:
 	 * hook داخلي + سطر log منقح.
 	 *
-	 * @param string $action set|delete|get_failed
+	 * @param string $action set|delete|key_mismatch
 	 */
 	private static function audit( string $action, string $secret_id ): void {
 		$entry = array(

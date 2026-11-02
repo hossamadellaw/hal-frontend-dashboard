@@ -138,10 +138,17 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
         if ( '' !== (string) $wpdb->last_error ) {
             wp_send_json_error( [ 'message' => hossam_t( 'Summary could not be loaded.' ) ], 500 );
         }
+        // R15 (G5 §7-4/5) — انحراف أداء معلن: حلقة تجميع الإيراد مقيّدة بسقف
+        // صفحات عبر الفلتر hossam_fin_summary_max_pages (افتراضي 20). عند
+        // تجاوز عدد الصفحات السقف يكون total_revenue جزئيًا ويُعلَن ذلك
+        // بـ revenue_capped في حمل KPI، بينما total_orders يبقى دقيقًا
+        // دائمًا: يأتي من عدّ DB في الصفحة الأولى ($first_page['total'])
+        // لا من الحلقة المُسقَّفة.
         $total_orders  = $first_page['total'];
         $total_revenue = 0.0;
         $pending_count = 0;
-        $max_pages     = max( 1, $first_page['max_num_pages'] );
+        $max_pages     = min( max( 1, $first_page['max_num_pages'] ), (int) apply_filters( 'hossam_fin_summary_max_pages', 20 ) );
+        $revenue_capped = $first_page['max_num_pages'] > $max_pages;
         for ( $query_page = 1; $query_page <= $max_pages; $query_page++ ) {
             $page_data = 1 === $query_page
                 ? $first_page
@@ -159,6 +166,7 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
             'total_orders'  => $total_orders,
             'total_revenue' => wp_strip_all_tags( hossam_wc_format_price( $total_revenue ) ),
             'revenue_raw'   => $total_revenue,
+            'revenue_capped' => $revenue_capped,
             'average_order' => wp_strip_all_tags( hossam_wc_format_price( $total_orders > 0 ? $total_revenue / $total_orders : 0 ) ),
             'pending_count' => $pending_count,
             'currency'      => hossam_wc_get_currency(),
@@ -173,6 +181,7 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
 
 // ══════════════════════════════════════════════════════════════
 // [FIN-06] Endpoint: hossam_get_payment_methods
+// الخطر المقبول (H3 §3): قائمة إتاحة عامة: أي مسجل عبر بوابة finance المفعلة يرى عناوين بوابات الدفع المفعلة للموقع — معلومة علنية أصلًا في checkout؛ لا أسرار/مفاتيح/توكنات؛ قرار مالك 2026-11-01 (H3 §3)
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_get_payment_methods', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -199,7 +208,6 @@ add_action( 'wp_ajax_hossam_get_payment_methods', function(): void {
     }
 
     wp_send_json_success( array_values( array_map( fn( $g ) => [
-        'id'      => $g->id,
         'title'   => $g->get_title(),
         'enabled' => true,
     ], $gws ) ) );

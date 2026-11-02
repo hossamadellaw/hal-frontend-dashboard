@@ -5,7 +5,8 @@
  * العقد (معمارية §14 و§8.3 وقرارات المالك §2.3/§2.4):
  *   - schema/version/defaults وgetters مكتوبة الأنواع مع validation
  *     صارم؛ لا مفاتيح مجهولة ولا shapes حرة.
- *   - option واحدة غير حساسة باسم ثابت وautoload=no؛ لا سر ولا
+ *   - option واحدة غير حساسة باسم ثابت وautoload=yes بقيمة صغيرة
+ *     مقيسة 373B — قرار دورة الإجماع v1.0.9 (صف R6)؛ لا سر ولا
  *     ciphertext هنا (Secret Store ملف مستقل) ولا بيانات مستخدم.
  *   - الإعدادات بيانات موقع خارج releases/state وتبقى عبر
  *     update/rollback (لا تدخل release manifest — §2.5).
@@ -252,7 +253,9 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			return true;
 		}
 
-		$written = update_option( self::OPTION_NAME, $payload, false );
+		// R6 (G5 §5-1): الوسيط الثالث true (bool → 'on') — كل حفظ فعلي
+		// يُعيد تثبيت الأوتولود والدوام من البناء؛ لا null ولا قيم نصية.
+		$written = update_option( self::OPTION_NAME, $payload, true );
 		self::invalidate_cache();
 		if ( false === $written ) {
 			return new WP_Error( 'hal_settings_write_failed', 'The settings write failed; the previously stored values remain intact.' );
@@ -268,4 +271,32 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	public static function invalidate_cache(): void {
 		self::$cache = array();
 	}
+
+	/**
+	 * R6 (G5 §5-2): التحويل الأولي لأوتولود option الإعدادات — يُسجَّل
+	 * على init بنمط ensure_table الثلاثي (tables.php:200-219). حارس علم
+	 * حرفي `hossam_settings_autoload_migrated`: إن غاب العلم حُوِّل صف
+	 * الخيار القائم عبر `wp_set_option_autoload_values` (قيم boolean هي
+	 * المسار المستقر بعد إهلاك 6.7.0 لنصّي 'yes'/'no') ثم أُنشئ العلم
+	 * بأوتولود افتراضي — عكس درس C7 المقصود لخيارات «لا-autoload»: علم
+	 * صغير يُقرأ كل طلب من alloptions بلا SQL في الثبات. الحارسان
+	 * بـfunction_exists يحفظان بيئات الشيم/الإصدارات الأقدم، والكاتب
+	 * أعلاه يعيد تثبيت الأوتولود مع كل حفظ فعلي على أي حال.
+	 */
+	public static function init(): void {
+		if ( get_option( 'hossam_settings_autoload_migrated' ) ) {
+			return;
+		}
+		if ( function_exists( 'wp_set_option_autoload_values' ) ) {
+			wp_set_option_autoload_values( array( self::OPTION_NAME => true ) );
+		}
+		if ( function_exists( 'add_option' ) ) {
+			add_option( 'hossam_settings_autoload_migrated', true );
+		}
+	}
 }
+
+// R6 (G5 §5-2): نمط tables.php/audit-log.php — تسجيل التحويل الأولي على init.
+add_action( 'init', function (): void {
+	HAL_Frontend_Dashboard_Settings_Repository::init();
+} );

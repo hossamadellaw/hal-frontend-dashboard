@@ -581,35 +581,6 @@ if ( ! function_exists( 'hossam_ai_build_improvement_prompt' ) ) {
 }
 
 /**
- * (أ) صلاحية الرابط — WordPress Core مباشرة، لا استدعاء AI إطلاقًا.
- *
- * @param string[] $urls
- * @return array<string,array{valid:bool,status:int|null}>
- */
-if ( ! function_exists( 'hossam_ai_verify_links' ) ) {
-	function hossam_ai_verify_links( array $urls ): array {
-		$results = [];
-
-		foreach ( $urls as $url ) {
-			$url = esc_url_raw( $url );
-			if ( '' === $url ) {
-				continue;
-			}
-
-			$response = wp_remote_head( $url, [ 'timeout' => 8 ] );
-			$status   = is_wp_error( $response ) ? null : wp_remote_retrieve_response_code( $response );
-
-			$results[ $url ] = [
-				'valid'  => null !== $status && $status >= 200 && $status < 400,
-				'status' => $status,
-			];
-		}
-
-		return $results;
-	}
-}
-
-/**
  * (ب) التحقق الحي من صحة المعلومة — توسّع مستقبلي، غير مُنفَّذ عمدًا
  * فى هذا النطاق (خارج نطاق الدفعات المعتمدة بلا طلب وظيفي مستقل).
  */

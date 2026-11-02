@@ -606,6 +606,8 @@ function hal_test_main(): void {
 		array( 'filter', 'wp_insert_post_data', 10 ),
 		array( 'action', 'hossam_dashboard_retention_sweep_event', 10 ),
 		array( 'action', 'init', 10 ),
+		// تفويض المالك #1 (2026-11-02): R6 — تسجيل init التحويل الأولي للأوتولود في class-settings-repository.php (صف R6/G5 §5-2) بموضعه الفعلي بعد audit-log وقبل مراقب الصحة.
+		array( 'action', 'init', 10 ),
 		// Batch 3 (backend) load-time registrations — in bootstrap require order.
 		array( 'action', 'hal_frontend_dashboard_integration_health_check', 10 ),
 		array( 'filter', 'site_status_tests', 10 ),
@@ -694,7 +696,8 @@ function hal_test_main(): void {
 		'A4',
 		$actual_events === $expected_events,
 		// تفويض المالك #1 (2026-11-02): العدد 73→81 بتسجيلات التحميل الثمانية للملفين الجديدين (3 rate-limits + 5 audit-log) ضمن "through batch 4".
-		'exact load-time event sequence matches (81 events: 47 through batch 4 incl. the 8 batch-14 core load-time registrations from rate-limits.php (revisions/upload-prefilter/admin_notices) and audit-log.php (2× init + secret_audit + wp_insert_post_data + retention sweep) + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the v1.0.6 §8.3 wp_ajax_hossam_save_seo registration + the batch-7 infrastructure template_include filter + the 2 v1.0.3 health handlers (wp_ajax + wp_ajax_nopriv) + the multisite wp_initialize_site provisioner)',
+		// تفويض المالك #1 (2026-11-02): R6 — تحديث قيمة لا صرامة — 81→82 مع تسجيل init التحويل الأولي للأوتولود (صف R6/G5 §5-2) ضمن "through batch 4".
+		'exact load-time event sequence matches (82 events: 48 through batch 4 incl. the 8 batch-14 core load-time registrations from rate-limits.php (revisions/upload-prefilter/admin_notices) and audit-log.php (2× init + secret_audit + wp_insert_post_data + retention sweep) and the settings autoload migration init + the 9 batch-5 wp_ajax_* registrations + the 20 batch-6 registrations: 17 wp_ajax_* plus ai.php\'s internal worker/sweep/init hooks, one each + the v1.0.6 §8.3 wp_ajax_hossam_save_seo registration + the batch-7 infrastructure template_include filter + the 2 v1.0.3 health handlers (wp_ajax + wp_ajax_nopriv) + the multisite wp_initialize_site provisioner)',
 		'event sequence mismatch — ' . $event_detail
 	);
 
@@ -754,9 +757,10 @@ function hal_test_main(): void {
 	hal_test_check(
 		'B2',
 		// تفويض المالك #1 (2026-11-02): 7→9 — audit-log.php يسجّل init مرتين (migrations + جدولة retention sweep) بإحصاء مطابق تمامًا.
-		9 === $init_registrations,
-		"init hooks registered exactly once each (9 registrations: setup LiteSpeed, i18n, 3× tables, permissions, batch-6 ai sweep scheduler, 2× audit-log init — migrations + retention scheduler)",
-		"expected 9 init registrations after double require_once, got {$init_registrations}"
+		// تفويض المالك #1 (2026-11-02): R6 — تحديث قيمة لا صرامة — 9→10 مع تسجيل init التحويل الأولي للأوتولود في class-settings-repository.php (صف R6/G5 §5-2).
+		10 === $init_registrations,
+		"init hooks registered exactly once each (10 registrations: setup LiteSpeed, i18n, 3× tables, permissions, batch-6 ai sweep scheduler, 2× audit-log init — migrations + retention scheduler, settings autoload migration init)",
+		"expected 10 init registrations after double require_once, got {$init_registrations}"
 	);
 
 	// ── First invocation of the real registered init callbacks ──
@@ -769,9 +773,10 @@ function hal_test_main(): void {
 	$first_run_deltas = (int) ( $GLOBALS['HAL_TEST_DBDELTA_CALLS'] ?? 0 );
 	$options_after_first = $GLOBALS['HAL_TEST_OPTIONS'];
 	$expected_versions = array(
-		'hossam_notifications_db_version' => '1.0.1',
-		'hossam_messages_db_version'      => '1.0.1',
-		'hossam_ai_jobs_db_version'       => '1.1.1',
+		// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
+		'hossam_notifications_db_version' => '1.0.2',
+		'hossam_messages_db_version'      => '1.0.2',
+		'hossam_ai_jobs_db_version'       => '1.1.2',
 		// تفويض المالك #1 (2026-11-02): ظهور option نسخة سجل التدقيق (مرحلة 1) بقيمته النووية الحرفية.
 		'hossam_audit_log_db_version'     => '1.0.0',
 	);
@@ -787,7 +792,8 @@ function hal_test_main(): void {
 	hal_test_check(
 		'B3',
 		$versions_ok,
-		"first init run migrates all 4 tables once each (dbDelta={$first_run_deltas}, schema version options set: 1.0.1/1.0.1/1.1.1/1.0.0)",
+		// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
+		"first init run migrates all 4 tables once each (dbDelta={$first_run_deltas}, schema version options set: 1.0.2/1.0.2/1.1.2/1.0.0)",
 		'first init run failed — error: ' . ( '' !== $invoke_error ? $invoke_error : 'none' )
 			. '; dbDelta calls: ' . $first_run_deltas
 			. '; options: ' . json_encode( $options_after_first )

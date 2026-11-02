@@ -825,7 +825,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 				'amelia.php'             => array( 'hossam_amelia_is_active', 'hossam_amelia_valid_date_range', 'hossam_amelia_has_appointments_contract', 'hossam_amelia_log_database_failure', 'hossam_amelia_table_exists', 'hossam_amelia_get_api_key', 'hossam_amelia_api_error', 'hossam_amelia_api_request', 'hossam_amelia_get_health', 'hossam_amelia_invalidate_health', 'hossam_amelia_get_linked_employee_id', 'hossam_amelia_get_upcoming_appointments' ),
 				'rankmath.php'           => array( 'hossam_get_rankmath_seo_data', 'hossam_get_allowed_rank_math_robots', 'hossam_update_rankmath_meta', 'hossam_restore_rankmath_meta_snapshot', 'hossam_save_rankmath_seo_data' ),
 				'ultimatemember.php'     => array(),
-				'ai.php'                 => array( 'hossam_ai_wp_client_supported', 'hossam_ai_direct_key_ready', 'hossam_ai_base_strategies', 'hossam_ai_get_strategies', 'hossam_ai_allowed_preferences', 'hossam_ai_get_preference', 'hossam_ai_set_preference', 'hossam_ai_resolve_strategy', 'hossam_ai_interface_available', 'hossam_ai_connector_source_status', 'hossam_ai_allowed_models', 'hossam_ai_get_provider_config', 'hossam_ai_execute_wp_ai_client', 'hossam_ai_execute_direct_key', 'hossam_ai_build_grammar_prompt', 'hossam_ai_build_translation_prompt', 'hossam_ai_build_seo_prompt', 'hossam_ai_build_improvement_prompt', 'hossam_ai_verify_links', 'hossam_ai_verify_facts' ),
+				'ai.php'                 => array( 'hossam_ai_wp_client_supported', 'hossam_ai_direct_key_ready', 'hossam_ai_base_strategies', 'hossam_ai_get_strategies', 'hossam_ai_allowed_preferences', 'hossam_ai_get_preference', 'hossam_ai_set_preference', 'hossam_ai_resolve_strategy', 'hossam_ai_interface_available', 'hossam_ai_connector_source_status', 'hossam_ai_allowed_models', 'hossam_ai_get_provider_config', 'hossam_ai_execute_wp_ai_client', 'hossam_ai_execute_direct_key', 'hossam_ai_build_grammar_prompt', 'hossam_ai_build_translation_prompt', 'hossam_ai_build_seo_prompt', 'hossam_ai_build_improvement_prompt', 'hossam_ai_verify_facts' ),
 			);
 			$missing = array();
 			foreach ( $signatures as $file => $functions ) {
@@ -1254,13 +1254,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			// Registry-backed config through a tiny local double of the store
 			// read: define the batch-3 class-equivalent constants is not
 			// possible — instead assert the pure executor against a fixture
-			// config via the real runtime modes. Here: verify_links + prompts.
-			$GLOBALS['B4_HTTP'] = array(
-				'calls' => array(),
-				'head'  => array( 'https://example.test/ok' => 200, 'https://example.test/fail' => 500 ),
-			);
-			$links = hossam_ai_verify_links( array( 'https://example.test/ok', 'notaurl', 'https://example.test/fail' ) );
-			b4_check( 'AE5', true === ( $links['https://example.test/ok']['valid'] ?? null ) && false === ( $links['https://example.test/fail']['valid'] ?? null ) && ! array_key_exists( 'notaurl', $links ) && 2 === count( $GLOBALS['B4_HTTP']['calls'] ), 'link verification drops URLs that fail esc_url_raw and reports valid/status per remaining link (HEAD calls only for real URLs)', 'link verification mismatch: ' . json_encode( $links ) );
+			// config via the real runtime modes. Here: prompts.
 			$prompt = hossam_ai_build_seo_prompt( 'T', 'C' );
 			b4_check( 'AE6', false !== strpos( $prompt, 'T' ) && false !== strpos( $prompt, 'focus_keyword' ) && is_string( hossam_ai_build_grammar_prompt( 'x' ) ) && is_string( hossam_ai_build_translation_prompt( 'x', 'ar' ) ) && is_string( hossam_ai_build_improvement_prompt( 'x' ) ), 'the four prompt builders return deterministic local strings (no network)', 'prompt builder mismatch' );
 			b4_result_line( $mode );

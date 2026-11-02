@@ -24,8 +24,13 @@
  *     (مُحسَّب داخليًا بواسطة Rank Math نفسه).
  *   - robots قائمة مغلقة من hossam_get_allowed_rank_math_robots() —
  *     القيم الغريبة تُهمَل والكتابة تُتخطى كليًا إن لم تبقَ قيمة صالحة
- *     (فشل آمن، لا إتلاف للقيمة القائمة). التوسعة عبر الفلتر
- *     hossam_rank_math_allowed_robots من PHP موثوق بعد تحقق حي فقط.
+ *     (فشل آمن، لا إتلاف للقيمة القائمة).
+ *   - [H6 §5-أ — قفل نهائي v1.1.0] chips robots مقفلة نهائيًا على
+ *     القائمة المغلقة الأربعة [index,noindex,follow,nofollow] — التوسعة
+ *     (NoArchive/NoSnippet) ليست بندًا في القائمة إطلاقًا؛ مسارها الوحيد
+ *     فلتر hossam_rank_math_allowed_robots من PHP موثوق بعد تحقق حي
+ *     بإصدار Rank Math الفعلي، مثيره المالك وحده (snippet موقعي عبر
+ *     الفلتر الرسمي؛ النجاح = إبقاؤه، الفشل = سحبه) — لا «مشروط بلا موعد».
  *   - hossam_update_rankmath_meta: مقارنة قبل الكتابة (update_post_meta
  *     يعيد false ثنائي المعنى — عدم التغيير ليس فشلًا).
  * ══════════════════════════════════════════════════════════════
@@ -56,9 +61,14 @@ if ( ! function_exists( 'hossam_get_rankmath_seo_data' ) ) {
 if ( ! function_exists( 'hossam_get_allowed_rank_math_robots' ) ) {
 	/**
 	 * Closed allow-list for rank_math_robots values (reference §Rank Math ب.4:
-	 * «robots لا يقبل مصفوفة مفتوحة بل قائمة قيم مسموحة»). Extension only via
-	 * this filter from trusted PHP after live verification on the site's
-	 * actual Rank Math version.
+	 * «robots لا يقبل مصفوفة مفتوحة بل قائمة قيم مسموحة»).
+	 *
+	 * [H6 §5-أ — قفل نهائي v1.1.0] القائمة المغلقة الأربعة باقية حاكمة
+	 * وحيدة المصدر للرسم والتحقق: التوسعة (NoArchive/NoSnippet) ليست بندًا
+	 * في القائمة إطلاقًا — مسارها الوحيد فلتر hossam_rank_math_allowed_robots
+	 * من PHP موثوق بعد تحقق حي بإصدار Rank Math الفعلي، مثيره المالك وحده
+	 * (snippet موقعي عبر الفلتر الرسمي؛ النجاح = إبقاؤه، الفشل = سحبه) —
+	 * لا «مشروط بلا موعد».
 	 *
 	 * @return string[]
 	 */

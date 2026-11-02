@@ -18,8 +18,10 @@
  *                 values, invalid AI preference enums and free-form secret
  *                 ids (outside the Registry allowlist) are all rejected by
  *                 the real typed contracts.
- *   OPTIONS     — settings and secrets options are written autoload=no by
- *                 the real save/set paths.
+ *   OPTIONS     — تفويض المالك #1 (2026-11-02): R6 — the settings option is
+ *                 written autoload=yes (small measured value, G5 §5) by the
+ *                 real save path (was autoload=no before R6); secrets options
+ *                 remain autoload=no by the real set paths.
  *   PRECEDENCE  — key source: environment shadows the PHP constant; the
  *                 constant alone works; neither = blocked, explicitly.
  *   AEAD        — XChaCha20-Poly1305 roundtrip with a unique nonce and
@@ -638,7 +640,8 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			$GLOBALS['B2S_MEDIA'] = array( 'mime' => 'image/png', 'is_image' => true, 'post' => null );
 			$invalid = HAL_Frontend_Dashboard_Settings_Repository::validate_branding_attachment_id( 404 );
 			b2s_check( 'SR10', is_wp_error( $invalid ) && 'hal_settings_branding_not_attachment' === $invalid->get_error_code(), 'a deleted attachment fails validation and the safe fallback stays', 'missing attachment accepted' );
-			b2s_check( 'SR11', false === $GLOBALS['B2S_OPTION_LOG']['hal_frontend_dashboard_settings']['autoload'], 'settings option is written autoload=no', 'settings autoload mismatch' );
+			// تفويض المالك #1 (2026-11-02): R6 — تحديث قيمة لا صرامة (القديم: autoload=no → الجديد: autoload=yes بقيمة صغيرة مقيسة — صف R6/G5 §5-1، الكاتب :255).
+			b2s_check( 'SR11', true === $GLOBALS['B2S_OPTION_LOG']['hal_frontend_dashboard_settings']['autoload'], 'settings option is written autoload=yes (small measured value — R6)', 'settings autoload mismatch' );
 			$GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['ai_preference'] = 'direct_key';
 			HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
 			b2s_check( 'SR12', 'direct_key' === HAL_Frontend_Dashboard_Settings_Repository::get_ai_preference(), 'request cache invalidation re-reads the real store', 'cache invalidation broken' );
