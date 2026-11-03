@@ -8,6 +8,20 @@
  * wordpress-posts.php (الدفعة 4 من HAL Frontend Dashboard) — صفر تعديل
  * في العقود.
  *
+ * ═══ دمج v1.1.0 (صف R14): ثلاثة تعديلات بملف واحد ═══
+ *   1. الصمام: فحص hossam_article_h1_should_reject (صف R2) على الحمولة
+ *      المخزَّنة بعد wp_kses_post في create/update — reject يفشل WP_Error
+ *      400 بالرمز hossam_h1_rejected برسالة عربية قبل أي كتابة؛ normalize
+ *      يمرر وoff لا فحص؛ post_content من نوع post حصرًا بلا استثناء أدوار.
+ *   2. 404 الموحد (H3 §1.3): دمج فرعي الرفض في بوابة واحدة في
+ *      update/trash/restore — فشل الملكية يعيد hossam_not_found بنفس
+ *      رسالة الغائب (طبقة الترجمة في posts.php بلا تغيير).
+ *   3. ختم اللغة (H4 §1): داخل hossam_create_article() فقط — لغة العضو
+ *      (wpml_current_language عبر hossam_wpml_get_current_language) وإلا
+ *      افتراضية الموقع؛ استدعاء وحيد hossam_wpml_stamp_post_language بعد
+ *      نجاح wp_insert_post وقبل التصنيفات؛ الفشل = error_log والاستمرار
+ *      (لا حذف مسودة ولا WP_Error). الغلاف في adapters/wpml.php (صف R34).
+ *
  * العقد المنقول كما هو (ملخَّص من رأس المصدر):
  *   - الإنشاء: current_user_can('edit_posts') — لا edit_post على مقال
  *     غير موجود؛ النشر حصرًا مع publish_posts؛ حالات الحفظ allow-list
@@ -52,13 +66,24 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			$status = 'draft';
 		}
 
-		// v1.0.6 §5: the creation target is the site default language, read
-		// before any WPML assignment via the official filter only.
+		// v1.0.6 §5 + v1.1.0 صف R14 دلتا 2 (H4 §1.1): هدف الإنشاء لغة العضو
+		// الحالية (فلتر wpml_current_language عبر الغلاف القائم
+		// hossam_wpml_get_current_language — wpml.php:120) ومع غيابها لغة
+		// الموقع الافتراضية عبر wpml_default_language؛ بلا WPML → '' (لا
+		// ختم ولا تحقق لغة — سلوك اليوم باقٍ بايتًا). نفس المتغير يغذي
+		// تحقق/ربط التصنيفات أدناه فتُربط بلغة المقال نفسها (Q9 محسوم).
 		$target_language = '';
 		if ( defined( 'ICL_SITEPRESS_VERSION' ) ) {
-			$maybe_default = apply_filters( 'wpml_default_language', null );
-			if ( is_string( $maybe_default ) && '' !== $maybe_default ) {
-				$target_language = sanitize_key( $maybe_default );
+			$maybe_current = function_exists( 'hossam_wpml_get_current_language' )
+				? hossam_wpml_get_current_language()
+				: '';
+			if ( '' !== $maybe_current ) {
+				$target_language = $maybe_current;
+			} else {
+				$maybe_default = apply_filters( 'wpml_default_language', null );
+				if ( is_string( $maybe_default ) && '' !== $maybe_default ) {
+					$target_language = sanitize_key( $maybe_default );
+				}
 			}
 		}
 
@@ -83,12 +108,34 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 		if ( isset( $data['excerpt'] ) ) {
 			$postarr['post_excerpt'] = sanitize_textarea_field( $data['excerpt'] );
 		}
+
+		// v1.1.0 صف R14 (Q5/G6 §4-9 جزء الخادم): فحص الصمام على الحمولة
+		// المخزَّنة بعد wp_kses_post داخل خط التحقق القائم — normalize يمرر
+		// (الطبقة الجامعة حوّلت وسجلت)، reject يفشل 400 نظيف برسالة عربية
+		// قبل أي كتابة (الرمز hossam_h1_rejected يترجمه hossam_send_article_error
+		// إلى 400 — صف E6)، off لا فحص. post_content من نوع post حصرًا (هذا
+		// المسار) بلا استثناء أدوار؛ لا فحص قبل kses ولا على post_title.
+		if ( isset( $postarr['post_content'] ) && function_exists( 'hossam_article_h1_should_reject' )
+			&& hossam_article_h1_should_reject( (string) $postarr['post_content'] ) ) {
+			return new WP_Error( 'hossam_h1_rejected', __( 'لا يجوز استخدام وسم H1 في محتوى المقال — استخدم عنوانًا من المستوى الثاني.', 'astra-child' ) );
+		}
+
 		$post_id = wp_insert_post(
 			$postarr,
 			true
 		);
 		if ( is_wp_error( $post_id ) ) {
 			return $post_id;
+		}
+
+		// v1.1.0 صف R14 دلتا 2 (H4 §1): ختم وحيد لمقال منشأ لحظيًا بعد نجاح
+		// wp_insert_post وقبل كتابة التصنيفات/الصورة. عند false: سطر log
+		// والاستمرار — لا حذف مسودة ولا WP_Error (H4 §1.3-ب مرفوض: المسودة
+		// تحمل محتوى العضو). الغلاف ذاته يرفض بلا WPML/بلا واجهة الربط/
+		// بلا trid طازج — لا ختم على مقال قائم ولا في مسار التحديث.
+		if ( '' !== $target_language && function_exists( 'hossam_wpml_stamp_post_language' )
+			&& ! hossam_wpml_stamp_post_language( $post_id, $target_language ) ) {
+			error_log( 'Hossam Dashboard language stamp failed for post ' . $post_id . ' (expected ' . $target_language . ')' );
 		}
 
 		$related_result = hossam_apply_article_taxonomy_and_thumbnail( $post_id, $save_data );
@@ -120,12 +167,15 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_update_article( int $post_id, array $data ) {
-		$post = get_post( $post_id );
-		if ( ! $post || 'post' !== $post->post_type ) {
+		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة تبتلع
+		// الوجود داخل القرار ولا تُبث — الغائب ونوع غريب وغير المملوك كلهم
+		// 404 برسالة الغائب نفسها (hossam_not_found يترجمه posts.php إلى 404
+		// كما هو، صفر تغيير في طبقة الترجمة). الحدّ القصير يضمن ألا يُنادى
+		// current_user_can إلا على مقال موجود من النوع الصحيح.
+		$post  = get_post( $post_id );
+		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
+		if ( ! $owned ) {
 			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
-		}
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to edit this article.', 'astra-child' ) );
 		}
 
 		// v1.0.6 §5: the update target is the article's existing language.
@@ -152,6 +202,16 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 		}
 		if ( isset( $data['content'] ) ) {
 			$postarr['post_content'] = wp_kses_post( $data['content'] );
+			// v1.1.0 صف R14 (Q5/G6 §4-9 جزء الخادم): فحص الصمام على الحمولة
+			// المخزَّنة بعد wp_kses_post — reject يفشل 400 نظيف برسالة عربية
+			// قبل أي كتابة (الرمز hossam_h1_rejected يترجمه
+			// hossam_send_article_error إلى 400 — صف E6)؛ normalize يمرر وoff
+			// لا فحص. post_content من نوع post حصرًا (البوابة أعلاه تحسم
+			// النوع) بلا استثناء أدوار؛ لا فحص قبل kses ولا على post_title.
+			if ( function_exists( 'hossam_article_h1_should_reject' )
+				&& hossam_article_h1_should_reject( (string) $postarr['post_content'] ) ) {
+				return new WP_Error( 'hossam_h1_rejected', __( 'لا يجوز استخدام وسم H1 في محتوى المقال — استخدم عنوانًا من المستوى الثاني.', 'astra-child' ) );
+			}
 		}
 		if ( isset( $data['excerpt'] ) ) {
 			$postarr['post_excerpt'] = sanitize_textarea_field( $data['excerpt'] );
@@ -227,12 +287,13 @@ if ( ! function_exists( 'hossam_trash_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_trash_article( int $post_id ) {
-		$post = get_post( $post_id );
-		if ( ! $post || 'post' !== $post->post_type ) {
+		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة كما في
+		// hossam_update_article — الغائب ونوع غريب وغير المملوك 404 برسالة
+		// الغائب نفسها، بلا كشف وجود.
+		$post  = get_post( $post_id );
+		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
+		if ( ! $owned ) {
 			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
-		}
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to delete this article.', 'astra-child' ) );
 		}
 
 		return false !== wp_trash_post( $post_id );
@@ -248,12 +309,13 @@ if ( ! function_exists( 'hossam_restore_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_restore_article( int $post_id ) {
-		$post = get_post( $post_id );
-		if ( ! $post || 'post' !== $post->post_type ) {
+		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة كما في
+		// hossam_update_article — الغائب ونوع غريب وغير المملوك 404 برسالة
+		// الغائب نفسها، بلا كشف وجود.
+		$post  = get_post( $post_id );
+		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
+		if ( ! $owned ) {
 			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
-		}
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to edit this article.', 'astra-child' ) );
 		}
 
 		return false !== wp_untrash_post( $post_id );

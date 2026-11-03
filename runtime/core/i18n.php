@@ -20,6 +20,12 @@
  * للنصوص لا تتغير في هذه الدفعة. استبدال text domain لسلاسل الواجهة
  * (__('...','astra-child') المتبقية في runtime) مؤجَّل إلى دفعة القوالب
  * حيث تُقرَّر الواجهة الجديدة — لا يتغير أي نص معروض هنا.
+ *
+ * [وسم دلتا — H4 §2.4-D1 | docblock حصرًا — صفر تغيير سلوك] (OEB/7):
+ * تكامل String Translation قائم وهو آلية الإضافة ذاتها
+ * (icl_register_string :218 / icl_t :33)؛ text domain محسوم (تسجيل
+ * WPML لا يعتمده؛ سلاسل __() الـ109 على نطاق القالب الابن عمدًا)؛
+ * الوصفة المستقبلية موثقة H4 §2.1-6 وتفتح بقرار مالك فقط.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -211,6 +217,11 @@ add_action( 'init', function(): void {
         'AI is working on it…', 'Could not start the AI request.', 'The AI request took too long. Please try again.',
         'AI request failed.', 'No suggestion returned.', 'AI suggestion', 'Apply', 'Dismiss',
         'Invalid server response', 'Appointment integration is unavailable.', 'Request failed',
+        // v1.1.0 OEB/7 (H1 §6-8): مفاتيح OEB الثلاثة الوريثة — زر/dialog/toast
+        // التحديث اليدوي (إلزامية: عقد assets-test يمنع أي fallback inline
+        // جديد خارجها). تُسجَّل آليًا بالبوابة القائمة hossam_i18n_v أعلاه؛
+        // الصياغة النهائية بقبول المراجع.
+        'التحديث اليدوي', 'جارٍ التحقق من وجود تحديث…', 'تم بدء التحديث اليدوي.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -387,6 +398,13 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'requestFailed'          => hossam_t('Request failed'),                              // inbox.js:51؛ members.js:53
             'allFocusKeywords'       => hossam_t('All articles have a focus keyword set.'),      // seo.php:306 (JS مضمّن)
             'noNoindexArticles'      => hossam_t('No noindex articles.'),                        // seo.php:307 (JS مضمّن)
+
+            // v1.1.0 OEB/7 (H1 §6-8): مفاتيح OEB الثلاثة الوريثة — زر/dialog/toast
+            // التحديث اليدوي. النصوص عربية وظيفية موجزة والمصدر الحرفي مسجَّل
+            // أعلاه في القائمة (الصياغة النهائية بقبول المراجع).
+            'oeb_open'               => hossam_t('التحديث اليدوي'),                   // زر فتح dialog التحديث اليدوي
+            'oeb_dialog_status'      => hossam_t('جارٍ التحقق من وجود تحديث…'),        // سطر حالة dialog التحديث اليدوي
+            'oeb_manual_update'      => hossam_t('تم بدء التحديث اليدوي.'),           // toast بدء التحديث اليدوي
         ];
     }
 }

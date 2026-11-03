@@ -94,6 +94,11 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Template_Controller' ) ) {
 				$trid = apply_filters( 'wpml_element_trid', null, $owned, 'post_page' );
 				$trid = is_numeric( $trid ) ? (int) $trid : 0;
 				if ( $trid > 0 ) {
+					static $cache = [];
+					$blog = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+					if ( array_key_exists( $blog, $cache ) ) {
+						return $cache[ $blog ];
+					}
 					$translations = apply_filters( 'wpml_get_element_translations', null, $trid, 'post_page' );
 					if ( is_array( $translations ) ) {
 						foreach ( $translations as $translation ) {
@@ -105,6 +110,7 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Template_Controller' ) ) {
 							}
 						}
 					}
+					$cache[ $blog ] = $ids;
 				}
 			}
 

@@ -559,6 +559,7 @@ wp_head();
             }
         }
     }
+    // [H5 R7-الأداء | دمج v1.1.0]: حلقة fallback الأقسام تختفي بإنشاء قائمة تنقل — علاج محتوى لا كود.
     if ( empty( $nav_items ) ) {
         $section_defs = [
             'home'     => [ 'label' => hossam_t('Home'),          'candidates' => [] ],

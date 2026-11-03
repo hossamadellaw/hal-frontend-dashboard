@@ -162,6 +162,32 @@ if ( ! function_exists( '__' ) ) {
 		return $text;
 	}
 }
+// تفويض الإصدار #2 (ESC-3) — قرارات المالك 2026-11-03 — فئة (ب) من تفويض المالك #1:
+// (أ-1) stub دالة نواة ناقصة — مسار audit-log.php:352 يستدعي get_userdata بعد
+// توصيل الaudit؛ النواة تعيد false خارج المستخدمين فيفعل السقوط الرحيم
+// (user_login='' — :355-357) — نفس الدلالة هنا، صفر لمس لأي تأكيد قائم.
+// (أ-2) $GLOBALS['wpdb'] تسجيلي بنمط settings-and-secrets — الأوضاع الثمانية
+// المفجّرة للسر تصل audit-log.php:415 (INSERT عبر query()) وتموت على
+// query() on null بلا wpdb؛ الstub يسجل ولا يكتب DB. أوضاع :728/:912
+// تفرض wpdb الخاص بها فوق هذا الافتراضي (سلوك قائم محفوظ).
+if ( ! function_exists( 'get_userdata' ) ) {
+	function get_userdata( int $user_id ) {
+		return false;
+	}
+}
+if ( ! isset( $GLOBALS['wpdb'] ) ) {
+	$GLOBALS['wpdb'] = new class() {
+		public string $prefix = 'wp_';
+		public int $insert_id = 0;
+		public function prepare( string $query, ...$args ): string {
+			return $query;
+		}
+		public function query( string $sql ) {
+			$GLOBALS['B4_WPDB_QUERIES'][] = $sql;
+			return 1;
+		}
+	};
+}
 if ( ! function_exists( 'sanitize_key' ) ) {
 	function sanitize_key( string $key ): string {
 		return preg_replace( '/[^a-z0-9_]/', '', strtolower( $key ) );
@@ -812,8 +838,9 @@ function b4_mode( string $mode, array $args, string $project ): void {
 					return false === strpos( $path, '/runtime/bootstrap.php' );
 				}
 			) );
-		b4_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-			'exactly 30 runtime module files load (bootstrap aside: 18 through batch 4 + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
+		// تفويض المالك #1 (2026-11-02): 30→32 — الملفان المصرحان core/rate-limits.php وcore/audit-log.php (مرحلة 1) داخل الجرد الصارم نفسه.
+		b4_check( 'L2', count( array_unique( $module_included ) ) === 32 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+			'exactly 32 runtime module files load (bootstrap aside: 20 through batch 4 incl. the batch-14 core/rate-limits.php + core/audit-log.php + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 				'unexpected runtime file set: ' . json_encode( $relative ) );
 
 			$signatures = array(
@@ -824,7 +851,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 				'amelia.php'             => array( 'hossam_amelia_is_active', 'hossam_amelia_valid_date_range', 'hossam_amelia_has_appointments_contract', 'hossam_amelia_log_database_failure', 'hossam_amelia_table_exists', 'hossam_amelia_get_api_key', 'hossam_amelia_api_error', 'hossam_amelia_api_request', 'hossam_amelia_get_health', 'hossam_amelia_invalidate_health', 'hossam_amelia_get_linked_employee_id', 'hossam_amelia_get_upcoming_appointments' ),
 				'rankmath.php'           => array( 'hossam_get_rankmath_seo_data', 'hossam_get_allowed_rank_math_robots', 'hossam_update_rankmath_meta', 'hossam_restore_rankmath_meta_snapshot', 'hossam_save_rankmath_seo_data' ),
 				'ultimatemember.php'     => array(),
-				'ai.php'                 => array( 'hossam_ai_wp_client_supported', 'hossam_ai_direct_key_ready', 'hossam_ai_base_strategies', 'hossam_ai_get_strategies', 'hossam_ai_allowed_preferences', 'hossam_ai_get_preference', 'hossam_ai_set_preference', 'hossam_ai_resolve_strategy', 'hossam_ai_interface_available', 'hossam_ai_connector_source_status', 'hossam_ai_allowed_models', 'hossam_ai_get_provider_config', 'hossam_ai_execute_wp_ai_client', 'hossam_ai_execute_direct_key', 'hossam_ai_build_grammar_prompt', 'hossam_ai_build_translation_prompt', 'hossam_ai_build_seo_prompt', 'hossam_ai_build_improvement_prompt', 'hossam_ai_verify_links', 'hossam_ai_verify_facts' ),
+				'ai.php'                 => array( 'hossam_ai_wp_client_supported', 'hossam_ai_direct_key_ready', 'hossam_ai_base_strategies', 'hossam_ai_get_strategies', 'hossam_ai_allowed_preferences', 'hossam_ai_get_preference', 'hossam_ai_set_preference', 'hossam_ai_resolve_strategy', 'hossam_ai_interface_available', 'hossam_ai_connector_source_status', 'hossam_ai_allowed_models', 'hossam_ai_get_provider_config', 'hossam_ai_execute_wp_ai_client', 'hossam_ai_execute_direct_key', 'hossam_ai_build_grammar_prompt', 'hossam_ai_build_translation_prompt', 'hossam_ai_build_seo_prompt', 'hossam_ai_build_improvement_prompt', 'hossam_ai_verify_facts' ),
 			);
 			$missing = array();
 			foreach ( $signatures as $file => $functions ) {
@@ -1253,13 +1280,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			// Registry-backed config through a tiny local double of the store
 			// read: define the batch-3 class-equivalent constants is not
 			// possible — instead assert the pure executor against a fixture
-			// config via the real runtime modes. Here: verify_links + prompts.
-			$GLOBALS['B4_HTTP'] = array(
-				'calls' => array(),
-				'head'  => array( 'https://example.test/ok' => 200, 'https://example.test/fail' => 500 ),
-			);
-			$links = hossam_ai_verify_links( array( 'https://example.test/ok', 'notaurl', 'https://example.test/fail' ) );
-			b4_check( 'AE5', true === ( $links['https://example.test/ok']['valid'] ?? null ) && false === ( $links['https://example.test/fail']['valid'] ?? null ) && ! array_key_exists( 'notaurl', $links ) && 2 === count( $GLOBALS['B4_HTTP']['calls'] ), 'link verification drops URLs that fail esc_url_raw and reports valid/status per remaining link (HEAD calls only for real URLs)', 'link verification mismatch: ' . json_encode( $links ) );
+			// config via the real runtime modes. Here: prompts.
 			$prompt = hossam_ai_build_seo_prompt( 'T', 'C' );
 			b4_check( 'AE6', false !== strpos( $prompt, 'T' ) && false !== strpos( $prompt, 'focus_keyword' ) && is_string( hossam_ai_build_grammar_prompt( 'x' ) ) && is_string( hossam_ai_build_translation_prompt( 'x', 'ar' ) ) && is_string( hossam_ai_build_improvement_prompt( 'x' ) ), 'the four prompt builders return deterministic local strings (no network)', 'prompt builder mismatch' );
 			b4_result_line( $mode );

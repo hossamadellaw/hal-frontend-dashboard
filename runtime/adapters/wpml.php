@@ -308,6 +308,39 @@ if ( ! function_exists( 'hossam_wpml_set_element_language' ) ) {
 	}
 }
 
+if ( ! function_exists( 'hossam_wpml_stamp_post_language' ) ) {
+	/**
+	 * v1.1.0 صف R34 (H4 §1) — ختم لغة مقال منشأ لحظيًا عبر الواجهات الرسمية
+	 * حصرًا (لا SQL ولا قراءة cookie ولا إعادة تفاوض لغة). الحراسة:
+	 * بلا WPML، أو بلا واجهة الربط المسجلة (نفس فحص التأهيل
+	 * wordpress-posts.php:421-424)، أو بلا trid طازج يعيد false بلا أي
+	 * كتابة — لا يُمرَّر trid=0 أبدًا (دلالة التفريع :274-278)؛
+	 * source_language='' لأن المقال أصلي جديد بلا مصدر (verify يتخطى فحص
+	 * المصدر — :236/:260) ومسار Edit path الداخلي (:284-298) يجعل التطابق
+	 * المسبق قراءة-تحقق. عهدة الأمان: الاستدعاء مقصور على مقالات منشأة
+	 * لحظيًا (مجموعة trid طازجة ذات عنصر واحد) — لا يُنادى على مقال قائم
+	 * ولا في مسار التحديث (المستدعي الموحد: hossam_create_article — صف
+	 * R14). الفشل مسؤولية المنادي (سطر log والاستمرار — H4 §1.5-A4).
+	 */
+	function hossam_wpml_stamp_post_language( int $post_id, string $language_code ): bool {
+		if ( $post_id < 1 || '' === $language_code || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			return false;
+		}
+		$has_link_action = function_exists( 'has_action' )
+			? (bool) has_action( 'wpml_set_element_language_details' )
+			: (bool) has_filter( 'wpml_set_element_language_details' );
+		if ( ! $has_link_action ) {
+			return false;
+		}
+		$trid = hossam_wpml_get_element_trid( $post_id );
+		if ( $trid < 1 ) {
+			return false;
+		}
+
+		return hossam_wpml_set_element_language( $post_id, $trid, $language_code, '' );
+	}
+}
+
 if ( ! function_exists( 'hossam_wpml_term_id_for_language' ) ) {
 	/**
 	 * v1.0.6 §6 — resolve a category term id into a target language through

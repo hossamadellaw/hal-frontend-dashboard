@@ -26,6 +26,14 @@
  *   5. أزرار الترجمة لكل صف أضيفت عليها بوابة المالك
  *      is_feature_enabled('wpml_translations') — شروط المصدر (صلاحية
  *      المقال وحالة WPML واللغات) باقية.
+ *   6. دمج v1.1.0 (صف R23): زر OEB داخل خلية أفعال جدول المقالات —
+ *      للمدير (manage_options) × الوضع official من
+ *      get_effective_editor_mode() حصرًا؛ لغير المدير غائب عن DOM
+ *      كليًا. + <dialog> أصلي واحد بلا مكتبة داخل لوحة المقالات (نص
+ *      الحالة + رابط احتياطي يدوي بنفس editorUrl + زر إغلاق — نصوص
+ *      مفاتيح OEB الثلاثة R41 عبر hossam_t). + الحاملان الغنيان
+ *      يصيران بشرط feature && 'off' !== mode — official يُبقي embed
+ *      لغير المدير. بلا عمود جدول جديد؛ textarea حقل الحقيقة باقية.
  *
  * args صريحة: تستقبل متغيراتها من الـshell عبر محمل أجزاء Runtime
  * (render_part) — قائمة args الموثقة في runtime/templates/dashboard.php.
@@ -74,6 +82,13 @@ $posts_frontend_fallback = 'unavailable' !== $posts_frontend_admin['status']
 $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
     && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'is_feature_enabled' )
     && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rich_editor' );
+// v1.1.0 OEB (دمج R23): الوضع الفعلي من get_effective_editor_mode() حصرًا
+// (R35) — off يطفئ الحاملين الغنيين؛ official يفعّل زر OEB للمدير حصرًا
+// ويُبقي الحاملين لغير المدير (ضمانة المالك بالحسابين).
+$hossam_editor_mode = ( $hossam_rich_editor_feature
+    && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'get_effective_editor_mode' ) )
+    ? HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
+    : 'off';
 ?>
     <!-- ══ PANEL: WRITE NEW ARTICLE ══ -->
     <?php if ( $sees_content ) : ?>
@@ -97,7 +112,7 @@ $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Rep
           <div class="form-group mb-8">
             <label class="form-label" for="hossam-new-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
             <textarea class="form-input" id="hossam-new-content" name="content" rows="10"></textarea>
-            <?php if ( $hossam_rich_editor_feature ) : ?>
+            <?php if ( $hossam_rich_editor_feature && 'off' !== $hossam_editor_mode ) : ?>
             <!-- v1.0.6 §9: موضع المحرر الغني (inserter/أدوات/canvas) داخل حقل
                  المحتوى بقالب HAL — الـtextarea أعلاه يبقى حقل النموذج ظاهرًا
                  ولا يُخفى إلا بعد نجاح التهيئة (posts.js)؛ التهيئة عند أول
@@ -345,6 +360,12 @@ $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Rep
                               <?php endif; ?>
                           <?php endforeach; ?>
                       <?php endif; ?>
+                      <?php if ( current_user_can( 'manage_options' ) && 'official' === $hossam_editor_mode ) : ?>
+                      <!-- v1.1.0 OEB (H1 §7-1 — دمج R23): زر فتح المحرر الرسمي —
+                           للمدير حصرًا × official من get_effective_editor_mode()؛
+                           لغير المدير غائب عن DOM كليًا. النص: i18n oeb_open (R41). -->
+                      <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></a>
+                      <?php endif; ?>
                     </div>
                   </td>
                 </tr>
@@ -375,6 +396,20 @@ $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Rep
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="margin:0 auto 8px"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
         <div><?php echo esc_html( hossam_t( 'No articles match the selected filters.' ) ); ?></div>
       </div>
+      <?php if ( current_user_can( 'manage_options' ) && 'official' === $hossam_editor_mode ) : ?>
+      <!-- v1.1.0 OEB (H1 §6-8/القيد 7 — دمج R23): <dialog> أصلي واحد بلا مكتبة،
+           داخل لوحة المقالات القائمة. نص الحالة: i18n oeb_dialog_status؛ الرابط
+           اليدوي الاحتياطي بنفس editorUrl (يملؤه JS من data-oeb-post للزر المنقور
+           عند الفتح)؛ زر إغلاق. شرطه كشرط الزر: official × المدير حصرًا. -->
+      <dialog id="hossam-oeb-dialog" class="hossam-oeb-dialog">
+        <div class="hossam-oeb-dialog-head"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></div>
+        <p class="hossam-oeb-status" id="hossam-oeb-dialog-status"><?php echo esc_html( hossam_t( 'جارٍ التحقق من وجود تحديث…' ) ); ?></p>
+        <div class="hossam-oeb-actions">
+          <a href="#" id="hossam-oeb-dialog-link" class="btn btn-sm" target="_blank" rel="noopener"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></a>
+          <button type="button" class="btn btn-sm js-oeb-close"><?php echo esc_html( hossam_t( 'Cancel' ) ); ?></button>
+        </div>
+      </dialog>
+      <?php endif; ?>
     </div><!-- /panel-all-articles -->
     <?php endif; ?>
     <!-- ══ PANEL: EDIT ARTICLE ══ -->
@@ -413,7 +448,7 @@ $hossam_rich_editor_feature = class_exists( 'HAL_Frontend_Dashboard_Settings_Rep
                     <div class="form-group mb-8">
                       <label class="form-label" for="hossam-edit-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
                       <textarea class="form-input" id="hossam-edit-content" name="content" rows="12"><?php echo esc_textarea( $the_post->post_content ); ?></textarea>
-                      <?php if ( $hossam_rich_editor_feature ) : ?>
+                      <?php if ( $hossam_rich_editor_feature && 'off' !== $hossam_editor_mode ) : ?>
                       <!-- v1.0.6 §9: موضع المحرر الغني في لوحة التحرير داخل حقل
                            المحتوى بقالب HAL — نفس عقد لوحة الكتابة: الـtextarea
                            أعلاه يبقى حقل النموذج ظاهرًا ولا يُخفى إلا بعد نجاح

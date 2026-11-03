@@ -383,20 +383,27 @@ $mappings = array(
 
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	if ( ! $B9_LEGACY ) {
-		$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+		// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير والأطوال على الصيغة
+		// الكانونية (LF = blobs الجرد/HEAD) — raw كان سياسة checkout لا محتوى.
+		$dst_content = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+		$dst_hash    = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+		$dst_bytes   = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 		$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 		b9_check( 'B9-B1b-runtime-matches-inventory-' . basename( $legacy_rel ),
-			null !== $inv && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+			null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 			"{$runtime_rel} shows no drift since the verified migration (inventory hash) — live-legacy byte comparison skipped: root absent",
 			"{$runtime_rel}: dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 		b9_skip( 'B9-B1-byte-identity-' . basename( $legacy_rel ), 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
 		continue;
 	}
-	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
-	$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+	$src_content = (string) file_get_contents( $source_root . '/' . $legacy_rel );
+	$dst_content = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+	$src_hash = hash( 'sha256', str_replace( "\r\n", "\n", $src_content ) );
+	$dst_hash = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+	$dst_bytes = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	b9_check( 'B9-B1-byte-identity-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
@@ -596,6 +603,25 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' ) ) {
 			}
 			return false;
 		}
+		// تفويض المالك #1 (2026-11-02): R37/R38/R40 — stub نواة ناقصة (فئة ب):
+		// قارئا وضع OEB/1 على نمط الحقيقي
+		// (runtime/settings/class-settings-repository.php:159-173) ليتمكن
+		// هذا الجناح من بلوغ مسار الوضع في بوابة OEB/3 بsetup.php.
+		// get_rich_editor_mode يقرأ B9_EDITOR_MODE (افتراضي embed كالحقيقي)،
+		// وget_effective_editor_mode يطوي rich_editor مغلقًا → off. غياب
+		// B9_EDITOR_MODE يُبقي سلوك الفحوص القائمة R1-R5 كما هو حرفيًا —
+		// إكمال لا إضعاف: لا تأكيد حُذف ولا دلالة تغيّرت.
+		public static function get_rich_editor_mode(): string {
+			return isset( $GLOBALS['B9_EDITOR_MODE'] ) && in_array( $GLOBALS['B9_EDITOR_MODE'], array( 'official', 'embed', 'off' ), true )
+				? (string) $GLOBALS['B9_EDITOR_MODE']
+				: 'embed';
+		}
+		public static function get_effective_editor_mode(): string {
+			if ( ! self::is_feature_enabled( 'rich_editor' ) ) {
+				return 'off';
+			}
+			return self::get_rich_editor_mode();
+		}
 	}
 }
 
@@ -677,6 +703,49 @@ b9_check( 'B9-R7-rich-posts-deps-intact',
 		&& isset( $r2['rich']['enabled'], $r2['rich']['canUpload'], $r2['rich']['restRoot'], $r2['rich']['restNonce'], $r2['rich']['isRtl'], $r2['rich']['reason'] ),
 	'hossam-dashboard-posts still depends only on hossam-dashboard-js and carries the separate hossamRichEditor map',
 	'posts.js contract drifted: deps=' . var_export( $r2['posts_deps'], true ) . ' rich=' . var_export( $r2['rich'], true ) );
+
+// T10 (v1.1.0): بروبات stub دورة الوضع — طبّع → embed عند الغياب/الفاسد؛
+// effective off عند التعطيل (صفوف OEB/1 القياسية على نمط القارئين الحقيقيين
+// runtime/settings/class-settings-repository.php:159-173). لا يُخفَّض أي فحص
+// قائم من ال32 — إضافة حصرًا.
+unset( $GLOBALS['B9_EDITOR_MODE'] );
+$b9_mode_missing = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'mirror';
+$b9_mode_garbage = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'Official';
+$b9_mode_wrongcase = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+b9_check( 'B9-O1-mode-normalize-fail-closed',
+	'embed' === $b9_mode_missing && 'embed' === $b9_mode_garbage && 'embed' === $b9_mode_wrongcase,
+	'stub get_rich_editor_mode fails closed: missing/garbage/wrong-case B9_EDITOR_MODE normalizes to embed (the real-reader contract)',
+	"mode normalize deviated: missing={$b9_mode_missing} garbage={$b9_mode_garbage} wrongcase={$b9_mode_wrongcase}" );
+
+$b9_trio_ok = true;
+foreach ( array( 'official', 'embed', 'off' ) as $b9_trio ) {
+	$GLOBALS['B9_EDITOR_MODE'] = $b9_trio;
+	if ( $b9_trio !== HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode() ) {
+		$b9_trio_ok = false;
+	}
+}
+b9_check( 'B9-O2-mode-trio-passes-through',
+	$b9_trio_ok,
+	'the exact EDITOR_MODES trio (official/embed/off) is the only pass-through of the raw reader',
+	'EDITOR_MODES pass-through deviated' );
+
+// off عند التعطيل: rich_editor مغلقة تُطوي الوضع إلى off حتى لو كانت القيمة official؛
+// والتشغيل يمرر القيمة كما هي (embed/official).
+$GLOBALS['B9_EDITOR_MODE'] = 'official';
+$GLOBALS['B9_FEATURES'] = array( 'rich_editor' => false );
+$b9_effective_disabled = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+$GLOBALS['B9_FEATURES'] = array( 'rich_editor' => true );
+$GLOBALS['B9_EDITOR_MODE'] = 'official';
+$b9_effective_official = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+$GLOBALS['B9_EDITOR_MODE'] = 'embed';
+$b9_effective_embed = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+b9_check( 'B9-O3-effective-mode-folds-to-off-when-disabled',
+	'off' === $b9_effective_disabled && 'official' === $b9_effective_official && 'embed' === $b9_effective_embed,
+	'get_effective_editor_mode folds to off whenever rich_editor is disabled (even with mode=official) and passes the raw mode through when enabled',
+	"effective mode deviated: disabled={$b9_effective_disabled} official={$b9_effective_official} embed={$b9_effective_embed}" );
+unset( $GLOBALS['B9_EDITOR_MODE'], $GLOBALS['B9_FEATURES'] );
 
 // R8: المفتاح خارج FEATURES افتراضيًا → fail-closed (لا تمكين بلا تخصيص المالك).
 unset( $GLOBALS['B9_FEATURES'], $GLOBALS['B9_CAPS'], $GLOBALS['B9_UNREGISTERED'] );

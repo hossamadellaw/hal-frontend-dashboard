@@ -243,6 +243,14 @@ if ( ! function_exists( 'wp_schedule_single_event' ) ) {
 		return true;
 	}
 }
+// تفويض المالك #1 (2026-11-02): stub دالة نواة ناقصة في harness — حارس R32
+// (wp_doing_cron) في setup.php:513 يصطدم بالوضع functional المصغّر؛ النواة
+// تعيد false خارج cron — نفس الدلالة هنا (نمط bootstrap-core-test).
+if ( ! function_exists( 'wp_doing_cron' ) ) {
+	function wp_doing_cron(): bool {
+		return false;
+	}
+}
 
 /* ────────────────────────────────────────────────────────────────
  * $wpdb mock (WordPress object stub)

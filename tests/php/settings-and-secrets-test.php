@@ -18,8 +18,10 @@
  *                 values, invalid AI preference enums and free-form secret
  *                 ids (outside the Registry allowlist) are all rejected by
  *                 the real typed contracts.
- *   OPTIONS     — settings and secrets options are written autoload=no by
- *                 the real save/set paths.
+ *   OPTIONS     — تفويض المالك #1 (2026-11-02): R6 — the settings option is
+ *                 written autoload=yes (small measured value, G5 §5) by the
+ *                 real save path (was autoload=no before R6); secrets options
+ *                 remain autoload=no by the real set paths.
  *   PRECEDENCE  — key source: environment shadows the PHP constant; the
  *                 constant alone works; neither = blocked, explicitly.
  *   AEAD        — XChaCha20-Poly1305 roundtrip with a unique nonce and
@@ -301,6 +303,17 @@ if ( ! function_exists( 'wp_salt' ) ) {
 if ( ! function_exists( 'wp_json_encode' ) ) {
 	function wp_json_encode( $value, int $flags = 0 ) {
 		return json_encode( $value, $flags );
+	}
+}
+// تفويض المالك #1 (2026-11-02): R29 — stub دالة نواة ناقصة بفئة (ب)
+// بنمط الـharness. نداء settings_save داخل مسار الحفظ (G4 §3-أ-15) ينادي
+// hossam_audit_log من runtime/core/audit-log.php — كاتبه الحقيقي يكتب في
+// جدول DB عبر $wpdb لا يحاكيه هذا الـharness إطلاقًا، فتعريفه هنا (قبل
+// التحميل) يجعل الguard الخاص بالنواة يتخطى التعريف الحقيقي. لا لمس لأي
+// تأكيد قائم ولا تغيير دلالة — صفر صفوف متوقعة في harness بلا DB.
+if ( ! function_exists( 'hossam_audit_log' ) ) {
+	function hossam_audit_log( string $event_action, array $context = array() ): bool {
+		return true;
 	}
 }
 if ( ! function_exists( 'wp_parse_url' ) ) {
@@ -638,7 +651,8 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			$GLOBALS['B2S_MEDIA'] = array( 'mime' => 'image/png', 'is_image' => true, 'post' => null );
 			$invalid = HAL_Frontend_Dashboard_Settings_Repository::validate_branding_attachment_id( 404 );
 			b2s_check( 'SR10', is_wp_error( $invalid ) && 'hal_settings_branding_not_attachment' === $invalid->get_error_code(), 'a deleted attachment fails validation and the safe fallback stays', 'missing attachment accepted' );
-			b2s_check( 'SR11', false === $GLOBALS['B2S_OPTION_LOG']['hal_frontend_dashboard_settings']['autoload'], 'settings option is written autoload=no', 'settings autoload mismatch' );
+			// تفويض المالك #1 (2026-11-02): R6 — تحديث قيمة لا صرامة (القديم: autoload=no → الجديد: autoload=yes بقيمة صغيرة مقيسة — صف R6/G5 §5-1، الكاتب :255).
+			b2s_check( 'SR11', true === $GLOBALS['B2S_OPTION_LOG']['hal_frontend_dashboard_settings']['autoload'], 'settings option is written autoload=yes (small measured value — R6)', 'settings autoload mismatch' );
 			$GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['ai_preference'] = 'direct_key';
 			HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
 			b2s_check( 'SR12', 'direct_key' === HAL_Frontend_Dashboard_Settings_Repository::get_ai_preference(), 'request cache invalidation re-reads the real store', 'cache invalidation broken' );

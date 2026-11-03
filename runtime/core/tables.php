@@ -14,9 +14,9 @@
  * قبل update_option()، نفس guards، ونفس تسجيل hook init.
  *
  * الجداول (سكيمات منفصلة، كل جدول بـschema version خاص به):
- *   - {prefix}hossam_notifications  → option hossam_notifications_db_version = 1.0.1
- *   - {prefix}hossam_messages       → option hossam_messages_db_version      = 1.0.1
- *   - {prefix}hossam_ai_jobs        → option hossam_ai_jobs_db_version      = 1.1.1
+ *   - {prefix}hossam_notifications  → option hossam_notifications_db_version = 1.0.2
+ *   - {prefix}hossam_messages       → option hossam_messages_db_version      = 1.0.2
+ *   - {prefix}hossam_ai_jobs        → option hossam_ai_jobs_db_version      = 1.1.2
  *
  * توافق rollback: dbDelta() يضيف الأعمدة/الفهارس الجديدة فقط على جدول
  * قائم — لا يحذف أعمدة أو جداول عند وجود نسخة أعلى مسجَّلة، فالتراجع
@@ -82,9 +82,9 @@ function hossam_dashboard_table_schemas(): array {
 		'notifications' => [
 			'table_suffix' => 'hossam_notifications',
 			'option'       => 'hossam_notifications_db_version',
-			'version'      => '1.0.1',
+			'version'      => '1.0.2',
 			'columns'      => [ 'id', 'user_id', 'type', 'message', 'is_read', 'created_at' ],
-			'indexes'      => [ 'PRIMARY', 'user_id', 'is_read' ],
+			'indexes'      => [ 'PRIMARY', 'user_id', 'is_read', 'user_created', 'user_is_read' ],
 			'schema'       => static function ( string $table, string $charset ): string {
 				return "CREATE TABLE {$table} (
 		id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -95,16 +95,18 @@ function hossam_dashboard_table_schemas(): array {
 		created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY  (id),
 		KEY user_id (user_id),
-		KEY is_read (is_read)
+		KEY is_read (is_read),
+		KEY user_created (user_id, created_at),
+		KEY user_is_read (user_id, is_read)
 	) {$charset};";
 			},
 		],
 		'messages' => [
 			'table_suffix' => 'hossam_messages',
 			'option'       => 'hossam_messages_db_version',
-			'version'      => '1.0.1',
+			'version'      => '1.0.2',
 			'columns'      => [ 'id', 'sender_id', 'receiver_id', 'message', 'read_at', 'created_at' ],
-			'indexes'      => [ 'PRIMARY', 'sender_id', 'receiver_id', 'read_at' ],
+			'indexes'      => [ 'PRIMARY', 'sender_id', 'receiver_id', 'read_at', 'receiver_created' ],
 			'schema'       => static function ( string $table, string $charset ): string {
 				return "CREATE TABLE {$table} (
 		id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -116,16 +118,17 @@ function hossam_dashboard_table_schemas(): array {
 		PRIMARY KEY  (id),
 		KEY sender_id   (sender_id),
 		KEY receiver_id (receiver_id),
-		KEY read_at     (read_at)
+		KEY read_at     (read_at),
+		KEY receiver_created (receiver_id, created_at)
 	) {$charset};";
 			},
 		],
 		'ai_jobs' => [
 			'table_suffix' => 'hossam_ai_jobs',
 			'option'       => 'hossam_ai_jobs_db_version',
-			'version'      => '1.1.1',
+			'version'      => '1.1.2',
 			'columns'      => [ 'id', 'user_id', 'post_id', 'job_type', 'input_data', 'status', 'result', 'error_message', 'strategy_id', 'attempt_count', 'locked_at', 'next_run_at', 'last_error', 'created_at', 'updated_at' ],
-			'indexes'      => [ 'PRIMARY', 'user_id', 'post_id', 'status' ],
+			'indexes'      => [ 'PRIMARY', 'user_id', 'post_id', 'status', 'status_locked', 'status_next_run', 'user_created_ai' ],
 			'schema'       => static function ( string $table, string $charset ): string {
 				return "CREATE TABLE {$table} (
 		id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -146,7 +149,10 @@ function hossam_dashboard_table_schemas(): array {
 		PRIMARY KEY  (id),
 		KEY user_id (user_id),
 		KEY post_id (post_id),
-		KEY status  (status)
+		KEY status  (status),
+		KEY status_locked (status, locked_at),
+		KEY status_next_run (status, next_run_at),
+		KEY user_created_ai (user_id, created_at)
 	) {$charset};";
 			},
 		],

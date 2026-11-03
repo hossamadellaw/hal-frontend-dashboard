@@ -117,9 +117,23 @@ if ( ! function_exists( 'check_ajax_referer' ) ) {
 if ( ! class_exists( 'WP_Query' ) ) {
 	class WP_Query {
 		public array $posts = array();
+		// T10 (v1.1.0): loop surface for the editor-mode template cycle —
+		// additive only: every pre-existing mode constructs zero-arg queries
+		// and never calls the loop methods, so their behavior is untouched.
+		public int $found_posts   = 0;
+		public int $post_count    = 0;
+		public int $max_num_pages = 0;
+		private int $b5_loop_index = -1;
 		public function __construct( array $args = array() ) {
 			$GLOBALS['B5_LAST_QUERY_ARGS'] = $args;
 			$this->posts                   = is_array( $GLOBALS['B5_QUERY_POSTS'] ) ? $GLOBALS['B5_QUERY_POSTS'] : array();
+		}
+		public function have_posts(): bool {
+			return $this->b5_loop_index + 1 < count( $this->posts );
+		}
+		public function the_post(): void {
+			$this->b5_loop_index += 1;
+			$GLOBALS['B5_CURRENT_LOOP_POST'] = (int) ( $this->posts[ $this->b5_loop_index ] ?? 0 );
 		}
 	}
 }
@@ -375,6 +389,138 @@ if ( ! function_exists( 'delete_transient' ) ) {
 	function delete_transient( string $key ): bool {
 		unset( $GLOBALS['B5_OPTIONS'][ '_transient_' . $key ] );
 		return true;
+	}
+}
+// تفويض المالك #1 (2026-11-02): دوال نواة ناقصة في الـharness — صفوف
+// R9/R10 تستدعي core/rate-limits.php (wp_using_ext_object_cache — G3 §1.4)
+// وcore/audit-log.php (get_userdata من الجلسة، G4 §3-أ) وget_post_mime_type
+// لمفتاح mime المغلق في file_upload/file_delete. دلالة النواة: بلا object
+// cache خارجي ⇒ false؛ لا مستخدم ملتقط في هذا الـharness ⇒ false؛
+// نمط الـstub الثابت المعتمد في adapters-test (image/png).
+if ( ! function_exists( 'wp_using_ext_object_cache' ) ) {
+	function wp_using_ext_object_cache(): bool {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_userdata' ) ) {
+	function get_userdata( int $user_id ) {
+		return false;
+	}
+}
+if ( ! function_exists( 'get_post_mime_type' ) ) {
+	function get_post_mime_type( $attachment_id ): string {
+		return 'image/png';
+	}
+}
+/* T10 (v1.1.0): render-boundary stubs for the editor-mode template cycle
+ * (b5_mode_editor_mode) — WordPress escaping/query-loop surfaces and the
+ * minimal paginate/redirect boundary. All additive + function_exists
+ * guarded: no pre-existing mode or assertion changes meaning. The real
+ * badge mapping lives in the shell dashboard.php (out of scope here) —
+ * the mode cycle asserts presence/absence of holders, never pill styling. */
+if ( ! class_exists( 'B5_Redirect' ) ) {
+	class B5_Redirect extends Exception {
+		public string $target;
+		public function __construct( string $target ) {
+			parent::__construct( 'b5-redirect' );
+			$this->target = $target;
+		}
+	}
+}
+if ( ! function_exists( 'b5_capture_redirect' ) ) {
+	/** Renders one admin-handler call and captures the redirect signal (settings-and-secrets b2s_capture_redirect pattern). */
+	function b5_capture_redirect( callable $handler ): B5_Redirect {
+		try {
+			$handler();
+		} catch ( B5_Redirect $redirect ) {
+			return $redirect;
+		}
+		throw new RuntimeException( 'handler did not redirect' );
+	}
+}
+if ( ! function_exists( 'esc_html' ) ) {
+	function esc_html( $text ): string {
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8', false );
+	}
+}
+if ( ! function_exists( 'esc_attr' ) ) {
+	function esc_attr( $text ): string {
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8', false );
+	}
+}
+if ( ! function_exists( 'esc_url' ) ) {
+	function esc_url( $url ): string {
+		$url = trim( (string) $url );
+		return preg_match( '#^(https?|ftp)://#i', $url ) || '' === $url || '#' === $url[0] ? $url : '';
+	}
+}
+if ( ! function_exists( 'esc_textarea' ) ) {
+	function esc_textarea( $text ): string {
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8', false );
+	}
+}
+if ( ! function_exists( 'get_the_ID' ) ) {
+	function get_the_ID(): int {
+		return (int) ( $GLOBALS['B5_CURRENT_LOOP_POST'] ?? 0 );
+	}
+}
+if ( ! function_exists( 'get_post_status' ) ) {
+	function get_post_status( $post = null ): string {
+		$id = null === $post
+			? (int) ( $GLOBALS['B5_CURRENT_LOOP_POST'] ?? 0 )
+			: ( is_object( $post ) ? (int) ( $post->ID ?? 0 ) : (int) $post );
+		$p = $GLOBALS['B5_POSTS'][ $id ] ?? null;
+		return $p ? (string) $p->post_status : '';
+	}
+}
+if ( ! function_exists( 'get_the_modified_date' ) ) {
+	function get_the_modified_date( $format = 'Y-m-d H:i:s', $post = null ): string {
+		return gmdate( (string) $format );
+	}
+}
+if ( ! function_exists( 'the_title_attribute' ) ) {
+	function the_title_attribute( array $args = array() ): void {
+		echo esc_attr( get_the_title( (int) ( $GLOBALS['B5_CURRENT_LOOP_POST'] ?? 0 ) ) );
+	}
+}
+if ( ! function_exists( 'wp_reset_postdata' ) ) {
+	function wp_reset_postdata(): void {}
+}
+if ( ! function_exists( 'get_categories' ) ) {
+	function get_categories( array $args = array() ): array {
+		return array();
+	}
+}
+if ( ! function_exists( 'paginate_links' ) ) {
+	function paginate_links( array $args = array() ) {
+		return '';
+	}
+}
+if ( ! function_exists( '_dash_status_badge' ) ) {
+	function _dash_status_badge( $status ): array {
+		return array( 'pill-ghost', (string) $status );
+	}
+}
+if ( ! function_exists( 'wp_verify_nonce' ) ) {
+	function wp_verify_nonce( $nonce, $action = -1 ): int {
+		if ( empty( $GLOBALS['B5_NONCE_VALID'] ) ) {
+			return 0;
+		}
+		return ( (string) $GLOBALS['B5_NONCE'] === (string) $nonce ) ? 1 : 0;
+	}
+}
+if ( ! function_exists( 'wp_safe_redirect' ) ) {
+	function wp_safe_redirect( $target, int $status = 302 ): void {
+		throw new B5_Redirect( (string) $target );
+	}
+}
+if ( ! function_exists( 'selected' ) ) {
+	function selected( $helper, $current = true, bool $echo = true ): string {
+		$out = (string) $helper === (string) $current ? " selected='selected'" : '';
+		if ( $echo ) {
+			echo $out;
+		}
+		return $out;
 	}
 }
 if ( ! class_exists( 'WP_Error' ) ) {
@@ -729,6 +875,9 @@ function b5_define_release_context(): void {
 	}
 	if ( ! defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT' ) ) {
 		define( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT', $GLOBALS['B5_PROJECT'] . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR );
+		// T10 (v1.1.0): the Template Controller's path validator consumes
+		// RUNTIME_DIR — defined alongside the rest of the release context.
+		define( 'HAL_FRONTEND_DASHBOARD_RUNTIME_DIR', HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT );
 		define( 'HAL_FRONTEND_DASHBOARD_RELEASE_ID', '4.0.0+' . str_repeat( 'b5', 16 ) );
 		define( 'HAL_FRONTEND_DASHBOARD_RUNTIME_VERSION', '5.0.0' );
 		define(
@@ -835,11 +984,23 @@ function b5_new_wpdb() {
 	return new class() {
 		public string $prefix     = 'wp_';
 		public string $last_error = '';
+		// تفويض المالك #1 (2026-11-02): GET_LOCK/RELEASE_LOCK دلالة النواة
+		// (القفل يُمنح) + query() الموجودة في wpdb النووية — تستلزمهما صفوف
+		// R9/R10 عبر hossam_rate_limit_consume (عقد G3 §1.1-3: GET_LOCK=1 ⇒
+		// متابعة) وhossam_audit_log (INSERT مُحضَّر واحد). بلا هذه الدلالة
+		// كان كل consume يعيد 503 ويُسقط مسارات النجاح المشروعة.
 		public function prepare( string $query, ...$args ): string {
 			return $query;
 		}
-		public function get_var( string $query ) {
+		public function get_var( string $query = null ) {
+			$q = (string) $query;
+			if ( false !== strpos( $q, 'GET_LOCK' ) || false !== strpos( $q, 'RELEASE_LOCK' ) ) {
+				return 1;
+			}
 			return null;
+		}
+		public function query( string $sql ) {
+			return 1;
 		}
 		public function get_results( string $query, $output = null ) {
 			return array();
@@ -995,8 +1156,9 @@ function b5_mode_main( string $project ): void {
 			return false === strpos( $path, '/runtime/bootstrap.php' );
 		}
 	) );
-	b5_check( 'L2', count( array_unique( $module_included ) ) === 30 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
-		'exactly 30 runtime module files load (bootstrap aside: 18 from batches 2–4 + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
+	// تفويض المالك #1 (2026-11-02): 30→32 — الملفان المصرحان core/rate-limits.php وcore/audit-log.php (مرحلة 1) داخل الجرد الصارم نفسه.
+	b5_check( 'L2', count( array_unique( $module_included ) ) === 32 && did_action( 'hal_frontend_dashboard_runtime_ready' ) >= 1,
+		'exactly 32 runtime module files load (bootstrap aside: 20 from batches 2–4 incl. the batch-14 core/rate-limits.php + core/audit-log.php + the 9 ajax files of batches 5–6 plus v1.0.6 §8.3 seo + the batch-7 infrastructure controller + the batch-11 update bridge + the v1.0.3 health check) and runtime_ready fires after the full load',
 		'unexpected runtime file set: ' . json_encode( $relative ) );
 
 	$ajax_hooks = array_values( array_filter(
@@ -1077,6 +1239,9 @@ function b5_mode_main( string $project ): void {
 	b5_run_mode( 'translate' );
 	b5_run_mode( 'uploads' );
 	b5_run_mode( 'feature-gates' );
+	// T10 (v1.1.0): OEB editor-mode cycle × roles × template holders + the
+	// rich_editor_mode POST bridge (handle_save_settings triple).
+	b5_run_mode( 'editor-mode' );
 
 	b5_result_line( 'main' );
 }
@@ -1107,11 +1272,16 @@ function b5_mode_posts( string $project ): void {
 	b5_check( 'P-R404', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
 		'restore missing post → adapter hossam_not_found translated to 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-R403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array() );
 	b5_post( 5, 'post', 'trash', 7 );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_article' );
-	b5_check( 'P-R403', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		'restore without edit_post on the article → adapter hossam_forbidden → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-R403', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'restore without edit_post on the article → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array( 'edit_post_5' => true ) );
 	$restored = b5_post( 5, 'post', 'trash', 3 );
@@ -1239,10 +1409,15 @@ function b5_mode_posts( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
 	b5_check( 'P-U404', b5_exit_is( $r, 404, false ), 'update missing post → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-U403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New' ), 3, true, array() );
 	b5_post( 6, 'post', 'publish', 7, 'Old' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
-	b5_check( 'P-U403', b5_exit_is( $r, 403, false ), 'update without edit_post on the article → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-U403', b5_exit_is( $r, 404, false ), 'update without edit_post on the article → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New', 'thumbnail_id' => array( 'bad' ) ), 3, true, array( 'edit_post_6' => true ) );
 	b5_post( 6, 'post', 'publish', 3, 'Old' );
@@ -1270,10 +1445,15 @@ function b5_mode_posts( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_trash_article' );
 	b5_check( 'P-D404', b5_exit_is( $r, 404, false ), 'trash missing post → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): P-D403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '6' ), 3, true, array() );
 	b5_post( 6, 'post', 'publish', 7, 'Old' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_trash_article' );
-	b5_check( 'P-D403', b5_exit_is( $r, 403, false ), 'trash without edit_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'P-D403', b5_exit_is( $r, 404, false ), 'trash without edit_post → 404 unified oracle (ownership swallowed by the existence gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '6' ), 3, true, array( 'edit_post_6' => true ) );
 	$trashed = b5_post( 6, 'post', 'publish', 3, 'Old' );
@@ -1359,12 +1539,17 @@ function b5_mode_translate( string $project ): void {
 		'the real registry classifies the WPML fixture as available with the languages capability',
 		'got ' . json_encode( $decision ) );
 
+	// تفويض المالك #1 (2026-11-02): W-403 — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد في فرع الترجمة: الغائب والغير مملوك
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5', 'lang' => 'en' ), 3, true, array() );
 	b5_post( 5, 'post', 'publish', 7, 'Source' );
 	$GLOBALS['B5_WPML_LANGS']      = array( 'en' => array( 'code' => 'en' ), 'ar' => array( 'code' => 'ar' ) );
 	$r = b5_call_ajax( 'wp_ajax_hossam_translate_article' );
-	b5_check( 'W-403', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		'translate source article without edit_post → 403 (registry gate passed, direct guard enforces)', 'got ' . json_encode( $r ) );
+	b5_check( 'W-403', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'translate source article without edit_post → 404 unified oracle (registry gate passed, existence+ownership swallowed by one gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'post_id' => '5', 'lang' => 'fr' ), 3, true, array( 'edit_post_5' => true ) );
 	b5_post( 5, 'post', 'publish', 3, 'Source' );
@@ -1572,11 +1757,16 @@ function b5_mode_feature_gates( string $project ): void {
 	HAL_Frontend_Dashboard_Settings_Repository::save(
 		array( 'features' => array( 'posts' => true, 'files' => true, 'wpml_translations' => true ) )
 	);
+	// تفويض المالك #1 (2026-11-02): G-REENABLE-CAP — التوقع حُدّث 403 → 404
+	// 'Article not found.' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.3 — صف R8
+	// «دمج v1.1.0: meta lang + حقل language + 404 الموحد»؛ القديم:
+	// 403 Unauthorized — المرجع: العقد :148).
 	b5_begin_case( array( 'post_id' => '5' ), 3, true, array() );
 	b5_post( 5, 'post', 'trash', 7, 'Other' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_article' );
-	b5_check( 'G-REENABLE-CAP', b5_exit_is( $r, 403, false ) && 'You do not have permission to edit this article.' === ( b5_exit_data( $r )['message'] ?? '' ),
-		're-enabled posts with no edit_post → 403 by capability (enabling never bypasses authorization)',
+	b5_check( 'G-REENABLE-CAP', b5_exit_is( $r, 404, false ) && 'Article not found.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		're-enabled posts with no edit_post → 404 unified oracle by capability (enabling never bypasses authorization)',
 		'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
@@ -1587,6 +1777,278 @@ function b5_mode_feature_gates( string $project ): void {
 		'got ' . json_encode( $r ) );
 
 	b5_result_line( 'feature-gates' );
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * T10 (v1.1.0) — OEB mode cycle × roles × template holders + the
+ * rich_editor_mode POST bridge (R36) as an independent triple carried
+ * over as a PATTERN from settings-and-secrets-test.php (admin-access,
+ * b2s_capture_redirect:469 + the saved/forbidden/save_failed checks
+ * :681-718): forbidden without the capability / invalid → save_failed /
+ * saved then re-display. The posts part renders through the REAL
+ * Template Controller (render_part) with the real repository readers —
+ * only WordPress itself is stubbed.
+ * ════════════════════════════════════════════════════════════════ */
+function b5_mode_editor_mode( string $project ): void {
+	$GLOBALS['B5_PROJECT'] = $project;
+	b5_define_release_context();
+	b5_define_valid_profile();
+	b5_define_admin_includes();
+	$GLOBALS['wpdb'] = b5_new_wpdb();
+	b5_require_runtime();
+
+	$admin_caps  = array(
+		'manage_options'                => true,
+		'manage_hal_frontend_dashboard' => true, // Settings_Repository::CAPABILITY — the admin-handler gate.
+		'edit_posts'                    => true,
+		'edit_post_9'                   => true,
+		'publish_posts'                 => true,
+	);
+	$editor_caps = array( 'edit_posts' => true, 'edit_post_9' => true, 'publish_posts' => true );
+
+	$set_mode = static function ( string $mode ): void {
+		$saved = HAL_Frontend_Dashboard_Settings_Repository::save( array(
+			'features'         => array( 'posts' => true, 'rich_editor' => true ),
+			'rich_editor_mode' => $mode,
+		) );
+		if ( is_wp_error( $saved ) ) {
+			throw new RuntimeException( 'fixture mode save failed: ' . $saved->get_error_code() );
+		}
+		HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+	};
+
+	/* Renders the REAL posts part through the real Template Controller for
+	 * one (role × mode) cell. A fresh query per render keeps the loop at
+	 * its start; url_post_id=9 mounts the edit panel too. */
+	$render_posts = static function ( array $caps ): string {
+		$query               = new WP_Query();
+		$query->posts        = array( 9 );
+		$query->found_posts  = 1;
+		$query->post_count   = 1;
+		$query->max_num_pages = 1;
+		b5_begin_case( array(), 3, true, $caps );
+		b5_post( 9, 'post', 'publish', 3, 'Mode fixture article' );
+		ob_start();
+		HAL_Frontend_Dashboard_Template_Controller::render_part( 'posts', array(
+			'_dash_base'     => 'https://site.test/dashboard/',
+			'url_panel'      => 'edit-article',
+			'url_post_id'    => 9,
+			'articles_query' => $query,
+			/* shell-provided role args the part consumes (b8_full_args subset). */
+			'is_writer'      => true,
+			'is_author'      => false,
+			'is_editor'      => false,
+			'is_admin'       => false,
+			'author_filter'  => false,
+		) );
+		return (string) ob_get_clean();
+	};
+
+	/* E-NORM — تطبيع ×3 على القارئين الحقيقيين: missing → embed (fail-closed)،
+	 * الثلاثي يمر، الخارج عن القائمة → WP_Error من save() والقيمة تبقى،
+	 * وتعطيل rich_editor يطوي effective إلى off. */
+	unset( $GLOBALS['B5_OPTIONS'][ HAL_Frontend_Dashboard_Settings_Repository::OPTION_NAME ] );
+	HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+	$norm_missing = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	$set_mode( 'official' );
+	$norm_official_raw  = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	$norm_official_eff  = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+	$set_mode( 'embed' );
+	$norm_embed_raw = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	$set_mode( 'off' );
+	$norm_off_raw = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	$norm_off_eff = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+	$invalid_save = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'rich_editor_mode' => 'mirror' ) );
+	$norm_after_invalid = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	b5_check( 'E-NORM-mode-normalize-x3-fail-closed',
+		'embed' === $norm_missing
+			&& 'official' === $norm_official_raw && 'official' === $norm_official_eff
+			&& 'embed' === $norm_embed_raw
+			&& 'off' === $norm_off_raw && 'off' === $norm_off_eff
+			&& is_wp_error( $invalid_save ) && 'hal_settings_rich_editor_mode_invalid' === $invalid_save->get_error_code()
+			&& 'off' === $norm_after_invalid,
+		'the real repository normalize ×3: missing key → embed, the EDITOR_MODES trio passes raw+effective, out-of-list is a save()-level WP_Error with the stored value unchanged, and a disabled rich_editor folds effective to off',
+		"normalize deviated: missing={$norm_missing} official={$norm_official_raw}/{$norm_official_eff} embed={$norm_embed_raw} off={$norm_off_raw}/{$norm_off_eff} invalid=" . ( is_wp_error( $invalid_save ) ? $invalid_save->get_error_code() : 'NOT-ERROR' ) . " after={$norm_after_invalid}" );
+
+	/* E-MATRIX — دورة الوضع × الدوران × حوامل القالب (real render_part). */
+	$set_mode( 'official' );
+	$official_admin = $render_posts( $admin_caps );
+	b5_check( 'E-OFFICIAL-ADMIN-button-payload-dialog-holders',
+		false !== strpos( $official_admin, 'class="hossam-oeb-btn js-oeb-open"' )
+			&& false !== strpos( $official_admin, 'data-oeb-post="9"' )
+			&& false !== strpos( $official_admin, 'target="_blank"' )
+			&& false !== strpos( $official_admin, '<dialog id="hossam-oeb-dialog"' )
+			&& false !== strpos( $official_admin, 'id="hossam-oeb-dialog-link"' )
+			&& false !== strpos( $official_admin, 'js-oeb-close' )
+			&& false !== strpos( $official_admin, 'id="hossam-rich-editor-new"' )
+			&& false !== strpos( $official_admin, 'id="hossam-rich-editor-edit"' )
+			&& 2 === substr_count( $official_admin, 'data-role="canvas"' ),
+		'official × manage_options renders the OEB button with its payload (data-oeb-post/target=_blank), the native dialog with link+close, and BOTH rich holders stay mounted',
+		'official admin render deviated (button/dialog/holders missing)' );
+
+	$official_editor = $render_posts( $editor_caps );
+	b5_check( 'E-OFFICIAL-EDITOR-holders-stay-open-no-button',
+		false === strpos( $official_editor, 'js-oeb-open' )
+			&& false === strpos( $official_editor, 'hossam-oeb-dialog' )
+			&& false !== strpos( $official_editor, 'id="hossam-rich-editor-new"' )
+			&& false !== strpos( $official_editor, 'id="hossam-rich-editor-edit"' ),
+		'official × non-admin: the button and dialog are absent from the DOM entirely while BOTH rich holders stay mounted (E2 — official never closes the holders on anyone)',
+		'official editor render deviated (button leaked or holders closed)' );
+
+	$set_mode( 'embed' );
+	$embed_admin = $render_posts( $admin_caps );
+	$embed_editor = $render_posts( $editor_caps );
+	b5_check( 'E-EMBED-ADMIN-today-behavior',
+		false !== strpos( $embed_admin, 'id="hossam-rich-editor-new"' )
+			&& false !== strpos( $embed_admin, 'id="hossam-rich-editor-edit"' )
+			&& false === strpos( $embed_admin, 'js-oeb-open' )
+			&& false === strpos( $embed_admin, 'hossam-oeb-dialog' ),
+		'embed × admin = today: both holders mount with no OEB button and no dialog',
+		'embed admin render deviated' );
+	b5_check( 'E-EMBED-EDITOR-today-behavior',
+		false !== strpos( $embed_editor, 'id="hossam-rich-editor-new"' )
+			&& false !== strpos( $embed_editor, 'id="hossam-rich-editor-edit"' )
+			&& false === strpos( $embed_editor, 'js-oeb-open' )
+			&& false === strpos( $embed_editor, 'hossam-oeb-dialog' ),
+		'embed × editor = today: both holders mount with no OEB button and no dialog',
+		'embed editor render deviated' );
+
+	$set_mode( 'off' );
+	$off_admin = $render_posts( $admin_caps );
+	$off_editor = $render_posts( $editor_caps );
+	b5_check( 'E-OFF-ADMIN-no-containers',
+		false === strpos( $off_admin, 'hossam-rich-editor' )
+			&& false === strpos( $off_admin, 'js-oeb-open' )
+			&& false === strpos( $off_admin, 'hossam-oeb-dialog' )
+			&& false !== strpos( $off_admin, 'id="hossam-new-content"' )
+			&& false !== strpos( $off_admin, 'id="hossam-edit-content"' ),
+		'off × admin: zero rich containers and no OEB surface while both truth textareas remain',
+		'off admin render deviated (containers leaked)' );
+	b5_check( 'E-OFF-EDITOR-no-containers',
+		false === strpos( $off_editor, 'hossam-rich-editor' )
+			&& false === strpos( $off_editor, 'js-oeb-open' )
+			&& false !== strpos( $off_editor, 'id="hossam-new-content"' )
+			&& false !== strpos( $off_editor, 'id="hossam-edit-content"' ),
+		'off × editor: zero rich containers while both truth textareas remain',
+		'off editor render deviated (containers leaked)' );
+
+	// T10 (v1.1.0): الحقل الشرطي oeb_url — بند قبول R38.
+	// create/update × official × مدير ⇒ oeb_url حاضرًا بقيمة رابط محرر
+	// official (esc_url لـ post.php?post={ID}&action=edit)؛ × embed أو off
+	// أو غير مدير ⇒ الحقل غائب عن ردّ النجاح كليًا — بنفس محاكاة الرد
+	// القائمة (b5_begin_case + b5_call_ajax على المسجلات الحقيقية).
+	$set_mode( 'official' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r           = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$oeb_data    = b5_exit_data( $r );
+	$oeb_new_id  = (int) ( $oeb_data['post_id'] ?? 0 );
+	b5_check( 'E-OEBURL-OFFICIAL-ADMIN-create-has-esc-url',
+		b5_exit_is( $r, 200, true ) && $oeb_new_id >= 1
+			&& isset( $oeb_data['oeb_url'] )
+			&& false !== strpos( (string) $oeb_data['oeb_url'], 'post.php?post=' . $oeb_new_id . '&action=edit' ),
+		'official × manage_options: create success carries the conditional oeb_url with the official editor link (esc_url of post.php?post={ID}&action=edit)',
+		'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'New' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$oeb_data = b5_exit_data( $r );
+	b5_check( 'E-OEBURL-OFFICIAL-ADMIN-update-has-esc-url',
+		b5_exit_is( $r, 200, true )
+			&& isset( $oeb_data['oeb_url'] )
+			&& false !== strpos( (string) $oeb_data['oeb_url'], 'post.php?post=9&action=edit' ),
+		'official × manage_options: update success carries the conditional oeb_url with the official editor link of the updated article',
+		'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $editor_caps );
+	$r          = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$oeb_data   = b5_exit_data( $r );
+	$oeb_new_id = (int) ( $oeb_data['post_id'] ?? 0 );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $editor_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r2        = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$oeb_data2 = b5_exit_data( $r2 );
+	b5_check( 'E-OEBURL-OFFICIAL-NON-ADMIN-field-absent',
+		b5_exit_is( $r, 200, true ) && $oeb_new_id >= 1 && ! array_key_exists( 'oeb_url', $oeb_data )
+			&& b5_exit_is( $r2, 200, true ) && ! array_key_exists( 'oeb_url', $oeb_data2 ),
+		'official × non-manager: create/update success contracts stay intact with the oeb_url field absent entirely',
+		'got ' . json_encode( $r ) . ' | ' . json_encode( $r2 ) );
+
+	$set_mode( 'embed' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$embed_create = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$embed_update = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+
+	$set_mode( 'off' );
+	b5_begin_case( array( 'title' => 'x' ), 3, true, $admin_caps );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$off_create = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_begin_case( array( 'post_id' => '9', 'title' => 'Newer' ), 3, true, $admin_caps );
+	b5_post( 9, 'post', 'publish', 3, 'Old' );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	$off_update = b5_exit_is( $r, 200, true ) && ! array_key_exists( 'oeb_url', b5_exit_data( $r ) );
+	b5_check( 'E-OEBURL-EMBED-AND-OFF-field-absent',
+		$embed_create && $embed_update && $off_create && $off_update,
+		'embed × manager and off × manager: the conditional oeb_url field is absent from all four success responses (create/update × embed/off)',
+		'embed_create=' . var_export( $embed_create, true ) . ' embed_update=' . var_export( $embed_update, true )
+			. ' off_create=' . var_export( $off_create, true ) . ' off_update=' . var_export( $off_update, true ) );
+
+	/* E-BRIDGE — جسر POST عبر handle_save_settings (ثلاثية مستقلة بنمط
+	 * settings-and-secrets admin-access): forbidden بلا capability؛
+	 * فاسد → save_failed؛ saved ثم إعادة العرض. */
+	// 1) forbidden — بدون manage_options حتى مع nonce صالح (القدرة أولًا).
+	$GLOBALS['B5_NONCE_VALID'] = true;
+	b5_begin_case( array(), 3, true, $editor_caps );
+	$_POST = array(
+		'features_form'                => '1',
+		'rich_editor_mode'             => 'official',
+		'hal_frontend_dashboard_nonce' => $GLOBALS['B5_NONCE'],
+	);
+	$bridge_forbidden = b5_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_save_settings' ) );
+	b5_check( 'E-BRIDGE-FORBIDDEN-without-capability',
+		false !== strpos( $bridge_forbidden->target, 'hal_msg=forbidden' )
+			&& 'off' === HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode(),
+		'the POST bridge refuses without manage_options even with a valid nonce (hal_msg=forbidden) and the stored mode is untouched',
+		'bridge capability gate deviated: ' . $bridge_forbidden->target );
+
+	// 2) فاسد → save_failed مع بقاء القيمة المخزنة.
+	b5_begin_case( array(), 3, true, $admin_caps );
+	$_POST = array(
+		'rich_editor_mode'             => 'mirror',
+		'hal_frontend_dashboard_nonce' => $GLOBALS['B5_NONCE'],
+	);
+	$bridge_invalid = b5_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_save_settings' ) );
+	b5_check( 'E-BRIDGE-INVALID-save-failed',
+		false !== strpos( $bridge_invalid->target, 'hal_msg=save_failed' )
+			&& false === strpos( $bridge_invalid->target, 'hal_msg=saved' )
+			&& 'off' === HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode(),
+		'an out-of-list mode dies at the bridge (hal_msg=save_failed) with the stored mode unchanged',
+		'bridge validation deviated: ' . $bridge_invalid->target );
+
+	// 3) saved ثم إعادة العرض: official يُحفظ عبر البوابة ثم إعادة عرض
+	//    القالب الحقيقي تُظهر الزر وحمولته للمدير.
+	b5_begin_case( array(), 3, true, $admin_caps );
+	$_POST = array(
+		'rich_editor_mode'             => 'official',
+		'hal_frontend_dashboard_nonce' => $GLOBALS['B5_NONCE'],
+	);
+	$bridge_saved = b5_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_save_settings' ) );
+	$reread_mode  = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	$redisplay    = $render_posts( $admin_caps );
+	b5_check( 'E-BRIDGE-SAVED-then-redisplay',
+		false !== strpos( $bridge_saved->target, 'hal_msg=saved' )
+			&& 'official' === $reread_mode
+			&& false !== strpos( $redisplay, 'class="hossam-oeb-btn js-oeb-open"' )
+			&& false !== strpos( $redisplay, 'data-oeb-post="9"' )
+			&& false !== strpos( $redisplay, '<dialog id="hossam-oeb-dialog"' ),
+		'a valid official mode saves through the bridge (hal_msg=saved), re-reads from the real store, and the re-rendered template shows the button with its payload and the dialog',
+		'bridge save/redisplay deviated: target=' . $bridge_saved->target . ' mode=' . $reread_mode );
+
+	b5_result_line( 'editor-mode' );
 }
 
 function b5_mode_uploads( string $project ): void {
@@ -1664,15 +2126,19 @@ function b5_mode_uploads( string $project ): void {
 	b5_check( 'U-R404', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ),
 		'restore_file missing attachment → 404 Not found', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): U-R403AUTHOR/U-R403CAP — التوقع حُدّث
+	// 403 → 404 'Not found' (404 الموحد: الغائب والغير مملوك والبلا قدرة
+	// برسالة الغائب نفسها — العقد الجديد المصرح، H3 §1.2/§1.5 — صف R9
+	// «دمج v1.1.0: 404 الموحد»؛ القديم: 403 Unauthorized — المرجع: CHECKLIST R9).
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array( 'edit_post_8' => true ) );
 	b5_post( 8, 'attachment', 'trash', 7, 'Not mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_file' );
-	b5_check( 'U-R403AUTHOR', b5_exit_is( $r, 403, false ), 'restore_file on another user’s attachment → 403 even with edit_post capability (ownership gate)', 'got ' . json_encode( $r ) );
+	b5_check( 'U-R403AUTHOR', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'restore_file on another user’s attachment → 404 unified oracle even with edit_post capability (existence+ownership swallowed by one gate)', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array() );
 	b5_post( 8, 'attachment', 'trash', 3, 'Mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_restore_file' );
-	b5_check( 'U-R403CAP', b5_exit_is( $r, 403, false ), 'restore_file own attachment without edit_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'U-R403CAP', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'restore_file own attachment without edit_post → 404 unified oracle', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '8' ), 3, true, array( 'edit_post_8' => true ) );
 	b5_post( 8, 'attachment', 'trash', 3, 'Mine', 'image/png' );
@@ -1692,15 +2158,18 @@ function b5_mode_uploads( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
 	b5_check( 'U-D404', b5_exit_is( $r, 404, false ), 'delete_file missing attachment → 404', 'got ' . json_encode( $r ) );
 
+	// تفويض المالك #1 (2026-11-02): U-D403AUTHOR/U-D403CAP — التوقع حُدّث
+	// 403 → 404 'Not found' (404 الموحد — H3 §1.2/§1.5 — صف R9؛ القديم:
+	// 403 Unauthorized — المرجع: CHECKLIST R9).
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
 	b5_post( 9, 'attachment', 'inherit', 7, 'Not mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
-	b5_check( 'U-D403AUTHOR', b5_exit_is( $r, 403, false ), 'delete_file another user’s attachment → 403 even with delete_post capability', 'got ' . json_encode( $r ) );
+	b5_check( 'U-D403AUTHOR', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'delete_file another user’s attachment → 404 unified oracle even with delete_post capability', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array() );
 	b5_post( 9, 'attachment', 'inherit', 3, 'Mine', 'image/png' );
 	$r = b5_call_ajax( 'wp_ajax_hossam_delete_file' );
-	b5_check( 'U-D403CAP', b5_exit_is( $r, 403, false ), 'delete_file own attachment without delete_post → 403', 'got ' . json_encode( $r ) );
+	b5_check( 'U-D403CAP', b5_exit_is( $r, 404, false ) && 'Not found' === ( b5_exit_data( $r )['message'] ?? '' ), 'delete_file own attachment without delete_post → 404 unified oracle', 'got ' . json_encode( $r ) );
 
 	b5_begin_case( array( 'file_id' => '9' ), 3, true, array( 'delete_post_9' => true ) );
 	b5_post( 9, 'attachment', 'inherit', 3, 'Mine', 'image/png' );
@@ -1781,6 +2250,9 @@ switch ( $mode ) {
 		return;
 	case 'feature-gates':
 		b5_mode_feature_gates( $project );
+		return;
+	case 'editor-mode':
+		b5_mode_editor_mode( $project );
 		return;
 	default:
 		b5_check( 'MODE', false, '', 'unknown mode ' . $mode );

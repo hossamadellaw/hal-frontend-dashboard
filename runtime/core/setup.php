@@ -510,6 +510,7 @@ add_action( 'after_setup_theme', function(): void {
 } );
 
 add_action( 'init', function(): void {
+    if ( wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) ) { return; }
     if ( is_admin() ) return;
 
     $uri             = $_SERVER['REQUEST_URI'] ?? '';
@@ -628,7 +629,22 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // أنماط لا تسجيل JavaScript — لا تُستخدم هنا.
     $hossam_rich_reason  = 'feature-disabled';
     $hossam_rich_allowed = false;
+    // OEB/3 (H1 §6-3): الوضع يُقرأ من get_effective_editor_mode() حصرًا —
+    // off → لا حزم إطلاقًا وتعليل الغياب mode-off؛ ما دام الوضع ≠ off
+    // تُحمَّل الحزم لكل من اجتاز البوابة (embed باقٍ متاحًا لمن اجتاز
+    // البوابة في official — ضمانة المالك H1 §4/§8/§7-1). لا فرع إسقاط
+    // حزم في official×مدير (تصويب E2 محسوم: الإسقاط كان يقلب
+    // $hossam_rich_enabled=false فيُسقط embed عن المدير وينقض الضمانة).
+    // غياب القارئ (class/method) يبقى فشلًا مغلقًا بالنمط القائم
+    // feature-disabled — لا قراءة وضع من مصدر آخر.
+    $hossam_editor_mode = '';
     if ( class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
+        && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'get_effective_editor_mode' ) ) {
+        $hossam_editor_mode = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+    }
+    if ( 'off' === $hossam_editor_mode ) {
+        $hossam_rich_reason = 'mode-off';
+    } elseif ( class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
         && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'is_feature_enabled' )
         && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rich_editor' ) ) {
         $hossam_rich_post_id = isset( $_REQUEST['post_id'] ) ? (int) $_REQUEST['post_id'] : 0;
@@ -686,13 +702,17 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // v1.0.6 §9: إعدادات المحرر الغني على hossam-dashboard-posts — كائن
     // مستقل hossamRichEditor (hossamAjax أعلاه كما هو بلا تغيير، B9-E3 سليم).
     // enabled=false يعني بقاء الـtextarea ظاهرًا؛ canUpload يعكس upload_files
-    // (شرط منفصل للوسائط)؛ REST/Nonce من WordPress لمسار الرفع الرسمي
-    // (uploadMedia) — لا endpoint جديد.
+    // (شرط منفصل للوسائط)؛ REST/Nonce يُصدر مشروطًا بتمكين المحرر وupload_files؛
+    // '' غيره (uploadMedia) — لا endpoint جديد.
+    $hossam_rich_can_upload = $hossam_rich_enabled && current_user_can( 'upload_files' );
     wp_localize_script( 'hossam-dashboard-posts', 'hossamRichEditor', [
         'enabled'   => $hossam_rich_enabled,
         'canUpload' => current_user_can( 'upload_files' ),
         'restRoot'  => function_exists( 'rest_url' ) ? rest_url() : '',
-        'restNonce' => wp_create_nonce( 'wp_rest' ),
+        'restNonce' => $hossam_rich_can_upload ? wp_create_nonce( 'wp_rest' ) : '',
+        // OEB/3 (H1 §6-3): الوضع الفعلي بجوار restNonce بلا دمج بنيوي —
+        // مصدره المتغير أعلاه المقروء من get_effective_editor_mode() حصرًا.
+        'mode'      => $hossam_editor_mode,
         'isRtl'     => function_exists( 'hossam_wpml_is_rtl' ) ? hossam_wpml_is_rtl() : is_rtl(),
         'reason'    => $hossam_rich_reason,
     ] );

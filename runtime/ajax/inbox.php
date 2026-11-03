@@ -26,39 +26,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Consume one message allowance while holding a database-level lock.
- *
- * WordPress transients are not an atomic read/modify/write primitive. The
- * named lock serializes concurrent requests for the same user so the
- * documented ten-messages-per-minute ceiling cannot be bypassed by racing.
- */
-function hossam_inbox_consume_message_quota( int $user_id ) {
-    global $wpdb;
-
-    $lock_name = 'hossam_msg_rate_' . $user_id;
-    $locked    = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 2)', $lock_name ) );
-    if ( 1 !== $locked ) {
-        return new WP_Error( 'quota_lock_failed', 'Message service is busy. Try again.', [ 'status' => 503 ] );
-    }
-
-    try {
-        $key = 'hossam_msg_rate_' . $user_id;
-        $cnt = (int) get_transient( $key );
-        if ( $cnt >= 10 ) {
-            return new WP_Error( 'rate_limit', 'Rate limit exceeded. Try later.', [ 'status' => 429 ] );
-        }
-
-        if ( ! set_transient( $key, $cnt + 1, MINUTE_IN_SECONDS ) ) {
-            return new WP_Error( 'quota_write_failed', 'Message service is unavailable. Try again.', [ 'status' => 503 ] );
-        }
-
-        return true;
-    } finally {
-        $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
-    }
-}
-
 add_action( 'wp_ajax_hossam_get_notifications', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
     if ( ! is_user_logged_in() ) {
@@ -141,6 +108,17 @@ add_action( 'wp_ajax_hossam_mark_read', function(): void {
         wp_send_json_error( [ 'message' => 'Invalid ID' ], 400 );
     }
 
+    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
+    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $quota ) ) {
+        $data = $quota->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $quota->get_error_message() ],
+            is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 503
+        );
+    }
+
     global $wpdb;
     $table   = $wpdb->prefix . 'hossam_notifications';
     $user_id = get_current_user_id();
@@ -170,6 +148,17 @@ add_action( 'wp_ajax_hossam_mark_all_read', function(): void {
     }
     if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'inbox' ) ) {
         wp_send_json_error( array( 'code' => 'feature_disabled', 'message' => 'This feature is disabled.' ), 403 );
+    }
+
+    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
+    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $quota ) ) {
+        $data = $quota->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $quota->get_error_message() ],
+            is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 503
+        );
     }
 
     global $wpdb;
@@ -222,7 +211,7 @@ add_action( 'wp_ajax_hossam_send_message', function(): void {
         wp_send_json_error( [ 'message' => 'Receiver not found' ], 404 );
     }
 
-    $quota = hossam_inbox_consume_message_quota( get_current_user_id() );
+    $quota = hossam_rate_limit_consume( 'msg', (int) get_current_user_id(), 10, MINUTE_IN_SECONDS );
     if ( is_wp_error( $quota ) ) {
         $data = $quota->get_error_data();
         wp_send_json_error(
@@ -249,6 +238,16 @@ add_action( 'wp_ajax_hossam_send_message', function(): void {
     if ( ! $inserted ) {
         wp_send_json_error( [ 'message' => 'Insert failed' ], 500 );
     }
+
+    // R7 (G4 §3-أ-10): message_send بعد النجاح وقبل success — meta
+    // receiver_id حصرًا (لا نص الرسالة إطلاقًا)؛ قيمة الإرجاع تُتجاهل عمدًا.
+    hossam_audit_log(
+        'message_send',
+        [
+            'object_id' => (int) $wpdb->insert_id,
+            'meta'      => [ 'receiver_id' => $receiver_id ],
+        ]
+    );
 
     wp_send_json_success( [ 'id' => (int) $wpdb->insert_id ] );
 } );
@@ -316,6 +315,17 @@ add_action( 'wp_ajax_hossam_mark_message_read', function(): void {
         wp_send_json_error( [ 'message' => 'Invalid ID' ], 400 );
     }
 
+    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
+    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $quota ) ) {
+        $data = $quota->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $quota->get_error_message() ],
+            is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 503
+        );
+    }
+
     global $wpdb;
     $table   = $wpdb->prefix . 'hossam_messages';
     $user_id = get_current_user_id();
@@ -335,6 +345,10 @@ add_action( 'wp_ajax_hossam_mark_message_read', function(): void {
     if ( 0 === $result ) {
         wp_send_json_error( [ 'message' => 'Message not found or already read' ], 404 );
     }
+
+    // R7 (G4 §3-أ-11): message_mark_read بعد النجاح وقبل success — بلا
+    // meta؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+    hossam_audit_log( 'message_mark_read', [ 'object_id' => $message_id ] );
 
     wp_send_json_success();
 } );

@@ -240,11 +240,18 @@ function applicableKeys(hooks, rules) {
  *                       card/table hooks around it — product CSS untouched
  *                       per test-only scope). Tracked here, never silently
  *                       merged; independent review (G6) to follow.
+ *   ── v1.1.0 OEB (documented addition, T10 — تحديث قيمة لا صرامة): ──
+ * js-oeb-open / js-oeb-close  posts panel OEB button + dialog close
+ *                       (R23); event-delegation hooks in posts.js
+ *                       (hossamOeb* namespace); the button itself carries
+ *                       the styled .hossam-oeb-btn class — these two are
+ *                       behavior hooks, styling-irrelevant.
  */
 const ORPHAN_ALLOWLIST = new Set([
   'btn-primary', 'tab-content', 'tab-group', 'hdr-lang-cur', 'sb-logo',
   'js-ai-run', 'js-restore-article', 'js-translate-article',
   'hossam-translations-panel', // v1.0.6 §14
+  'js-oeb-open', 'js-oeb-close', // v1.1.0 OEB (R23)
 ]);
 
 const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance', 'inbox', 'files', 'members', 'store', 'profile', 'admin'];
@@ -261,9 +268,14 @@ const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance
  * any other drift still fails. All other units stay exactly symmetric.
  * v1.0.6 comment: reviewed against runtime/templates/dashboard/posts.php
  * on 2026-10-15/16; independent review to follow (G6).
+ * T10 (v1.1.0): عدّادات العناصر المصرحة — تحديث قيمة لا صرامة. The v1.1.0
+ * OEB merge (R23, owner-authorized) extends the posts delta by the
+ * authorized hossam-oeb-* / <dialog> elements only: button + native dialog
+ * classes/ids/data, both gated manage_options × official. The exact-equality
+ * contract of the check itself is unchanged — any other drift still fails.
  */
 const V106_POSTS_DELTA = {
-  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar'],
+  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-oeb-actions', 'hossam-oeb-btn', 'hossam-oeb-dialog', 'hossam-oeb-dialog-head', 'hossam-oeb-status', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar', 'js-oeb-close', 'js-oeb-open'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -272,10 +284,11 @@ const V106_POSTS_DELTA = {
     'hossam-edit-thumbnail-preview', 'hossam-edit-thumbnail-remove',
     'hossam-new-excerpt', 'hossam-new-thumbnail', 'hossam-new-thumbnail-btn',
     'hossam-new-thumbnail-preview', 'hossam-new-thumbnail-remove',
+    'hossam-oeb-dialog', 'hossam-oeb-dialog-link', 'hossam-oeb-dialog-status',
     'hossam-rich-editor-edit', 'hossam-rich-editor-new',
   ],
   idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
-  dataGained: ['role', 'textarea'],
+  dataGained: ['oeb-post', 'role', 'textarea'],
   dataLost: [],
   stylesGained: [
     "display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;",
@@ -336,7 +349,7 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   check(`B9V-${name}-markup-symmetric`,
     markupOk,
     isDeltaUnit
-      ? `${name}: styling hooks equal the documented v1.0.6 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
+      ? `${name}: styling hooks equal the documented v1.0.6 + v1.1.0 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
       : `${name}: styling hooks identical (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`,
     `${name}: markup drift class[+${setDiff(mig.classes, ref.classes)}]/[-${setDiff(ref.classes, mig.classes)}]`
       + ` id[+${setDiff(mig.ids, ref.ids)}]/[-${setDiff(ref.ids, mig.ids)}]`

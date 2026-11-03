@@ -89,10 +89,10 @@ async function loadFinance(page=1){
       <td>${esc(o.id)}</td>
       <td>${esc(o.date)}</td>
       <td>${esc(o.total)}</td>
-      <td><span class="pill pill-${esc(o.status_slug)}">${esc(o.status)}</span></td>
+      <td><span class="pill pill-${escAttr(o.status_slug)}">${esc(o.status)}</span></td>
       <td>${esc(o.payment_method||'—')}</td>
       <td>${esc(o.item_count??'—')}</td>
-      <td>${o.view_url?`<a href="${esc(o.view_url)}" target="_blank" class="btn btn-sm btn-ghost">${t('viewInvoice','View')}</a>`:'—'}</td>
+      <td>${o.view_url?`<a href="${escAttr(o.view_url)}" target="_blank" class="btn btn-sm btn-ghost">${t('viewInvoice','View')}</a>`:'—'}</td>
     </tr>`).join('')}
   </tbody></table>
   <div class="fin-pagination">
@@ -101,7 +101,7 @@ async function loadFinance(page=1){
   </div>`;
   if(data.statuses){
     const opts=Object.entries(data.statuses).map(
-      ([v,l])=>`<option value="${esc(v)}"${currentFinanceStatus===v?' selected':''}>${esc(l)}</option>`
+      ([v,l])=>`<option value="${escAttr(v)}"${currentFinanceStatus===v?' selected':''}>${esc(l)}</option>`
     ).join('');
     const sel=`<div class="fin-filter" style="margin-bottom:8px">
       <select onchange="currentFinanceStatus=this.value;loadFinance(1)" class="filter-select">
@@ -122,7 +122,7 @@ async function loadFinance(page=1){
         <td>${esc(o.id)}</td>
         <td>${esc(o.date)}</td>
         <td>${esc(o.total)}</td>
-        <td><a href="${esc(o.view_url)}" target="_blank" class="btn btn-sm btn-ghost">${t('viewInvoice','View')}</a></td>
+        <td><a href="${escAttr(o.view_url)}" target="_blank" class="btn btn-sm btn-ghost">${t('viewInvoice','View')}</a></td>
       </tr>`).join('')}</tbody></table>`:'<div class="ph-notice">'+t('noInvoices','No invoices yet.')+'</div>';
   }
   }catch(e){

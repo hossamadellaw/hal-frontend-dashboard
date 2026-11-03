@@ -31,6 +31,25 @@
  *   - translate: قرار التكامل من السجل hossam_get_integration_decision('wpml')
  *     بجانب الحارس المباشر → 503 عند unavailable أو غياب languages؛
  *     ثم 404/403/400 وفق المصدر؛ الـedit_url عبر hossam_dashboard_url().
+ *
+ * ═══ دمج v1.1.0 (صفّا R8+E6 بتعديلين موسومين — بلا دمج بنيوي) ═══
+ *   - E6: رمز الرفض hossam_h1_rejected (صف R14 — الصمام) يُضاف إلى فرع
+ *     ال400 في hossam_send_article_error (in_array قياسًا) — وإلا سقط أي
+ *     رمز جديد في else→500 فُعرض رفض سياسة مدخل كفشل تقني.
+ *   - R8 (أ): consume بالخريطة G3 §1.3 — update 30/د · create 10/د +
+ *     50/يوم (create_day) · translate 10/د · trash+restore 30/د (نطاق
+ *     trash مشترك) — 5 نقاط بـ6 نداءات، بعد اكتمال التحقق وقبل الكتابة
+ *     مباشرة بلا تراجع؛ ترجمة WP_Error بنمط inbox.php (error_data['status']).
+ *   - R8 (ب): نداءات audit الخمسة بعد النجاح وقبل success —
+ *     article_create/article_update/article_trash/article_restore/
+ *     article_translate (فرع الإنشاء الجديد حصرًا؛ فرع «موجودة» قراءة بلا
+ *     حدث) بموضع G4 §3-أ؛ قيمة الإرجاع تُتجاهل عمدًا.
+ *   - R8 دلتا: (1) meta article_create يضاف lang (scalar غير-PII) بجانب
+ *     status — كما قُرئت فعليًا من المقال (H4 §1.5-A4)؛ (2) حقل language
+ *     إضافي غير كاسر في create success؛ (3) 404 الموحد في فرع الترجمة
+ *     (H3 §1.3): دمج بوابة 403 المستقلة داخل بوابة 404 برسالة الغائب
+ *     نفسها — فرع ملكية الترجمة الداخلي وال403 الأعلى feature_disabled
+ *     بلا تغيير. عقود الاستجابة/nonce/الصلاحيات بلا تغيير.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -48,7 +67,10 @@ if ( ! function_exists( 'hossam_send_article_error' ) ) {
             $status = 404;
         } elseif ( in_array( $code, [ 'hossam_forbidden', 'hossam_thumbnail_forbidden' ], true ) ) {
             $status = 403;
-        } elseif ( in_array( $code, [ 'hossam_invalid_categories', 'hossam_invalid_thumbnail' ], true ) ) {
+        } elseif ( in_array( $code, [ 'hossam_invalid_categories', 'hossam_invalid_thumbnail', 'hossam_h1_rejected' ], true ) ) {
+            // صف E6 (v1.1.0): رمز رفض الصمام hossam_h1_rejected (صف R14)
+            // يُضاف إلى فرع ال400 قياسًا — وإلا سقط في else→500 فيُعرض رفض
+            // سياسة مدخل كفشل تقني.
             $status = 400;
         } else {
             $status = 500;
@@ -118,6 +140,18 @@ add_action( 'wp_ajax_hossam_restore_article', function(): void {
 
     $post_id = isset( $_POST['post_id'] ) && is_scalar( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 
+    // صف R8 (G3 §1.3-5): consume restore 30/د على نطاق trash المشترك — بعد
+    // اكتمال التحقق (nonce/401/feature/شكل المدخل) وقبل الكتابة مباشرة،
+    // بلا تراجع عند فشل الكتابة اللاحقة. بلا إعفاء manage_options.
+    $hossam_rl = hossam_rate_limit_consume( 'trash', (int) get_current_user_id(), 30, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+
     $result = hossam_restore_article( $post_id );
     if ( is_wp_error( $result ) ) {
         $code   = $result->get_error_code();
@@ -127,6 +161,10 @@ add_action( 'wp_ajax_hossam_restore_article', function(): void {
     if ( true !== $result ) {
         wp_send_json_error( [ 'message' => hossam_t( 'Article could not be restored.' ) ], 500 );
     }
+
+    // صف R8 (G4 §3-أ-4): article_restore بعد النجاح وقبل success — بلا
+    // meta؛ قيمة الإرجاع تُتجاهل عمدًا ولا يغيّر النداء مسار الاستجابة.
+    hossam_audit_log( 'article_restore', [ 'object_id' => $post_id ] );
 
     wp_send_json_success();
 } );
@@ -154,12 +192,14 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         : '';
     $post      = $post_id ? get_post( $post_id ) : null;
 
-    if ( ! $post || 'post' !== $post->post_type ) {
+    // صف R8 دلتا 3 (H3 §1.3 — 404 الموحد في فرع الترجمة): بوابة واحدة
+    // تبتلع الوجود داخل القرار — الغائب ونوع غريب وغير المملوك كلهم 404
+    // برسالة الغائب نفسها hossam_t('Article not found.')؛ الحدّ القصير
+    // يضمن ألا يُنادى current_user_can إلا على مقال موجود من النوع
+    // الصحيح. فرع ملكية الترجمة الداخلي أدناه وال403 الأعلى
+    // feature_disabled بلا تغيير.
+    if ( ! $post || 'post' !== $post->post_type || ! current_user_can( 'edit_post', $post_id ) ) {
         wp_send_json_error( [ 'message' => hossam_t( 'Article not found.' ) ], 404 );
-    }
-
-    if ( ! current_user_can( 'edit_post', $post_id ) ) {
-        wp_send_json_error( [ 'message' => hossam_t( 'You do not have permission to edit this article.' ) ], 403 );
     }
 
     $active_langs = hossam_wpml_get_active_languages();
@@ -252,6 +292,19 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         wp_send_json_error( [ 'message' => hossam_t( 'Translation contract is unavailable.' ) ], 503 );
     }
 
+    // صف R8 (G3 §1.3-4): consume translate 10/د — بعد اكتمال التحقق كله
+    // (nonce/401/feature/503/شكل المدخل/ملكية المصدر/اللغة النشطة/فحص
+    // trid) وقبل الكتابة مباشرة (wp_insert_post)، بلا تراجع. فرع
+    // «موجودة» أعلاه قراءة فلا consume فيه.
+    $hossam_rl = hossam_rate_limit_consume( 'translate', (int) get_current_user_id(), 10, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+
     $new_post_id = wp_insert_post( [
         'post_title'  => $post->post_title,
         'post_type'   => 'post',
@@ -283,6 +336,16 @@ add_action( 'wp_ajax_hossam_translate_article', function(): void {
         }
         wp_send_json_error( [ 'message' => hossam_t( 'Translation could not be linked.' ), 'code' => 'translation_link_failed', 'cleanup' => 'done' ], 500 );
     }
+
+    // صف R8 (G4 §3-أ-5): article_translate بعد النجاح وقبل success —
+    // object_id=id المصدر، meta new_post_id + lang = لغة الترجمة الهدف
+    // $lang_code؛ فرع الإنشاء الجديد حصرًا (فرع «موجودة» أعلاه قراءة بلا
+    // حدث ولا consume)؛ قيمة الإرجاع تُتجاهل عمدًا ولا يغيّر النداء مسار
+    // الاستجابة.
+    hossam_audit_log( 'article_translate', [
+        'object_id' => $post_id,
+        'meta'      => [ 'new_post_id' => (int) $new_post_id, 'lang' => $lang_code ],
+    ] );
 
     wp_send_json_success( [
         'post_id'  => $new_post_id,
@@ -338,18 +401,73 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
         $data['thumbnail_id'] = wp_unslash( $_POST['thumbnail_id'] );
     }
 
+    // صف R8 (G3 §1.3-2/3): consume create 10/د + create_day 50/يوم — بعد
+    // اكتمال التحقق (nonce/401/feature/شكل المدخل) وقبل الكتابة مباشرة
+    // (hossam_create_article)، بلا تراجع عند فشل الكتابة اللاحقة.
+    // بلا إعفاء manage_options.
+    $hossam_rl = hossam_rate_limit_consume( 'create', (int) get_current_user_id(), 10, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+    $hossam_rl = hossam_rate_limit_consume( 'create_day', (int) get_current_user_id(), 50, DAY_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+
     $post_id = hossam_create_article( $data );
     if ( is_wp_error( $post_id ) ) {
         hossam_send_article_error( $post_id );
     }
 
+    // صف R8 دلتا 1 (A4 — H4 §1.5-A4): lang كما قُرئت فعليًا من المقال بعد
+    // الإنشاء (قد تكون '') — نفس قيمة حقل language في success أدناه.
+    $hossam_lang = function_exists( 'hossam_wpml_get_post_language' ) ? (string) hossam_wpml_get_post_language( $post_id ) : '';
+
+    // صف R8 (G4 §3-أ-1 + دلتا 1): article_create بعد النجاح وقبل success —
+    // object_id=id الجديد، meta status = حالة المقال الناتجة + lang كما
+    // قُرئت فعليًا؛ قيمة الإرجاع تُتجاهل عمدًا ولا يغيّر النداء مسار
+    // الاستجابة. فرع «موجودة» لا وجود له هنا (الإنشاء دائمًا جديد).
+    // قراءة الحالة محمية بنمط hossam_article_link_payload القائم أعلاه.
+    $hossam_status = function_exists( 'get_post_status' ) ? (string) get_post_status( $post_id ) : '';
+    if ( '' === $hossam_status ) {
+        $hossam_post_obj = get_post( $post_id );
+        $hossam_status   = ( $hossam_post_obj && isset( $hossam_post_obj->post_status ) ) ? (string) $hossam_post_obj->post_status : '';
+    }
+    hossam_audit_log( 'article_create', [
+        'object_id' => $post_id,
+        'meta'      => [ 'status' => $hossam_status, 'lang' => $hossam_lang ],
+    ] );
+
     $hossam_links = hossam_article_link_payload( $post_id );
-    wp_send_json_success( [
+    // صف R38 (OEB/4 — H1 §6-6): oeb_url حقل استجابة فقط في ردّ النجاح —
+    // لا endpoint جديد. مشروط بالوضع الفعلي official (مصدره
+    // get_effective_editor_mode() حصرًا) × المسند الموحد
+    // current_user_can('manage_options')؛ قيمته رابط محرر official
+    // (post.php?post={ID}&action=edit) للحقل المُنشأ. عند عدم تحقق الشرط
+    // الحقل غير حاضر (posts.js يتجاهل المجهول) وعقود الاستجابة القائمة
+    // بلا تغيير.
+    $hossam_success = [
         'post_id'     => $post_id,
         'edit_url'    => add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $post_id ], hossam_dashboard_url() ),
         'view_url'    => $hossam_links['view_url'],
         'preview_url' => $hossam_links['preview_url'],
-    ] );
+        // R8 دلتا 2: حقل language إضافي غير كاسر — posts.js يتجاهل المفاتيح
+        // المجهولة (صفر لمس JS).
+        'language'    => function_exists('hossam_wpml_get_post_language') ? hossam_wpml_get_post_language( $post_id ) : '',
+    ];
+    if ( 'official' === HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
+        && current_user_can( 'manage_options' ) ) {
+        $hossam_success['oeb_url'] = esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) );
+    }
+    wp_send_json_success( $hossam_success );
 } );
 
 
@@ -394,17 +512,52 @@ add_action( 'wp_ajax_hossam_update_article', function(): void {
         $data['thumbnail_id'] = wp_unslash( $_POST['thumbnail_id'] );
     }
 
+    // صف R8 (G3 §1.3-1): consume update 30/د — بعد اكتمال التحقق (nonce/
+    // 401/feature/شكل المدخل) وقبل الكتابة مباشرة (hossam_update_article)،
+    // بلا تراجع عند فشل الكتابة اللاحقة. بلا إعفاء manage_options.
+    $hossam_rl = hossam_rate_limit_consume( 'update', (int) get_current_user_id(), 30, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+
     $result = hossam_update_article( $post_id, $data );
     if ( is_wp_error( $result ) ) {
         hossam_send_article_error( $result );
     }
 
+    // صف R8 (G4 §3-أ-2): article_update بعد النجاح وقبل success —
+    // object_id=id المقال، meta status = حالة المقال الناتجة؛ قيمة
+    // الإرجاع تُتجاهل عمدًا ولا يغيّر النداء مسار الاستجابة. قراءة
+    // الحالة محمية بنمط hossam_article_link_payload القائم أعلاه.
+    $hossam_status = function_exists( 'get_post_status' ) ? (string) get_post_status( $post_id ) : '';
+    if ( '' === $hossam_status ) {
+        $hossam_post_obj = get_post( $post_id );
+        $hossam_status   = ( $hossam_post_obj && isset( $hossam_post_obj->post_status ) ) ? (string) $hossam_post_obj->post_status : '';
+    }
+    hossam_audit_log( 'article_update', [
+        'object_id' => $post_id,
+        'meta'      => [ 'status' => $hossam_status ],
+    ] );
+
     $hossam_links = hossam_article_link_payload( $post_id );
-    wp_send_json_success( [
+    // صف R38 (OEB/4 — H1 §6-6): oeb_url حقل استجابة فقط — نفس شرط
+    // الإنشاء: الوضع الفعلي official (من get_effective_editor_mode()
+    // حصرًا) × manage_options؛ قيمته رابط محرر official للمقال
+    // المحدَّث؛ خلاف ذلك الحقل غير حاضر — عقود الاستجابة القائمة بلا تغيير.
+    $hossam_success = [
         'post_id'     => $post_id,
         'view_url'    => $hossam_links['view_url'],
         'preview_url' => $hossam_links['preview_url'],
-    ] );
+    ];
+    if ( 'official' === HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
+        && current_user_can( 'manage_options' ) ) {
+        $hossam_success['oeb_url'] = esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) );
+    }
+    wp_send_json_success( $hossam_success );
 } );
 
 
@@ -420,6 +573,18 @@ add_action( 'wp_ajax_hossam_trash_article', function(): void {
 
     $post_id = isset( $_POST['post_id'] ) && is_scalar( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 
+    // صف R8 (G3 §1.3-5): consume trash 30/د على النطاق المشترك مع restore —
+    // بعد اكتمال التحقق (nonce/401/feature/شكل المدخل) وقبل الكتابة
+    // مباشرة، بلا تراجع عند فشل الكتابة اللاحقة. بلا إعفاء manage_options.
+    $hossam_rl = hossam_rate_limit_consume( 'trash', (int) get_current_user_id(), 30, MINUTE_IN_SECONDS );
+    if ( is_wp_error( $hossam_rl ) ) {
+        $hossam_rl_data = $hossam_rl->get_error_data();
+        wp_send_json_error(
+            [ 'message' => $hossam_rl->get_error_message() ],
+            is_array( $hossam_rl_data ) && isset( $hossam_rl_data['status'] ) ? (int) $hossam_rl_data['status'] : 503
+        );
+    }
+
     $result = hossam_trash_article( $post_id );
     if ( is_wp_error( $result ) ) {
         $code   = $result->get_error_code();
@@ -429,6 +594,10 @@ add_action( 'wp_ajax_hossam_trash_article', function(): void {
     if ( true !== $result ) {
         wp_send_json_error( [ 'message' => hossam_t( 'Article could not be moved to trash.' ) ], 500 );
     }
+
+    // صف R8 (G4 §3-أ-3): article_trash بعد النجاح وقبل success — بلا
+    // meta؛ قيمة الإرجاع تُتجاهل عمدًا ولا يغيّر النداء مسار الاستجابة.
+    hossam_audit_log( 'article_trash', [ 'object_id' => $post_id ] );
 
     wp_send_json_success();
 } );

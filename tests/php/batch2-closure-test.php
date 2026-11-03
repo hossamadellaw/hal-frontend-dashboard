@@ -175,6 +175,13 @@ $GLOBALS['B2C_SCHEDULED'] = $GLOBALS['B2C_SCHEDULED'] ?? array();
 if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 	define( 'MINUTE_IN_SECONDS', 60 );
 }
+// تفويض المالك #1 (2026-11-02): ثابتا نواة يشير إليهما audit-log عند init (جدولة السweep:744 والcutoff:683) — قيم نووية حرفية
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+	define( 'HOUR_IN_SECONDS', 3600 );
+}
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+	define( 'DAY_IN_SECONDS', 86400 );
+}
 if ( ! function_exists( 'wp_next_scheduled' ) ) {
 	function wp_next_scheduled( string $hook, array $args = array() ) {
 		$key = $hook . '|' . json_encode( array_values( $args ) );
@@ -861,10 +868,11 @@ function b2c_contract_mode( string $mode, string $project ): void {
 			require $project . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'bootstrap.php';
 			do_action( 'init' );
 			$ready = apply_filters( 'hal_frontend_dashboard_boot_readiness', false, HAL_FRONTEND_DASHBOARD_RELEASE_ID, HAL_FRONTEND_DASHBOARD_RUNTIME_VERSION );
+			// تفويض المالك #1 (2026-11-02): هجرة audit-log تضيف +1 dbDelta/option — تحديث قيمة لا صرامة (قرار المالك — إحالة #2)
 			b2c_check(
 				'C1-READY-TRUE',
-				true === $ready && 3 === $GLOBALS['B2C_DBDELTA_CALLS'],
-				'after a verified first migration pass the live filter evaluates true (dbDelta=3)',
+				true === $ready && 4 === $GLOBALS['B2C_DBDELTA_CALLS'],
+				'after a verified first migration pass the live filter evaluates true (dbDelta=4)',
 				'expected readiness true after verified init; got ' . var_export( $ready, true )
 			);
 			b2c_run_health_ack( $abspath, true );
@@ -913,15 +921,16 @@ function b2c_contract_mode( string $mode, string $project ): void {
 				'hossam_messages_db_version'      => get_option( 'hossam_messages_db_version' ),
 				'hossam_ai_jobs_db_version'       => get_option( 'hossam_ai_jobs_db_version' ),
 			);
+			// تفويض المالك #1 (2026-11-02): هجرة audit-log تضيف +1 dbDelta/option — تحديث قيمة لا صرامة (قرار المالك — إحالة #2)
 			b2c_check(
 				'C2-HIGHER',
-				0 === $GLOBALS['B2C_DBDELTA_CALLS']
+				1 === $GLOBALS['B2C_DBDELTA_CALLS']
 					&& $options === array(
 						'hossam_notifications_db_version' => '9.0.0',
 						'hossam_messages_db_version'      => '9.0.0',
 						'hossam_ai_jobs_db_version'       => '9.0.0',
 					),
-				'higher recorded schema versions preserved verbatim (9.0.0) with zero dbDelta calls — no downgrade, no older migration',
+				'higher recorded schema versions preserved verbatim (9.0.0) with one dbDelta call — no downgrade, no older migration',
 				'anti-downgrade broken: dbDelta=' . $GLOBALS['B2C_DBDELTA_CALLS'] . ' options=' . json_encode( $options )
 			);
 			$ready = apply_filters( 'hal_frontend_dashboard_boot_readiness', false, HAL_FRONTEND_DASHBOARD_RELEASE_ID, HAL_FRONTEND_DASHBOARD_RUNTIME_VERSION );
@@ -948,13 +957,15 @@ function b2c_contract_mode( string $mode, string $project ): void {
 				'hossam_messages_db_version'      => get_option( 'hossam_messages_db_version' ),
 				'hossam_ai_jobs_db_version'       => get_option( 'hossam_ai_jobs_db_version' ),
 			);
+			// تفويض المالك #1 (2026-11-02): هجرة audit-log تضيف +1 dbDelta/option — تحديث قيمة لا صرامة (قرار المالك — إحالة #2)
+			// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
 			b2c_check(
 				'C2-LOWER',
-				3 === $GLOBALS['B2C_DBDELTA_CALLS']
+				4 === $GLOBALS['B2C_DBDELTA_CALLS']
 					&& $options === array(
-						'hossam_notifications_db_version' => '1.0.1',
-						'hossam_messages_db_version'      => '1.0.1',
-						'hossam_ai_jobs_db_version'       => '1.1.1',
+						'hossam_notifications_db_version' => '1.0.2',
+						'hossam_messages_db_version'      => '1.0.2',
+						'hossam_ai_jobs_db_version'       => '1.1.2',
 					),
 				'lower recorded versions migrate forward and record the code targets after verification',
 				'lower-version migration broken: dbDelta=' . $GLOBALS['B2C_DBDELTA_CALLS'] . ' options=' . json_encode( $options )
@@ -965,24 +976,28 @@ function b2c_contract_mode( string $mode, string $project ): void {
 		case 'schema-equal-absent':
 			// B2-02: equal stays idempotent (no dbDelta); absent migrates.
 			b2c_define_release_constants( $abspath, $project );
-			$GLOBALS['B2C_OPTIONS']['hossam_notifications_db_version'] = '1.0.1';
-			$GLOBALS['B2C_OPTIONS']['hossam_messages_db_version']      = '1.0.1';
-			$GLOBALS['B2C_OPTIONS']['hossam_ai_jobs_db_version']       = '1.1.1';
+			// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
+			$GLOBALS['B2C_OPTIONS']['hossam_notifications_db_version'] = '1.0.2';
+			$GLOBALS['B2C_OPTIONS']['hossam_messages_db_version']      = '1.0.2';
+			$GLOBALS['B2C_OPTIONS']['hossam_ai_jobs_db_version']       = '1.1.2';
 			$GLOBALS['wpdb'] = new B2C_WPDB();
 			require $project . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'bootstrap.php';
 			do_action( 'init' );
 			$equal_deltas = $GLOBALS['B2C_DBDELTA_CALLS'];
+			// تفويض المالك #1 (2026-11-02): هجرة audit-log تضيف +1 dbDelta/option — تحديث قيمة لا صرامة (قرار المالك — إحالة #2)
 			b2c_check(
 				'C2-EQUAL',
-				0 === $equal_deltas,
-				'exact recorded versions stay idempotent (zero dbDelta calls)',
-				'expected zero dbDelta for exact versions; got ' . $equal_deltas
+				1 === $equal_deltas,
+				'exact recorded versions stay idempotent (one dbDelta call)',
+				'expected one dbDelta for exact versions; got ' . $equal_deltas
 			);
 			unset( $GLOBALS['B2C_OPTIONS']['hossam_notifications_db_version'] );
 			do_action( 'init' );
+			// تفويض المالك #1 (2026-11-02): هجرة audit-log تضيف +1 dbDelta/option — تحديث قيمة لا صرامة (قرار المالك — إحالة #2)
 			b2c_check(
 				'C2-ABSENT',
-				1 === $GLOBALS['B2C_DBDELTA_CALLS'] && '1.0.1' === get_option( 'hossam_notifications_db_version' ),
+				// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
+				2 === $GLOBALS['B2C_DBDELTA_CALLS'] && '1.0.2' === get_option( 'hossam_notifications_db_version' ),
 				'absent version still migrates that table and records the target',
 				'absent-version migration broken: dbDelta=' . $GLOBALS['B2C_DBDELTA_CALLS']
 			);
@@ -1121,9 +1136,10 @@ function b2c_main( string $project ): void {
 	// Preset the schema versions so the real tables init hooks stay in
 	// their verified idempotent path (migration paths are proven in the
 	// contract subprocesses above); assert idempotency again below.
-	$GLOBALS['B2C_OPTIONS']['hossam_notifications_db_version'] = '1.0.1';
-	$GLOBALS['B2C_OPTIONS']['hossam_messages_db_version']      = '1.0.1';
-	$GLOBALS['B2C_OPTIONS']['hossam_ai_jobs_db_version']       = '1.1.1';
+	// تفويض المالك #1 (2026-11-02): R5 version bumps — تحديث قيمة لا صرامة
+	$GLOBALS['B2C_OPTIONS']['hossam_notifications_db_version'] = '1.0.2';
+	$GLOBALS['B2C_OPTIONS']['hossam_messages_db_version']      = '1.0.2';
+	$GLOBALS['B2C_OPTIONS']['hossam_ai_jobs_db_version']       = '1.1.2';
 
 	require $project . '/runtime/core/setup.php';
 	require $project . '/runtime/core/i18n.php';
