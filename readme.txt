@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.0.8
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.0.8.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.0.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,20 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.0 =
+* Rate limiting on every write point (article create/update/translate/trash-restore, uploads, messages, SEO save, AI polling) with per-minute and daily caps — abusive bursts get a short wait message instead of loading the site.
+* Internal audit log (90 days, auto-cleaned): every important action is recorded — article lifecycle, file upload/delete/restore, SEO save, settings save, AI job lifecycle, secrets lifecycle — with one daily retention sweep covering the audit log, AI jobs, notifications, and messages.
+* Revisions capped at 10 per article to keep the database lean.
+* Upload hardening: 8MB size cap (filterable, 0 disables), unified MIME allow-list intersection (never widens), real-type fileinfo check with an admin notice when the extension is unavailable.
+* Zombie AI jobs closed automatically inside the existing scheduled sweep (exhausted attempts + orphaned pre-upgrade pending rows) — no more stuck-forever pending jobs.
+* Unified 404 across the seven endpoints for missing or foreign objects — the interface can no longer probe existence (403/404 indistinguishable), while the high-level feature gates stay 403.
+* Conditional REST nonce (issued only when the rich editor is enabled AND the user can upload_files — empty otherwise) and payment-methods payload trimmed (no internal ids; the accepted-risk disclosure is documented).
+* OEB bridge: in official mode admins get a one-click native WordPress-editor window (new window + tab fallback + load-baseline return sync with dirty-before-open protection) while the embed stays for everyone else and off drops the editor packages (about 2.7MB saved); H1 paste normalization, advisory block-type restriction, and robots chips locked to the closed list.
+* New articles are stamped with the member's current language (site default fallback; without WPML the behavior is byte-identical to 1.0.8).
+* Performance: ai_jobs schema 1.1.2 with three indexes (zombie sweep + quota paths), settings autoload on, template-controller per-request cache, finance summary capped at 20 pages with a revenue_capped flag, and a cron/CLI early guard.
+* Version identity 1.1.0 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 8 (basis: acceptance audit ADVISORY-DECISION 5aaa24f2... and the execution ledger 12085f26...).
+* UNVERIFIED: the live acceptance session (owner-guarantee reference scene on both accounts per H1 section 7, corrected gate 9, manual popup-blocker acceptance, final visual shape per H1 section 9) and the owner staging measurements (live MySQL8/MariaDB migration T4-1 + EXPLAIN, live R1 measurement, R5 profit) — both feed 1.1.1 by owner decision.
 
 = 1.0.8 =
 * Editor recovery release (Docs/versions/v1.0.8.md REV3.1): the rich editor stays the v1.0.7 embed path inside the HAL panel — no modes switch and no official-editor interface in this version (OEB is a separate v1.0.9 draft).
