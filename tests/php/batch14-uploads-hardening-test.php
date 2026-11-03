@@ -297,6 +297,8 @@ if ( isset( $argv[1] ) && str_starts_with( (string) $argv[1], '--b14-child=' ) )
 $GLOBALS['B14_PASS']  = 0;
 $GLOBALS['B14_FAIL']  = 0;
 $GLOBALS['B14_FAILS'] = array();
+$GLOBALS['B14_SKIPPED'] = 0;
+$GLOBALS['B14_SKIPS']   = array();
 
 function b14_check( string $id, bool $ok, string $pass, string $fail ): void {
 	if ( $ok ) {
@@ -307,6 +309,14 @@ function b14_check( string $id, bool $ok, string $pass, string $fail ): void {
 		$GLOBALS['B14_FAILS'][] = "{$id}: {$fail}";
 		echo "FAIL [{$id}] {$fail}\n";
 	}
+}
+
+// ESC-5 — تكييف بيئي لفرعي fileinfo: skip صريح (ليس PASS) لفحوص الفرع الذي
+// تقيسه البيئة التوأم — العدّاد الحقيقي يُطبع في سطر الختام (شرط ESC-5-2أ).
+function b14_skip( string $id, string $reason ): void {
+	$GLOBALS['B14_SKIPPED']++;
+	$GLOBALS['B14_SKIPS'][] = "{$id}: {$reason}";
+	echo "SKIP [{$id}] {$reason}\n";
 }
 
 function b14_reset(): void {
@@ -360,6 +370,9 @@ function b14_spawn_child(): array {
 		. ' -d display_errors=1 -d log_errors=0 -d error_reporting=' . escapeshellarg( (string) E_ALL )
 		. ' ' . escapeshellarg( __FILE__ ) . ' ' . escapeshellarg( '--b14-child=fileinfo_on' );
 	$out     = shell_exec( $cmd . ' 2>&1' );
+	// ESC-5: consume PHP startup warnings (e.g. "Module 'fileinfo' is already
+	// loaded" on fileinfo-loaded runners) — the child's JSON payload follows them.
+	$out = preg_replace( '/^PHP (Warning|Deprecated|Notice):[^\n]*\n/m', '', (string) $out );
 	$decoded = json_decode( (string) $out, true );
 	return is_array( $decoded ) ? $decoded : array( '_raw' => (string) $out );
 }
@@ -529,13 +542,23 @@ b14_check( 'T3-2-no-global-upload_mimes-filter',
 	'global upload_mimes filter found in rate-limits.php' );
 
 /* ════════════════════════════════════════════════════════════════
- * T3-3 — fileinfo disclosure (extension absent in this environment)
+ * T3-3 — fileinfo disclosure (ESC-5: environment-adaptive two-branch design)
+ * The behavior is two-state by environment: fileinfo ABSENT ⇒ the admin
+ * notice fires (G6 §4-3); PRESENT ⇒ silent. CI (ubuntu, php8.3-common)
+ * loads fileinfo; Windows-local lacks it. Each environment measures its
+ * reachable branch; the other branch is SKIP-tagged (measured on the twin
+ * environment) — the union covers the full contract. Detection: read in the
+ * measured environment itself (extension_loaded) cross-asserted against a
+ * lib-mirror probe child (same binary, same base, no fileinfo flag) —
+ * no parallel environment read (ESC-5-2ب).
  * ════════════════════════════════════════════════════════════════ */
 
-b14_check( 'T3-3-extension-absent-baseline',
-	! extension_loaded( 'fileinfo' ) && false === hossam_rate_limit_fileinfo_loaded(),
-	'environment baseline: the fileinfo extension is genuinely absent in this PHP — the disclosure path is exercised for real, no stubbed state',
-	'fileinfo unexpectedly present — the absence test is not meaningful here' );
+$b14_probe_out     = (string) shell_exec( escapeshellarg( PHP_BINARY ) . ' -r ' . escapeshellarg( 'echo extension_loaded("fileinfo") ? "F1" : "F0";' ) . ' 2>&1' );
+$fileinfo_present  = false !== strpos( $b14_probe_out, 'F1' ) && false === strpos( $b14_probe_out, 'Fatal error' );
+b14_check( 'T3-3-detection-agreement',
+	$fileinfo_present === extension_loaded( 'fileinfo' ),
+	'ESC-5 detection: the lib-mirror probe and the measured environment agree (no parallel environment read — ESC-5-2ب)',
+	'detection deviated: probe=' . var_export( $fileinfo_present, true ) . ' parent=' . var_export( extension_loaded( 'fileinfo' ), true ) );
 
 $notice_entries = b14_hook_sorted( 'action', 'admin_notices' );
 b14_check( 'T3-3-notice-registered-once',
@@ -543,29 +566,62 @@ b14_check( 'T3-3-notice-registered-once',
 	'admin_notices carries exactly one listener from the unit',
 	'notice registration deviated: ' . var_export( $notice_entries, true ) );
 
-$GLOBALS['B14_CAPS']['manage_options'] = true;
-ob_start();
-hossam_rate_limit_fileinfo_notice();
-$admin_notice = (string) ob_get_clean();
-$GLOBALS['B14_CAPS'] = array(); // editor: no manage_options
-ob_start();
-hossam_rate_limit_fileinfo_notice();
-$editor_notice = (string) ob_get_clean();
-b14_check( 'T3-3-notice-manager-only',
-	false !== strpos( $admin_notice, 'notice notice-warning' )
-		&& false !== strpos( $admin_notice, 'fileinfo' )
-		&& '' === $editor_notice,
-	'with the extension absent: the warning notice renders for manage_options ONLY; non-admins get zero output',
-	'notice audience deviated: admin=' . var_export( $admin_notice, true ) . ' editor=' . var_export( $editor_notice, true ) );
+if ( $fileinfo_present ) {
+	/* Present-branch, measured natively here: probe reports loaded; notice stays silent. */
+	b14_check( 'T3-3-extension-present-baseline',
+		extension_loaded( 'fileinfo' ) && true === hossam_rate_limit_fileinfo_loaded(),
+		'environment baseline: fileinfo is genuinely present — the disclosure path stays silent for real, no stubbed state',
+		'fileinfo unexpectedly absent — the presence test is not meaningful here' );
 
-/* Per-request memo: the probe result is stored and stable across calls. */
+	$GLOBALS['B14_CAPS']['manage_options'] = true;
+	ob_start();
+	hossam_rate_limit_fileinfo_notice();
+	$admin_notice = (string) ob_get_clean();
+	$GLOBALS['B14_CAPS'] = array(); // editor: no manage_options
+	ob_start();
+	hossam_rate_limit_fileinfo_notice();
+	$editor_notice = (string) ob_get_clean();
+	b14_check( 'T3-3-notice-silent-when-present',
+		'' === $admin_notice && '' === $editor_notice,
+		'with the extension present: zero notice output for admins and non-admins alike — the disclosure exists only for the absent state (G6 §4-3)',
+		'notice audience deviated: admin=' . var_export( $admin_notice, true ) . ' editor=' . var_export( $editor_notice, true ) );
+
+	b14_skip( 'T3-3-extension-absent-baseline', 'fileinfo present — absent-branch measured on fileinfo-less runners (ESC-5)' );
+	b14_skip( 'T3-3-notice-manager-only', 'fileinfo present — absent-branch measured on fileinfo-less runners (ESC-5)' );
+} else {
+	b14_check( 'T3-3-extension-absent-baseline',
+		! extension_loaded( 'fileinfo' ) && false === hossam_rate_limit_fileinfo_loaded(),
+		'environment baseline: the fileinfo extension is genuinely absent in this PHP — the disclosure path is exercised for real, no stubbed state',
+		'fileinfo unexpectedly present — the absence test is not meaningful here' );
+
+	$GLOBALS['B14_CAPS']['manage_options'] = true;
+	ob_start();
+	hossam_rate_limit_fileinfo_notice();
+	$admin_notice = (string) ob_get_clean();
+	$GLOBALS['B14_CAPS'] = array(); // editor: no manage_options
+	ob_start();
+	hossam_rate_limit_fileinfo_notice();
+	$editor_notice = (string) ob_get_clean();
+	b14_check( 'T3-3-notice-manager-only',
+		false !== strpos( $admin_notice, 'notice notice-warning' )
+			&& false !== strpos( $admin_notice, 'fileinfo' )
+			&& '' === $editor_notice,
+		'with the extension absent: the warning notice renders for manage_options ONLY; non-admins get zero output',
+		'notice audience deviated: admin=' . var_export( $admin_notice, true ) . ' editor=' . var_export( $editor_notice, true ) );
+
+	b14_skip( 'T3-3-extension-present-baseline', 'fileinfo absent — present-branch measured natively on fileinfo-loaded runners (ESC-5)' );
+	b14_skip( 'T3-3-notice-silent-when-present', 'fileinfo absent — present-branch measured natively on fileinfo-loaded runners (ESC-5)' );
+}
+
+/* Per-request memo (adaptive — one check, both branches): the stored value
+ * equals this environment's probe and is stable across repeated calls. */
 $reflection  = new ReflectionFunction( 'hossam_rate_limit_fileinfo_loaded' );
 $static_vars = $reflection->getStaticVariables();
 $memo_stable = hossam_rate_limit_fileinfo_loaded() === hossam_rate_limit_fileinfo_loaded()
 	&& hossam_rate_limit_fileinfo_loaded() === hossam_rate_limit_fileinfo_loaded();
 b14_check( 'T3-3-memo-stored-and-stable',
-	array_key_exists( 'loaded', $static_vars ) && false === $static_vars['loaded'] && $memo_stable,
-	'the per-request memo stored the probe result (static $loaded === false via reflection) and repeated calls return it unchanged — the probe runs once per request',
+	array_key_exists( 'loaded', $static_vars ) && $static_vars['loaded'] === hossam_rate_limit_fileinfo_loaded() && $memo_stable,
+	'the per-request memo stored this environment\'s probe result (static $loaded === the live probe via reflection) and repeated calls return it unchanged — the probe runs once per request',
 	'memo deviated: static=' . var_export( $static_vars, true ) . ' stable=' . var_export( $memo_stable, true ) );
 
 /* No manual fallback detection code. */
@@ -593,7 +649,10 @@ b14_check( 'T3-3-enabled-extension-removes-notice',
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
-echo "B14-T3 RESULT: {$GLOBALS['B14_PASS']} pass, 0 skipped, {$GLOBALS['B14_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+echo "B14-T3 RESULT: {$GLOBALS['B14_PASS']} pass, {$GLOBALS['B14_SKIPPED']} skipped, {$GLOBALS['B14_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+if ( $GLOBALS['B14_SKIPPED'] > 0 ) {
+	echo "Skipped:\n" . implode( "\n", $GLOBALS['B14_SKIPS'] ) . "\n";
+}
 if ( $GLOBALS['B14_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B14_FAILS'] ) . "\n";
 	exit( 1 );

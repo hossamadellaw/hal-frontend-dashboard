@@ -830,9 +830,13 @@ b14z_check( 'T7-RACE-completion-wins',
 	'updates: ' . json_encode( $race_updates ) . ' row: ' . json_encode( $GLOBALS['B14Z_ROWS'][30] ) . ' audit: ' . json_encode( $GLOBALS['B14Z_AUDIT'] ) );
 
 /* ── DISABLED MODE: self-children (zero regression, branch 1 untouched) ── */
+// ESC-5 — تحصين وقائي: أعلام الأبناء عبر lib-hal-php-flags (hal_php_argv) —
+// يسقط -d extension=sodium حين يكون static في البيئة (لا تحذير already-loaded)
+// ويحتفظ به حين يلزم — fail-safe لنمط الlib الأصلي.
+require __DIR__ . '/lib-hal-php-flags.php';
 foreach ( array( 'disabled', 'enabled-noprofile' ) as $scenario ) {
 	$php     = PHP_BINARY;
-	$command = array( $php, '-d', 'extension=sodium', __FILE__, '--b14z-child=' . $scenario );
+	$command = hal_php_argv( $php, array( __FILE__, '--b14z-child=' . $scenario ), array( 'sodium' ) );
 	$descriptors = array( 0 => array( 'pipe', 'r' ), 1 => array( 'pipe', 'w' ), 2 => array( 'pipe', 'w' ) );
 	$proc = proc_open( $command, $descriptors, $pipes );
 	$stdout = '';
