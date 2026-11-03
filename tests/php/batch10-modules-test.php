@@ -406,21 +406,28 @@ $mappings = array(
 );
 
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
+	// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير والأطوال على الصيغة
+	// الكانونية (LF = blobs الجرد/HEAD) — raw كان سياسة checkout لا محتوى.
 	if ( ! $B10_LEGACY ) {
-		$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+		$dst_content = (string) file_get_contents( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+		$dst_hash    = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+		$dst_bytes   = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 		$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 		b10_check( 'B10-B1b-runtime-matches-inventory-' . basename( $legacy_rel ),
-			null !== $inv && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+			null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 			"{$runtime_rel} shows no drift since the verified migration (inventory hash) — live-legacy byte comparison skipped: root absent",
 			"{$runtime_rel}: dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 		b10_skip( 'B10-B1-byte-identity-' . basename( $legacy_rel ), 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
 		continue;
 	}
-	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
-	$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+	$src_content = (string) file_get_contents( $source_root . '/' . $legacy_rel );
+	$dst_content = (string) file_get_contents( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
+	$src_hash = hash( 'sha256', str_replace( "\r\n", "\n", $src_content ) );
+	$dst_hash = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+	$dst_bytes = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	b10_check( 'B10-B1-byte-identity-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
@@ -435,8 +442,10 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 $finance_legacy_rel = 'theme/assets/js/modules/finance.js';
 $finance_runtime_rel = 'runtime/assets/js/modules/finance.js';
 $finance_inv         = $inv_by_path[ $finance_legacy_rel ] ?? null;
-$finance_src_hash    = hash_file( 'sha256', $source_root . '/' . $finance_legacy_rel );
-$finance_dst_hash    = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $finance_runtime_rel );
+// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير على الصيغة الكانونية (LF)
+// = blobs الجرد/HEAD — القيمة المصرحة ac0dca88… unchanged.
+$finance_src_hash    = hash( 'sha256', str_replace( "\r\n", "\n", (string) file_get_contents( $source_root . '/' . $finance_legacy_rel ) ) );
+$finance_dst_hash    = hash( 'sha256', str_replace( "\r\n", "\n", (string) file_get_contents( $GLOBALS['B10_PROJECT'] . '/' . $finance_runtime_rel ) ) );
 if ( ! $B10_LEGACY ) {
 	b10_check( 'B10-B1b-runtime-matches-inventory-finance.js',
 		null !== $finance_inv
@@ -449,7 +458,7 @@ if ( ! $B10_LEGACY ) {
 		null !== $finance_inv
 			&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === $finance_dst_hash
 			&& $finance_src_hash === $finance_inv['sha256']
-			&& (int) filesize( $source_root . '/' . $finance_legacy_rel ) === (int) $finance_inv['bytes']
+			&& (int) strlen( str_replace( "\r\n", "\n", (string) file_get_contents( $source_root . '/' . $finance_legacy_rel ) ) ) === (int) $finance_inv['bytes']
 			&& $finance_src_hash !== $finance_dst_hash,
 		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision ac0dca88… (owner delegation #1; pre-R20 3392e72c… stays the legacy source + inventory provenance) and the divergence is real",
 		"{$finance_runtime_rel}: source={$finance_src_hash} dest={$finance_dst_hash} inventory=" . ( $finance_inv['sha256'] ?? 'missing' ) );

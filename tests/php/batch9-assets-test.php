@@ -383,20 +383,27 @@ $mappings = array(
 
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	if ( ! $B9_LEGACY ) {
-		$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+		// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير والأطوال على الصيغة
+		// الكانونية (LF = blobs الجرد/HEAD) — raw كان سياسة checkout لا محتوى.
+		$dst_content = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+		$dst_hash    = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+		$dst_bytes   = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 		$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 		b9_check( 'B9-B1b-runtime-matches-inventory-' . basename( $legacy_rel ),
-			null !== $inv && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+			null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 			"{$runtime_rel} shows no drift since the verified migration (inventory hash) — live-legacy byte comparison skipped: root absent",
 			"{$runtime_rel}: dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 		b9_skip( 'B9-B1-byte-identity-' . basename( $legacy_rel ), 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
 		continue;
 	}
-	$src_hash = hash_file( 'sha256', $source_root . '/' . $legacy_rel );
-	$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+	$src_content = (string) file_get_contents( $source_root . '/' . $legacy_rel );
+	$dst_content = (string) file_get_contents( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
+	$src_hash = hash( 'sha256', str_replace( "\r\n", "\n", $src_content ) );
+	$dst_hash = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
+	$dst_bytes = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	b9_check( 'B9-B1-byte-identity-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && (int) filesize( $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel ) === (int) $inv['bytes'],
+		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
 		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }

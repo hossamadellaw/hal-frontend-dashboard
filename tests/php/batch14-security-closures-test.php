@@ -855,9 +855,11 @@ $posts_js_head     = (string) shell_exec( 'git -C ' . escapeshellarg( $GLOBALS['
 $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // T9-phase3 (v1.1.0): بصمة محدثة للتعديلات المصرحة R18-R20/R21/R39 — تحديث قيمة لا صرامة
 // تفويض المالك #1 (2026-11-02): R38/H1 §7-1 رابط OEB ببطاقة النجاح — تحديث قيمة لا صرامة
+// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التثبيت بالصيغة الكانونية (LF) حصرًا
+// + اتفاق الblob المُودَع — نصف raw كان سياسة checkout لا محتوى (فشل CI 41704072466).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'7038b5f0daeb7f442c651b469a63540d002aed40b71df7b75833fa0ec2b12965' === $posts_js_raw_hash
-		&& '32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_lf_hash,
+	'32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_lf_hash
+		&& '32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized R38 success-card row (H3 §1.5-4)',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
@@ -894,19 +896,22 @@ b14_check( 'T9-PAYMENT-subscriber-200-contract',
  * consumes p.title/p.enabled only and never p.id (H3 §3.1/§3.4-1). */
 $finance_js_path = $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/finance.js';
 $finance_js_raw  = (string) file_get_contents( $finance_js_path );
+$finance_js_lf   = str_replace( "\r\n", "\n", $finance_js_raw );
 // T9-phase3 (v1.1.0): بصمة محدثة للتعديلات المصرحة R18-R20/R21/R39 — تحديث قيمة لا صرامة
+// ESC-4 — تصويب تثبيت منصعي: التهشير على الصيغة الكانونية (LF) — القيمة unchanged.
 b14_check( 'T9-PAYMENT-finance-js-render-safety',
 	0 === preg_match_all( '/p\.id\b/', $finance_js_raw )
 		&& 0 === substr_count( $finance_js_raw, 'p.id' )
 		&& false !== strpos( $finance_js_raw, 'p.title' )
 		&& false !== strpos( $finance_js_raw, 'p.enabled' )
-		&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === hash( 'sha256', $finance_js_raw ),
+		&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === hash( 'sha256', $finance_js_lf ),
 	'finance.js consumes p.title/p.enabled only (zero p.id reads) and is byte-identical to the H3 §6 recorded fingerprint — the member panel renders from the remaining fields',
 	'finance.js render-safety deviated: p_id_regex=' . preg_match_all( '/p\.id\b/', $finance_js_raw )
-		. ' hash=' . hash( 'sha256', $finance_js_raw ) );
+		. ' hash=' . hash( 'sha256', $finance_js_lf ) );
 
 /* uploads.js also untouched by the security closures row (H3 §1.5-4). */
-$uploads_js_hash = hash( 'sha256', (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/uploads.js' ) );
+// ESC-4 — تصويب تثبيت منصعي: التهشير على الصيغة الكانونية (LF) — القيمة unchanged.
+$uploads_js_hash = hash( 'sha256', str_replace( "\r\n", "\n", (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/uploads.js' ) ) );
 b14_check( 'T9-PAYMENT-uploads-js-fingerprint-intact',
 	'dbf20853956ab42196ef12a6b7b59a7a526ef61f6a42af0be29558b5cfa900db' === $uploads_js_hash,
 	'uploads.js is byte-identical to the H3 §6 recorded fingerprint (zero JS drift from the oracle row)',
