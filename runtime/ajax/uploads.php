@@ -30,9 +30,9 @@
  *     posts_per_page=per+1 لحساب has_more، no_found_rows)؛ view=trash →
  *     post_status 'trash' وإلا 'inherit'؛ الاستجابة {files,view,page,has_more}
  *     وكل file = {id,title,url,date,mime}.
- *   - restore_file/delete_file: 404 'Not found' عند غياب attachment؛
- *     403 عند عدم مطابقة post_author للمالك أو رفض
- *     edit_post/delete_post على مستوى المقال؛ 500 عند إخفاق
+ *   - restore_file/delete_file: بوابة 404 'Not found' الموحدة تبتلع
+ *     الوجود والملكية والقدرة معًا (دلتا v1.1.0 — موافقة للتعليق
+ *     الموسوم داخل المعالجَين)؛ 500 عند إخفاق
  *     wp_untrash_post/wp_delete_attachment.
  *   - upload_file: يفوض hossam_upload_file() في adapters/wordpress-uploads.php
  *     (الدفعة 4) — current_user_can('upload_files') داخلها ولا يُكرَّر
