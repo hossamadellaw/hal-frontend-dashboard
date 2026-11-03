@@ -162,6 +162,32 @@ if ( ! function_exists( '__' ) ) {
 		return $text;
 	}
 }
+// تفويض الإصدار #2 (ESC-3) — قرارات المالك 2026-11-03 — فئة (ب) من تفويض المالك #1:
+// (أ-1) stub دالة نواة ناقصة — مسار audit-log.php:352 يستدعي get_userdata بعد
+// توصيل الaudit؛ النواة تعيد false خارج المستخدمين فيفعل السقوط الرحيم
+// (user_login='' — :355-357) — نفس الدلالة هنا، صفر لمس لأي تأكيد قائم.
+// (أ-2) $GLOBALS['wpdb'] تسجيلي بنمط settings-and-secrets — الأوضاع الثمانية
+// المفجّرة للسر تصل audit-log.php:415 (INSERT عبر query()) وتموت على
+// query() on null بلا wpdb؛ الstub يسجل ولا يكتب DB. أوضاع :728/:912
+// تفرض wpdb الخاص بها فوق هذا الافتراضي (سلوك قائم محفوظ).
+if ( ! function_exists( 'get_userdata' ) ) {
+	function get_userdata( int $user_id ) {
+		return false;
+	}
+}
+if ( ! isset( $GLOBALS['wpdb'] ) ) {
+	$GLOBALS['wpdb'] = new class() {
+		public string $prefix = 'wp_';
+		public int $insert_id = 0;
+		public function prepare( string $query, ...$args ): string {
+			return $query;
+		}
+		public function query( string $sql ) {
+			$GLOBALS['B4_WPDB_QUERIES'][] = $sql;
+			return 1;
+		}
+	};
+}
 if ( ! function_exists( 'sanitize_key' ) ) {
 	function sanitize_key( string $key ): string {
 		return preg_replace( '/[^a-z0-9_]/', '', strtolower( $key ) );
