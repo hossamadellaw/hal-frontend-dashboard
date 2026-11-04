@@ -251,7 +251,13 @@ if ( ! function_exists( 'hossam_get_integration_capabilities' ) ) {
 
 		$amelia_capabilities = [
 			'bookings_shortcode' => shortcode_exists( 'ameliaemployeepanel' ),
-			'elite_api_secret'   => defined( 'HOSSAM_AMELIA_API_KEY' ) && '' !== HOSSAM_AMELIA_API_KEY,
+			// v1.1.1 (E3): المحاذاة — القدرة تعكس مصدر الاعتماد الفعلي الذي
+			// يقبه المحلل (env→constant→hal_encrypted عبر الRegistry) بدل
+			// الثابت وحده؛ غياب الصنف (شيم/بيئات اختبار) يعود للفحص بالثابت
+			// القائم — fail-closed متسق مع المحلل.
+			'elite_api_secret'   => class_exists( 'HAL_Frontend_Dashboard_Integration_Settings_Registry' )
+				? 'none' !== HAL_Frontend_Dashboard_Integration_Settings_Registry::credential_source( 'amelia_elite_api_key' )
+				: ( defined( 'HOSSAM_AMELIA_API_KEY' ) && '' !== HOSSAM_AMELIA_API_KEY ),
 			'elite_api_client'   => function_exists( 'hossam_amelia_api_request' ),
 		];
 		$wpml_capabilities = [
@@ -663,10 +669,14 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // registerCoreBlocks في posts.js؛ كتل الإضافات الأخرى لا تُضمَّن تلقائيًا
     // لأن أصولها لا تُحمَّل في HAL. غياب core/playlist أو core/tabs خارج
     // 7.1.3 يُتجاوز ببقية الكتل — UNVERIFIED محليًا (النواة 6.7.1).
+    // v1.1.1 (C2): حزمة wp-format-library توفر عناصر تنسيق النص
+    // (Bold/Italic/Link) عبر BlockToolbar المرسوم يدويًا في posts.js:712 —
+    // غيابها في نواة أقدم يُتجاوز رشيقًا عبر الحارس القائم (ليست في
+    // $hossam_rich_critical).
     $hossam_rich_handles = array(
         'wp-element', 'wp-data', 'wp-components', 'wp-blocks',
         'wp-block-editor', 'wp-block-library', 'wp-compose',
-        'wp-media-utils', 'wp-api-fetch',
+        'wp-media-utils', 'wp-api-fetch', 'wp-format-library',
     );
     $hossam_rich_critical = array( 'wp-element', 'wp-blocks', 'wp-block-editor' );
     $hossam_rich_skipped  = array();
@@ -678,7 +688,9 @@ add_action( 'wp_enqueue_scripts', function(): void {
             }
             wp_enqueue_script( $hossam_rich_handle );
         }
-        foreach ( array( 'wp-components', 'wp-block-editor', 'wp-block-library' ) as $hossam_rich_style ) {
+        // v1.1.1 (C2): أنماط format-library تُحمَّل بنفس حارس wp_style_is
+        // الرشيق — غياب التسجيل يُتخطى بلا أي تأثير على بقية الحزم.
+        foreach ( array( 'wp-components', 'wp-block-editor', 'wp-block-library', 'wp-format-library' ) as $hossam_rich_style ) {
             if ( function_exists( 'wp_style_is' ) && ! wp_style_is( $hossam_rich_style, 'registered' ) ) {
                 continue;
             }

@@ -1870,6 +1870,26 @@ function b5_mode_editor_mode( string $project ): void {
 		'the real repository normalize ×3: missing key → embed, the EDITOR_MODES trio passes raw+effective, out-of-list is a save()-level WP_Error with the stored value unchanged, and a disabled rich_editor folds effective to off',
 		"normalize deviated: missing={$norm_missing} official={$norm_official_raw}/{$norm_official_eff} embed={$norm_embed_raw} off={$norm_off_raw}/{$norm_off_eff} invalid=" . ( is_wp_error( $invalid_save ) ? $invalid_save->get_error_code() : 'NOT-ERROR' ) . " after={$norm_after_invalid}" );
 
+	/* E-NORM2 (v1.1.1): السيد rich_editor مطفأ يفرض off فوق الوضع المخزَّن
+	 * (repository get_effective_editor_mode — الفرض فوق official/embed) —
+	 * القارئ الخام يبقى يعيد الوضع المخزَّن كما هو. صف إضافي بلا مساس
+	 * بصفوف E القائمة. */
+	$set_mode( 'official' );
+	$norm2_official_raw = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	HAL_Frontend_Dashboard_Settings_Repository::save( array( 'features' => array( 'rich_editor' => false ) ) );
+	HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+	$norm2_official_eff = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+	$set_mode( 'embed' );
+	$norm2_embed_raw = HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode();
+	HAL_Frontend_Dashboard_Settings_Repository::save( array( 'features' => array( 'rich_editor' => false ) ) );
+	HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+	$norm2_embed_eff = HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode();
+	b5_check( 'E-NORM2-master-off-folds-effective',
+		'official' === $norm2_official_raw && 'off' === $norm2_official_eff
+			&& 'embed' === $norm2_embed_raw && 'off' === $norm2_embed_eff,
+		'v1.1.1: with the rich_editor master switch off the effective editor mode folds to off OVER both stored official and embed, while the raw reader keeps returning the stored mode unchanged',
+		"master-off fold deviated: official={$norm2_official_raw}/{$norm2_official_eff} embed={$norm2_embed_raw}/{$norm2_embed_eff}" );
+
 	/* E-MATRIX — دورة الوضع × الدوران × حوامل القالب (real render_part). */
 	$set_mode( 'official' );
 	$official_admin = $render_posts( $admin_caps );

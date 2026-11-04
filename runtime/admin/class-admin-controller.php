@@ -45,6 +45,29 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 	const ACTION_RUN_HEALTH    = 'hal_frontend_dashboard_run_health';
 
 	/**
+	 * v1.1.1 (W4): توصيف Features الاثنا عشر — المفاتيح أعضاء
+	 * FEATURES حرفيًا (settings-repository:42–46) والمفتاح بلا نص
+	 * يُرندر بلا فقرة. إفصاح موثق: صياغة جلسة D+E الأصلية غير موجودة
+	 * في الأرشيف المتاح؛ صيغت هذه بنمط نصوص W5 المعتمدة حرفيًا، ونص
+	 * rich_editor هو نص العقد الحرفي من W5. نصوص إنجليزية عبر __()
+	 * بنطاق المشروع — لا hossam_t (للواجهة الأمامية حصرًا).
+	 */
+	const FEATURE_DESCRIPTIONS = array(
+		'posts'                   => 'Enables the articles panel where writers create, edit and manage posts.',
+		'files'                   => 'Enables the files panel for browsing the media library.',
+		'inbox'                   => 'Enables the inbox panel for reading submitted contact messages.',
+		'members'                 => 'Enables the members panel for viewing registered user profiles.',
+		'amelia'                  => 'Enables the bookings panel backed by the Amelia plugin.',
+		'finance'                 => 'Enables the finance panel backed by WooCommerce orders.',
+		'store'                   => 'Enables the store panel backed by WooCommerce products.',
+		'wpml_translations'       => 'Enables the translations panel backed by WPML.',
+		'rank_math_seo'           => 'Enables the SEO writing panel backed by Rank Math.',
+		'ultimate_member_profile' => 'Enables the profile panel backed by Ultimate Member.',
+		'ai'                      => 'Enables the AI writing features and their strategy and key settings.',
+		'rich_editor'             => 'Master switch for the rich editor surface. Off overrides the mode above to off.',
+	);
+
+	/**
 	 * تسجيل الـhooks عند تحميل الـRuntime (من bootstrap) — بلا أي
 	 * استدعاءات WordPress أخرى هنا.
 	 */
@@ -156,6 +179,24 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			: self::TAB_GENERAL;
 	}
 
+	/**
+	 * v1.1.1 (E3): تبويب إحالة معالجات السر من POST — الغائب يبقى
+	 * TAB_AI (توافق خلفي مع نماذج تبويب AI القائمة)، والحاضر يُنقى
+	 * بsanitize_key ثم يُختبر على allowlist التبويبات الست نفسها
+	 * (نمط requested_tab حرفيًا) — الخارج عنها يرجع TAB_AI: لا سياق
+	 * حر يصل redirect_back.
+	 */
+	private static function secret_redirect_tab(): string {
+		$tab = self::post_string( 'secret_tab' );
+		if ( null === $tab ) {
+			return self::TAB_AI;
+		}
+		$tab = sanitize_key( $tab );
+		return in_array( $tab, array( self::TAB_GENERAL, self::TAB_BRANDING, self::TAB_FEATURES, self::TAB_INTEGRATIONS, self::TAB_AI, self::TAB_STATUS ), true )
+			? $tab
+			: self::TAB_AI;
+	}
+
 	/* ────────────────────────────────────────────────────────────
 	 * Handlers — كل واحد: capability ثم nonce ثم تنقية ثم عقد
 	 * typed ثم redirect آمن. ترتيب التفويض لا يتغير (§5.10).
@@ -233,6 +274,81 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			$settings['rich_editor_mode'] = $editor_mode;
 		}
 
+		// v1.1.1 (W1): اسم الموقع والوصف — نص حر (بيانات مستخدم تُخرج
+		// مهرَّبة عند الرندر حصرًا) بنمط branding_attachment_id حرفيًا:
+		// isset → post_string → null يرفض، ثم سقف mb_strlen وإلا رفض
+		// النموذج كله (لا sanitize_key — لا إعادة كتابة لنص المستخدم).
+		if ( isset( $_POST['branding_site_title'] ) ) {
+			$site_title = self::post_string( 'branding_site_title' );
+			if ( null === $site_title ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			// طول المحارف بmb_strlen عند توافرها وإلا strlen — نمط
+			// rankmath.php/ajax-seo.php القائم (بيئات بلا mbstring).
+			$site_title_length = function_exists( 'mb_strlen' ) ? mb_strlen( $site_title ) : strlen( $site_title );
+			if ( $site_title_length > HAL_Frontend_Dashboard_Settings_Repository::BRANDING_SITE_TITLE_MAX ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$settings['branding_site_title'] = $site_title;
+		}
+
+		if ( isset( $_POST['branding_site_tagline'] ) ) {
+			$site_tagline = self::post_string( 'branding_site_tagline' );
+			if ( null === $site_tagline ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$site_tagline_length = function_exists( 'mb_strlen' ) ? mb_strlen( $site_tagline ) : strlen( $site_tagline );
+			if ( $site_tagline_length > HAL_Frontend_Dashboard_Settings_Repository::BRANDING_SITE_TAGLINE_MAX ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$settings['branding_site_tagline'] = $site_tagline;
+		}
+
+		// v1.1.1 (W3): روابط أقسام الموقع — بنمط B3-01/features_form حرفيًا:
+		// النموذج الحاوي للحقول يمثله marker (site_sections_form) وغيابه =
+		// لا مساس بالمفتاح إطلاقًا. الحاضر: يجب مصفوفة وإلا رفض؛ لكل مفتاح
+		// من الثمانية: الغائب = '' (auto)، والحاضر غير النصي يُرفض صراحة
+		// (B3-07: التحويل الصامت ممنوع)، والنص يمر esc_url_raw ثم فحص
+		// scheme عبر wp_parse_url — http/https حصرًا، غير ذلك '' (الفاسد
+		// = فراغ = auto). الثمانية تُبنى كاملة دومًا.
+		if ( null !== self::post_string( 'site_sections_form' ) ) {
+			if ( isset( $_POST['site_section_urls'] ) && ! is_array( $_POST['site_section_urls'] ) ) {
+				self::redirect_back( self::requested_tab(), 'save_failed' );
+			}
+			$section_input = isset( $_POST['site_section_urls'] ) && is_array( $_POST['site_section_urls'] )
+				? (array) $_POST['site_section_urls']
+				: array();
+			// مفتاح مجهول = تلاعب بنيوي — رفض النموذج كله قبل أي قراءة
+			// (نمط B3-07: مفتاح خارج القائمة يرفض).
+			foreach ( array_keys( $section_input ) as $submitted_key ) {
+				if ( ! is_string( $submitted_key ) || ! in_array( $submitted_key, HAL_Frontend_Dashboard_Settings_Repository::SITE_SECTION_KEYS, true ) ) {
+					self::redirect_back( self::requested_tab(), 'save_failed' );
+				}
+			}
+			$section_urls = array_fill_keys( HAL_Frontend_Dashboard_Settings_Repository::SITE_SECTION_KEYS, '' );
+			foreach ( HAL_Frontend_Dashboard_Settings_Repository::SITE_SECTION_KEYS as $section_key ) {
+				// الغائب = '' (auto) — الحالة المشروعة الوحيدة للغياب
+				// (بنمط features: الغائب فعلًا هو وحده المشروع)؛ الحاضر
+				// غير النصي يُرفض صراحة بلا تحويل صامت (B3-07 حرفيًا).
+				if ( ! isset( $section_input[ $section_key ] ) ) {
+					continue;
+				}
+				if ( ! is_string( $section_input[ $section_key ] ) ) {
+					self::redirect_back( self::requested_tab(), 'save_failed' );
+				}
+				$section_value = esc_url_raw( $section_input[ $section_key ] );
+				if ( '' !== $section_value ) {
+					$section_scheme = wp_parse_url( $section_value, PHP_URL_SCHEME );
+					$section_scheme = is_string( $section_scheme ) ? strtolower( $section_scheme ) : '';
+					if ( ! in_array( $section_scheme, array( 'http', 'https' ), true ) ) {
+						$section_value = '';
+					}
+				}
+				$section_urls[ $section_key ] = $section_value;
+			}
+			$settings['site_section_urls'] = $section_urls;
+		}
+
 		$saved = HAL_Frontend_Dashboard_Settings_Repository::save( $settings );
 
 		// R29 (G4 §3-أ-15): settings_save بعد نجاح save() حصرًا وقبل
@@ -272,7 +388,18 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 		// قيمة كاملة مطلوبة للاستبدال — لا قراءة للقيمة القديمة ولا
 		// partial update (قرار المالك §2.4).
 		$result = HAL_Frontend_Dashboard_Secret_Store::set( $secret_id, $value );
-		self::redirect_back( self::TAB_AI, is_wp_error( $result ) ? 'secret_failed' : 'secret_saved', $secret_id );
+		// v1.1.1 (E3): probe فوري إلزامي بعد مساس المخزن فعليًا — إبطال
+		// transient الـRegistry (TTL 5 دقائق) ثم فحص صحة فوري يغلق فجوة
+		// زمنية كانت تعرض مصدر اعتماد قديمًا حتى 5 دقائق بعد الحفظ.
+		// مسارات الرفض المبكر أعلاه بلا probe (لم تُمس المخزن). الحارس
+		// الثاني (delete_transient) يحفظ بيئات الشيم/الاختبار بلا واجهة
+		// transient — no-op مغلق هناك، ونشط كاملًا في ووردبريس.
+		if ( function_exists( 'hossam_invalidate_integration_capabilities' ) && function_exists( 'delete_transient' ) ) {
+			hossam_invalidate_integration_capabilities();
+		}
+		HAL_Frontend_Dashboard_Integration_Health_Monitor::run_checks();
+		// v1.1.1 (E3): الإحالة لتبويب المصدر (secret_tab) بدل TAB_AI الصلب.
+		self::redirect_back( self::secret_redirect_tab(), is_wp_error( $result ) ? 'secret_failed' : 'secret_saved', $secret_id );
 	}
 
 	public static function handle_delete_secret(): void {
@@ -284,7 +411,14 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			self::redirect_back( self::TAB_AI, 'unknown_secret' );
 		}
 		$deleted = HAL_Frontend_Dashboard_Secret_Store::delete( $secret_id );
-		self::redirect_back( self::TAB_AI, $deleted ? 'secret_deleted' : 'secret_missing', $secret_id );
+		// v1.1.1 (E3): probe فوري إلزامي بعد مساس المخزن فعليًا — نمط
+		// handle_set_secret حرفيًا (مسارات الرفض المبكر أعلاه بلا probe).
+		if ( function_exists( 'hossam_invalidate_integration_capabilities' ) && function_exists( 'delete_transient' ) ) {
+			hossam_invalidate_integration_capabilities();
+		}
+		HAL_Frontend_Dashboard_Integration_Health_Monitor::run_checks();
+		// v1.1.1 (E3): الإحالة لتبويب المصدر (secret_tab) بدل TAB_AI الصلب.
+		self::redirect_back( self::secret_redirect_tab(), $deleted ? 'secret_deleted' : 'secret_missing', $secret_id );
 	}
 
 	public static function handle_run_health(): void {
@@ -311,6 +445,32 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			wp_safe_redirect( $target );
 		}
 		exit;
+	}
+
+	/**
+	 * v1.1.1 (W2): حالة صفحة الداشبورد — قراءة فقط بلا أي كتابة (option
+	 * hal_frontend_dashboard_page_id قراءة-فقط هنا؛ الكاتب الوحيد
+	 * Installer): owned = id>0 يقابل page بحالة publish/private بنفس
+	 * تحقق hossam_dashboard_url (adapters/wpml.php — تُستدعى لا تُعدل
+	 * للرابط)؛ وإلا fallback.
+	 *
+	 * @return array{status:string, page_id:int, url:string}
+	 */
+	private static function dashboard_page_status(): array {
+		$page_id = function_exists( 'get_option' ) ? absint( get_option( 'hal_frontend_dashboard_page_id', 0 ) ) : 0;
+		$owned   = false;
+		if ( $page_id > 0 && function_exists( 'get_post' ) ) {
+			$post  = get_post( $page_id );
+			$owned = $post instanceof WP_Post
+				&& 'page' === $post->post_type
+				&& in_array( $post->post_status, array( 'publish', 'private' ), true );
+		}
+		$url = function_exists( 'hossam_dashboard_url' ) ? hossam_dashboard_url() : '';
+		return array(
+			'status'  => $owned ? 'owned' : 'fallback',
+			'page_id' => $page_id,
+			'url'     => $url,
+		);
 	}
 
 	/* ────────────────────────────────────────────────────────────
@@ -386,11 +546,56 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 							);
 							?>
 						</p>
+						<?php // v1.1.1 (W1/W3): حقول اسم الموقع/الوصف وروابط الأقسام الثمانية — قيم المستخدم تُخرج مهرَّبة esc_attr حصرًا (لا i18n ولا hossam_t). ?>
+						<input type="hidden" name="site_sections_form" value="1" />
+						<table class="form-table" role="presentation">
+							<tr>
+								<th scope="row"><label for="hal-branding-site-title"><?php esc_html_e( 'Site title', 'hal-frontend-dashboard' ); ?></label></th>
+								<td>
+									<input type="text" id="hal-branding-site-title" name="branding_site_title" value="<?php echo esc_attr( $settings['branding_site_title'] ); ?>" maxlength="60" class="regular-text" />
+									<p class="description"><?php esc_html_e( 'Leave empty to use the default text at each position.', 'hal-frontend-dashboard' ); ?></p>
+								</td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="hal-branding-site-tagline"><?php esc_html_e( 'Tagline', 'hal-frontend-dashboard' ); ?></label></th>
+								<td>
+									<input type="text" id="hal-branding-site-tagline" name="branding_site_tagline" value="<?php echo esc_attr( $settings['branding_site_tagline'] ); ?>" maxlength="80" class="regular-text" />
+									<p class="description"><?php esc_html_e( 'Leave empty to use the default text at each position.', 'hal-frontend-dashboard' ); ?></p>
+								</td>
+							</tr>
+							<?php foreach ( HAL_Frontend_Dashboard_Settings_Repository::SITE_SECTION_KEYS as $section_key ) : ?>
+							<tr>
+								<th scope="row"><label for="hal-section-url-<?php echo esc_attr( $section_key ); ?>"><?php echo esc_html( $section_key ); ?></label></th>
+								<td>
+									<input type="url" id="hal-section-url-<?php echo esc_attr( $section_key ); ?>" name="site_section_urls[<?php echo esc_attr( $section_key ); ?>]" value="<?php echo esc_attr( $settings['site_section_urls'][ $section_key ] ); ?>" placeholder="auto" class="regular-text code" />
+								</td>
+							</tr>
+							<?php endforeach; ?>
+						</table>
+						<p class="description"><?php esc_html_e( 'URL overrides apply to the fallback site sections list only — shown when no primary navigation menu exists; the primary menu always takes precedence. Leave a field empty for the automatic resolver.', 'hal-frontend-dashboard' ); ?></p>
 						<p>
 							<button type="button" class="button" data-hal-media-open><?php esc_html_e( 'Choose from Media Library', 'hal-frontend-dashboard' ); ?></button>
 							<?php submit_button( __( 'Save branding', 'hal-frontend-dashboard' ), 'primary', 'submit', false ); ?>
 						</p>
 					</form>
+				</div>
+				<?php // v1.1.1 (W2): كتلة قراءة-فقط لصفحة الداشبورد — بعد النموذج وخارجه: صفر POST وصفر حقل مخفي ولا أي كتابة للoption (الكاتب الوحيد Installer). ?>
+				<?php $dashboard_page = self::dashboard_page_status(); ?>
+				<div class="hal-fd-card">
+					<p>
+						<?php
+						printf(
+							/* translators: 1: page id, 2: ownership status (owned or fallback). */
+							esc_html__( 'Dashboard page id: %1$d — status: %2$s.', 'hal-frontend-dashboard' ),
+							$dashboard_page['page_id'],
+							esc_html( $dashboard_page['status'] )
+						);
+						?>
+						<?php if ( '' !== $dashboard_page['url'] ) : ?>
+							<a href="<?php echo esc_url( $dashboard_page['url'] ); ?>" target="_blank"><?php esc_html_e( 'Open', 'hal-frontend-dashboard' ); ?></a>
+						<?php endif; ?>
+					</p>
+					<p class="description"><?php esc_html_e( 'Reactivating the plugin secures or generates the dashboard page. Manual binding is done via the page id option before activation. This block is read-only.', 'hal-frontend-dashboard' ); ?></p>
 				</div>
 			<?php endif; ?>
 
@@ -402,15 +607,19 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 						<input type="hidden" name="tab" value="<?php echo esc_attr( self::TAB_FEATURES ); ?>" />
 						<input type="hidden" name="features_form" value="1" />
 						<?php wp_nonce_field( self::NONCE_ACTION . ':save_settings', self::NONCE_FIELD ); ?>
-						<table class="form-table" role="presentation">
-							<?php foreach ( $settings['features'] as $feature => $enabled ) : ?>
-								<tr>
-									<th scope="row"><label for="hal-feature-<?php echo esc_attr( $feature ); ?>"><?php echo esc_html( $feature ); ?></label></th>
-									<td>
-										<input type="checkbox" id="hal-feature-<?php echo esc_attr( $feature ); ?>" name="features[<?php echo esc_attr( $feature ); ?>]" value="1" <?php checked( $enabled ); ?> data-hal-feature="<?php echo esc_attr( $feature ); ?>" />
-									</td>
-								</tr>
-							<?php endforeach; ?>
+							<table class="form-table" role="presentation">
+								<?php foreach ( $settings['features'] as $feature => $enabled ) : ?>
+									<tr>
+										<th scope="row"><label for="hal-feature-<?php echo esc_attr( $feature ); ?>"><?php echo esc_html( $feature ); ?></label></th>
+										<td>
+											<input type="checkbox" id="hal-feature-<?php echo esc_attr( $feature ); ?>" name="features[<?php echo esc_attr( $feature ); ?>]" value="1" <?php checked( $enabled ); ?> data-hal-feature="<?php echo esc_attr( $feature ); ?>" />
+											<?php // v1.1.1 (W4): توصيف الميزة من خريطة FEATURE_DESCRIPTIONS — المفتاح بلا نص = بلا فقرة. ?>
+											<?php if ( isset( self::FEATURE_DESCRIPTIONS[ $feature ] ) ) : ?>
+												<p class="description"><?php echo esc_html( __( self::FEATURE_DESCRIPTIONS[ $feature ], 'hal-frontend-dashboard' ) ); ?></p>
+											<?php endif; ?>
+										</td>
+									</tr>
+								<?php endforeach; ?>
 							<?php // OEB/2 (H1 §3/§6-2): select وضع المحرر الغني بنمط select ai_preference القائم — الأوضاع الثلاثة مع الحالي من get_rich_editor_mode(). ?>
 							<tr>
 								<th scope="row"><label for="hal-rich-editor-mode"><?php esc_html_e( 'Rich editor mode', 'hal-frontend-dashboard' ); ?></label></th>
@@ -420,6 +629,12 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 											<option value="<?php echo esc_attr( $editor_mode ); ?>" <?php selected( HAL_Frontend_Dashboard_Settings_Repository::get_rich_editor_mode(), $editor_mode ); ?>><?php echo esc_html( $editor_mode ); ?></option>
 										<?php endforeach; ?>
 									</select>
+									<?php // v1.1.1 (W5): التوصيف الثلاثي بالنصوص الحرفية من العقد — عرض فقط بلا أي منطق جديد: الافتراضي الذكي قائم أصلًا (repository: fail-closed embed عند الغياب/الفساد، وoff يفرض عند تعطيل rich_editor). ?>
+									<p class="description"><?php echo esc_html( __( 'Adds an Open-Editor button (admins) that opens the official WordPress editor in a window and syncs edits back.', 'hal-frontend-dashboard' ) ); ?></p>
+									<p class="description"><?php echo esc_html( __( 'Shows the official WordPress block editor embedded inside the article forms (default).', 'hal-frontend-dashboard' ) ); ?></p>
+									<p class="description"><?php echo esc_html( __( 'Uses the plain text field only — no rich editor packages are loaded.', 'hal-frontend-dashboard' ) ); ?></p>
+									<p class="description"><?php echo esc_html( __( 'Default: embed — chosen automatically until you change it here.', 'hal-frontend-dashboard' ) ); ?></p>
+									<p class="description"><?php echo esc_html( __( 'You can override at any time; the Rich editor checkbox must stay on for either mode.', 'hal-frontend-dashboard' ) ); ?></p>
 								</td>
 							</tr>
 						</table>
@@ -444,6 +659,10 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 						<?php wp_nonce_field( self::NONCE_ACTION . ':run_health', self::NONCE_FIELD ); ?>
 						<?php submit_button( __( 'Run integration health check now', 'hal-frontend-dashboard' ), 'secondary', 'submit', false ); ?>
 					</form>
+					<?php // v1.1.1 (E3): إدخال مفتاح Amelia عبر UI مشفر — من الـRegistry حصرًا بنمط تبويب AI حرفيًا؛ جدول الصفوف أعلاه يبقى عرض مصدر الاعتماد كما هو. ?>
+					<?php foreach ( HAL_Frontend_Dashboard_Integration_Settings_Registry::integrations()['amelia']['secrets'] as $secret ) : ?>
+						<?php self::render_secret_block( (string) $secret['id'], (string) $secret['label'], self::TAB_INTEGRATIONS ); ?>
+					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
 
@@ -478,7 +697,7 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 						<?php submit_button( __( 'Save AI preference', 'hal-frontend-dashboard' ), 'primary', 'submit', false ); ?>
 					</form>
 					<?php foreach ( HAL_Frontend_Dashboard_Integration_Settings_Registry::integrations()['ai']['secrets'] as $secret ) : ?>
-						<?php self::render_secret_block( (string) $secret['id'], (string) $secret['label'] ); ?>
+						<?php self::render_secret_block( (string) $secret['id'], (string) $secret['label'], self::TAB_AI ); ?>
 					<?php endforeach; ?>
 				</div>
 			<?php endif; ?>
@@ -552,8 +771,11 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 	/**
 	 * كتلة سر واحدة: حالتها فقط (configured/source) + استبدال بقيمة
 	 * كاملة + حذف مستقل. لا قيمة مخزنة تُعرض أو تُمرر للمتصفح.
+	 * v1.1.1 (E3): وسيط $tab اختياري — عند تمريره يُطبع hidden
+	 * secret_tab في نموذجي set وdelete ليعود redirect لتبويب المصدر
+	 * (الغائب يبقى سلوك TAB_AI القائم بلا حقل).
 	 */
-	private static function render_secret_block( string $secret_id, string $label ): void {
+	private static function render_secret_block( string $secret_id, string $label, string $tab = '' ): void {
 		$configured = HAL_Frontend_Dashboard_Secret_Store::has( $secret_id );
 		?>
 		<div class="hal-fd-secret" data-hal-secret="<?php echo esc_attr( $secret_id ); ?>">
@@ -570,6 +792,9 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" data-hal-form>
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION_SET_SECRET ); ?>" />
 				<input type="hidden" name="secret_id" value="<?php echo esc_attr( $secret_id ); ?>" />
+				<?php if ( '' !== $tab ) : ?>
+					<input type="hidden" name="secret_tab" value="<?php echo esc_attr( $tab ); ?>" />
+				<?php endif; ?>
 				<?php wp_nonce_field( self::NONCE_ACTION . ':set_secret', self::NONCE_FIELD ); ?>
 				<label class="screen-reader-text" for="hal-secret-value-<?php echo esc_attr( $secret_id ); ?>"><?php echo esc_html( $label ); ?></label>
 				<input type="password" id="hal-secret-value-<?php echo esc_attr( $secret_id ); ?>" name="secret_value" value="" autocomplete="new-password" data-hal-secret-input />
@@ -579,6 +804,9 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" data-hal-form>
 					<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION_DELETE_SECRET ); ?>" />
 					<input type="hidden" name="secret_id" value="<?php echo esc_attr( $secret_id ); ?>" />
+					<?php if ( '' !== $tab ) : ?>
+						<input type="hidden" name="secret_tab" value="<?php echo esc_attr( $tab ); ?>" />
+					<?php endif; ?>
 					<?php wp_nonce_field( self::NONCE_ACTION . ':delete_secret', self::NONCE_FIELD ); ?>
 					<?php submit_button( __( 'Delete stored value', 'hal-frontend-dashboard' ), 'link-delete', 'submit', false ); ?>
 				</form>

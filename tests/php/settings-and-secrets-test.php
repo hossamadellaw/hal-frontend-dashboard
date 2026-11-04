@@ -656,6 +656,47 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			$GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['ai_preference'] = 'direct_key';
 			HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
 			b2s_check( 'SR12', 'direct_key' === HAL_Frontend_Dashboard_Settings_Repository::get_ai_preference(), 'request cache invalidation re-reads the real store', 'cache invalidation broken' );
+			// v1.1.1 (W1/W3): صفوف SR المُضافة للمفاتيح الثلاثة الجديدة —
+			// إضافة بحتة بلا مساس بأي صف قائم أعلاه وبلا SCHEMA_VERSION
+			// bump إطلاقًا (SR1 القائم يبقى بحرفيّته).
+			$saved_w1 = HAL_Frontend_Dashboard_Settings_Repository::save( array(
+				'branding_site_title'   => 'مكتب حسام عادل',
+				'branding_site_tagline' => 'بوابة الموكلة',
+				'site_section_urls'     => array( 'home' => 'https://example.test/home/', 'blog' => 'https://example.test/blog/' ),
+			) );
+			$after_w1 = HAL_Frontend_Dashboard_Settings_Repository::get_all();
+			$section_keys = HAL_Frontend_Dashboard_Settings_Repository::SITE_SECTION_KEYS;
+			b2s_check( 'SR13', true === $saved_w1
+					&& 'مكتب حسام عادل' === $after_w1['branding_site_title']
+					&& 'بوابة الموكلة' === $after_w1['branding_site_tagline']
+					&& 'https://example.test/home/' === $after_w1['site_section_urls']['home']
+					&& 'https://example.test/blog/' === $after_w1['site_section_urls']['blog']
+					&& '' === $after_w1['site_section_urls']['privacy']
+					&& array( 'home', 'about', 'services', 'blog', 'contact', 'privacy', 'terms', 'shop' ) === $section_keys
+					&& array_keys( $after_w1['site_section_urls'] ) === $section_keys,
+				'the three v1.1.1 keys are accepted settings keys (no longer unknown) and site_section_urls always stores the closed eight in order with unmentioned keys normalized to ""',
+				'three-key save mismatch: ' . json_encode( $after_w1 ) );
+			b2s_check( 'SR14', '1.0.0' === $after_w1['schema_version'] && '1.0.0' === ( $GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['schema_version'] ?? '' ),
+				'the three-key save introduces NO SCHEMA_VERSION bump (stored and read schema stay 1.0.0)', 'schema_version moved: ' . json_encode( $GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['schema_version'] ?? null ) );
+			$w1_err      = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'branding_site_title' => str_repeat( 'x', 61 ) ) );
+			$w1_err_tag  = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'branding_site_tagline' => str_repeat( 'x', 81 ) ) );
+			$w1_err_key  = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'hacked_key' => 1 ) );
+			$w1_err_sec  = HAL_Frontend_Dashboard_Settings_Repository::save( array( 'site_section_urls' => array( 'home' => 'https://ok.test/', 'evil' => 'x' ) ) );
+			b2s_check( 'SR15', is_wp_error( $w1_err ) && 'hal_settings_branding_site_title_invalid' === $w1_err->get_error_code()
+					&& is_wp_error( $w1_err_tag ) && 'hal_settings_branding_site_tagline_invalid' === $w1_err_tag->get_error_code()
+					&& is_wp_error( $w1_err_key ) && 'hal_settings_unknown_key' === $w1_err_key->get_error_code()
+					&& is_wp_error( $w1_err_sec ) && 'hal_settings_site_section_urls_invalid' === $w1_err_sec->get_error_code(),
+				'the 60/80 ceilings reject with their own codes, an unknown section key rejects, and the unknown-key guard stays closed for foreign keys (comprehensive rejection extended — not loosened — by the three new keys)',
+				'ceiling/guard mismatch: ' . json_encode( array( $w1_err, $w1_err_tag, $w1_err_key, $w1_err_sec ) ) );
+			$GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['branding_site_title'] = array( 'corrupt' );
+			$GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_settings']['site_section_urls'] = array( 'home' => 'keep', 'evil' => 'x', 'about' => 5 );
+			HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+			$norm_w1 = HAL_Frontend_Dashboard_Settings_Repository::get_all();
+			$norm_expected = array_fill_keys( $section_keys, '' );
+			$norm_expected['home'] = 'keep';
+			b2s_check( 'SR16', '' === $norm_w1['branding_site_title'] && $norm_expected === $norm_w1['site_section_urls'],
+				'corrupt stored state normalizes fail-closed on read: a non-string title reads "" and a stored section map with an unknown key and a non-string value reads back as the closed eight keeping only the valid value',
+				'normalization mismatch: ' . json_encode( $norm_w1 ) );
 			b2s_result_line( $mode );
 			// no fallthrough
 
