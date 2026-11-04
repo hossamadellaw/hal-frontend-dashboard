@@ -246,12 +246,31 @@ function applicableKeys(hooks, rules) {
  *                       (hossamOeb* namespace); the button itself carries
  *                       the styled .hossam-oeb-btn class — these two are
  *                       behavior hooks, styling-irrelevant.
+ *   ── v1.1.1 C1 (documented addition, T10 pattern — تحديث قيمة لا صرامة): ──
+ * hossam-write-content-group / hossam-write-content-input /
+ * hossam-write-primary / hossam-write-title-group
+ *                       posts panel write-card structural wrappers (v1.1.1
+ *                       C1 re-skin of #panel-write per the approved
+ *                       v1.0.9-article-editor-v2 model), deliberately
+ *                       ruleless: the title/content groups pair the styled
+ *                       base hooks .form-group + .mb-8 (defined in BOTH
+ *                       stylesheets), the content textarea pairs .form-input
+ *                       (styled inside .hossam-write-editor-surface by the
+ *                       C1 block), and the form wrapper .hossam-write-primary
+ *                       is a transparent block container whose children
+ *                       carry every visual hook — styling flows through
+ *                       .hossam-write-workspace / .hossam-write-editor-surface
+ *                       and the paired base classes. No rule targets them
+ *                       directly in EITHER css (legacy markup has no such
+ *                       hooks); documented in V106_POSTS_DELTA — never
+ *                       silently merged.
  */
 const ORPHAN_ALLOWLIST = new Set([
   'btn-primary', 'tab-content', 'tab-group', 'hdr-lang-cur', 'sb-logo',
   'js-ai-run', 'js-restore-article', 'js-translate-article',
   'hossam-translations-panel', // v1.0.6 §14
   'js-oeb-open', 'js-oeb-close', // v1.1.0 OEB (R23)
+  'hossam-write-content-group', 'hossam-write-content-input', 'hossam-write-primary', 'hossam-write-title-group', // v1.1.1 C1
 ]);
 
 const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance', 'inbox', 'files', 'members', 'store', 'profile', 'admin'];
@@ -273,9 +292,21 @@ const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance
  * authorized hossam-oeb-* / <dialog> elements only: button + native dialog
  * classes/ids/data, both gated manage_options × official. The exact-equality
  * contract of the check itself is unchanged — any other drift still fails.
+ * v1.1.1 (الموجة 2): تحديث قيمة لا صرامة بنمط T10 نفسه. إعادة تغليب لوحة
+ * write (C1 — وفق النموذج المعتمد v1.0.9-article-editor-v2) وتمييز OEB
+ * بصريًا (E1) يمدّدان دلتا posts بالأصناف المصرَّح بها حصرًا: 19 صنفًا
+ * hossam-write-* (يرسمها كتلة [#panel-write] الموسومة C1 في
+ * assets/css/dashboard.css) + hossam-oeb-gate-chip / hossam-oeb-gate-note
+ * (E1 — كتلة تمييز OEB المستقلة الملاصقة لـ[OEB-U1]). لا صفوف ids/data/
+ * styles جديدة ولا خسائر، وكل الصفوف الموثقة سلفًا باقية حرفيًا. عقد
+ * المساواة التامة للفحص نفسه بلا تغيير — أي انحراف آخر يفشل كما كان.
  */
 const V106_POSTS_DELTA = {
-  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-oeb-actions', 'hossam-oeb-btn', 'hossam-oeb-dialog', 'hossam-oeb-dialog-head', 'hossam-oeb-status', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar', 'js-oeb-close', 'js-oeb-open'],
+  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-oeb-actions', 'hossam-oeb-btn', 'hossam-oeb-dialog', 'hossam-oeb-dialog-head', 'hossam-oeb-status', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar', 'js-oeb-close', 'js-oeb-open',
+    // v1.1.1 C1 — إعادة تغليب لوحة write وفق النموذج المعتمد (v1.0.9-article-editor-v2)؛ ترسمها كتلة [#panel-write] في assets/css/dashboard.css:
+    'hossam-write-ai-actions', 'hossam-write-ai-card', 'hossam-write-card', 'hossam-write-card-desc', 'hossam-write-card-head', 'hossam-write-card-ico', 'hossam-write-card-tag', 'hossam-write-card-title', 'hossam-write-content-group', 'hossam-write-content-input', 'hossam-write-editor-surface', 'hossam-write-h1-badge', 'hossam-write-has-aside', 'hossam-write-policy-pill', 'hossam-write-primary', 'hossam-write-title-group', 'hossam-write-title-hint', 'hossam-write-title-input', 'hossam-write-title-shell',
+    // v1.1.1 E1 — تمييز OEB بصريًا (كتلة مستقلة ملاصقة لـ[OEB-U1]):
+    'hossam-oeb-gate-chip', 'hossam-oeb-gate-note'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -349,7 +380,7 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   check(`B9V-${name}-markup-symmetric`,
     markupOk,
     isDeltaUnit
-      ? `${name}: styling hooks equal the documented v1.0.6 + v1.1.0 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
+      ? `${name}: styling hooks equal the documented v1.0.6 + v1.1.0 + v1.1.1 delta exactly (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`
       : `${name}: styling hooks identical (classes=${mig.classes.size} ids=${mig.ids.size} data=${mig.dataAttrs.size} static-styles=${mig.inlineStyles.size}; ${logoInfo})`,
     `${name}: markup drift class[+${setDiff(mig.classes, ref.classes)}]/[-${setDiff(ref.classes, mig.classes)}]`
       + ` id[+${setDiff(mig.ids, ref.ids)}]/[-${setDiff(ref.ids, mig.ids)}]`
