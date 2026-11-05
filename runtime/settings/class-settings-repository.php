@@ -65,8 +65,35 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 */
 	const BRANDING_ALLOWED_MIME = array( 'image/png', 'image/jpeg', 'image/webp' );
 
+	/**
+	 * v1.1.1 (W1): سقوف محارف اسم الموقع والوصف — التجاوز يرفض النموذج
+	 * كله (WP_Error في save() وsave_failed في المتحكم).
+	 */
+	const BRANDING_SITE_TITLE_MAX   = 60;
+	const BRANDING_SITE_TAGLINE_MAX = 80;
+
+	/**
+	 * v1.1.1 (W3): مفاتيح أقسام الموقع الثمانية المغلقة — مطابقة حرفيًا
+	 * لمراسي حلقة fallback في templates/dashboard.php (قسم fallback
+	 * $section_defs). لا مفتاح خارج هذه القائمة يُقبل من input ولا
+	 * يُخزَّن.
+	 */
+	const SITE_SECTION_KEYS = array(
+		'home', 'about', 'services', 'blog', 'contact', 'privacy', 'terms', 'shop',
+	);
+
 	/** @var array<int,array<string,mixed>> per-blog cache (multisite isolation) */
 	private static $cache = array();
+
+	/**
+	 * v1.1.1 (W1): طول المحارف — mb_strlen عند توافرها وإلا strlen
+	 * (نمط rankmath.php:161 وajax/seo.php:69 القائم: بيئات الشيم
+	 * والاختبار بلا mbstring تبقى صالحة؛ mbstring متاح في الإنتاج
+	 * فيُقاس بالمحارف لا بالبايت).
+	 */
+	private static function text_length( string $value ): int {
+		return function_exists( 'mb_strlen' ) ? mb_strlen( $value ) : strlen( $value );
+	}
 
 	/**
 	 * مفتاح الكاش الحالي: رقم المدونة عند توفره، وإلا سياق واحد.
@@ -79,7 +106,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	/**
 	 * الحالة الكاملة بعد الدمج مع defaults والتحقق من schema.
 	 *
-	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string, rich_editor_mode:string}
+	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string, rich_editor_mode:string, branding_site_title:string, branding_site_tagline:string, site_section_urls:array<string,string>}
 	 */
 	public static function get_all(): array {
 		$blog = self::cache_blog_id();
@@ -115,12 +142,44 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$editor_mode = (string) $stored['rich_editor_mode'];
 		}
 
+		// v1.1.1 (W1): تطبيع اسم الموقع والوصف بنمط ai_preference حرفيًا —
+		// غير النص أو تجاوز السقف يُطبَّع '' (fail-closed)؛ '' يعني fallback
+		// النصي القائم لكل موضع في القالب. القيم بيانات مستخدم تُخرج
+		// مهرَّبة عند الرندر حصرًا (لا i18n ولا hossam_t).
+		$branding_site_title = '';
+		if ( isset( $stored['branding_site_title'] ) && is_string( $stored['branding_site_title'] )
+			&& self::text_length( $stored['branding_site_title'] ) <= self::BRANDING_SITE_TITLE_MAX ) {
+			$branding_site_title = $stored['branding_site_title'];
+		}
+
+		$branding_site_tagline = '';
+		if ( isset( $stored['branding_site_tagline'] ) && is_string( $stored['branding_site_tagline'] )
+			&& self::text_length( $stored['branding_site_tagline'] ) <= self::BRANDING_SITE_TAGLINE_MAX ) {
+			$branding_site_tagline = $stored['branding_site_tagline'];
+		}
+
+		// v1.1.1 (W3): تطبيع روابط أقسام الموقع — غير المصفوفة يعيد
+		// الثمانية ب'' (auto عبر المحلل القائم)؛ المفتاح المجهول المخزن
+		// يُهمَل؛ القيمة غير النصية تُطبَّع '' (الفاسد = فراغ = auto).
+		$site_section_urls = array_fill_keys( self::SITE_SECTION_KEYS, '' );
+		if ( isset( $stored['site_section_urls'] ) && is_array( $stored['site_section_urls'] ) ) {
+			foreach ( self::SITE_SECTION_KEYS as $section_key ) {
+				$section_value = isset( $stored['site_section_urls'][ $section_key ] ) ? $stored['site_section_urls'][ $section_key ] : null;
+				if ( is_string( $section_value ) ) {
+					$site_section_urls[ $section_key ] = $section_value;
+				}
+			}
+		}
+
 		self::$cache[ $blog ] = array(
 			'schema_version'         => self::SCHEMA_VERSION,
 			'features'               => $features,
 			'branding_attachment_id' => $attachment_id > 0 ? $attachment_id : 0,
 			'ai_preference'          => $ai_preference,
 			'rich_editor_mode'       => $editor_mode,
+			'branding_site_title'    => $branding_site_title,
+			'branding_site_tagline'  => $branding_site_tagline,
+			'site_section_urls'      => $site_section_urls,
 		);
 		return self::$cache[ $blog ];
 	}
@@ -202,7 +261,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	 * المفاتيح المجهولة كليًا (لا shapes مجهولة — §14). لا تُقبل
 	 * أسرار هنا إطلاقًا.
 	 *
-	 * @param array{features?:array<string,bool>, branding_attachment_id?:int, ai_preference?:string, rich_editor_mode?:string} $settings
+	 * @param array{features?:array<string,bool>, branding_attachment_id?:int, ai_preference?:string, rich_editor_mode?:string, branding_site_title?:string, branding_site_tagline?:string, site_section_urls?:array<string,string>} $settings
 	 * @return true|WP_Error
 	 */
 	public static function save( array $settings ) {
@@ -259,8 +318,51 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['rich_editor_mode'] = $editor_mode;
 		}
 
+		// v1.1.1 (W1): كتلتا اسم الموقع والوصف — نص حر (بيانات مستخدم
+		// تُخرج مهرَّبة عند الرندر حصرًا) بتحقق شكل وسقف mb_strlen؛
+		// الخارج عن السقف يرفض النموذج كله (fail-closed).
+		if ( array_key_exists( 'branding_site_title', $settings ) ) {
+			$site_title = $settings['branding_site_title'];
+			if ( ! is_string( $site_title ) || self::text_length( $site_title ) > self::BRANDING_SITE_TITLE_MAX ) {
+				return new WP_Error( 'hal_settings_branding_site_title_invalid', 'branding_site_title must be a string of at most 60 characters.' );
+			}
+			$current['branding_site_title'] = $site_title;
+		}
+
+		if ( array_key_exists( 'branding_site_tagline', $settings ) ) {
+			$site_tagline = $settings['branding_site_tagline'];
+			if ( ! is_string( $site_tagline ) || self::text_length( $site_tagline ) > self::BRANDING_SITE_TAGLINE_MAX ) {
+				return new WP_Error( 'hal_settings_branding_site_tagline_invalid', 'branding_site_tagline must be a string of at most 80 characters.' );
+			}
+			$current['branding_site_tagline'] = $site_tagline;
+		}
+
+		// v1.1.1 (W3): كتلة روابط أقسام الموقع — مصفوفة الثمانية المغلقة
+		// حصرًا: مفتاح خارجها أو قيمة غير نصية يرفض النموذج كله؛
+		// التُخزين دائمًا للثمانية كاملة (الغائب يُطبَّع '' = auto).
+		if ( array_key_exists( 'site_section_urls', $settings ) ) {
+			$section_urls = $settings['site_section_urls'];
+			if ( ! is_array( $section_urls ) ) {
+				return new WP_Error( 'hal_settings_site_section_urls_shape', 'site_section_urls must be an array keyed by the eight closed section keys.' );
+			}
+			foreach ( $section_urls as $section_key => $section_url ) {
+				if ( ! in_array( (string) $section_key, self::SITE_SECTION_KEYS, true ) || ! is_string( $section_url ) ) {
+					return new WP_Error( 'hal_settings_site_section_urls_invalid', 'Unknown site section key or non-string URL value.' );
+				}
+			}
+			$normalized_urls = array_fill_keys( self::SITE_SECTION_KEYS, '' );
+			foreach ( self::SITE_SECTION_KEYS as $section_key ) {
+				if ( isset( $section_urls[ $section_key ] ) && is_string( $section_urls[ $section_key ] ) ) {
+					$normalized_urls[ $section_key ] = $section_urls[ $section_key ];
+				}
+			}
+			$current['site_section_urls'] = $normalized_urls;
+		}
+
+		// v1.1.1 (W1/W3): حارس المفاتيح المجهولة يتوسع بالمفاتيح الثلاثة
+		// الجديدة — لا shapes مجهولة.
 		foreach ( $settings as $key => $value ) {
-			if ( ! in_array( $key, array( 'features', 'branding_attachment_id', 'ai_preference', 'rich_editor_mode' ), true ) ) {
+			if ( ! in_array( $key, array( 'features', 'branding_attachment_id', 'ai_preference', 'rich_editor_mode', 'branding_site_title', 'branding_site_tagline', 'site_section_urls' ), true ) ) {
 				return new WP_Error( 'hal_settings_unknown_key', 'Unknown settings key.' );
 			}
 		}
@@ -291,6 +393,11 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 		$payload['branding_attachment_id'] = $current['branding_attachment_id'];
 		$payload['ai_preference'] = $current['ai_preference'];
 		$payload['rich_editor_mode'] = $current['rich_editor_mode'];
+		// v1.1.1 (W1/W3): المفاتيح الثلاثة الجديدة تُكتب من $current
+		// المطبَّع دومًا — الثمانية كاملة في site_section_urls.
+		$payload['branding_site_title'] = $current['branding_site_title'];
+		$payload['branding_site_tagline'] = $current['branding_site_tagline'];
+		$payload['site_section_urls'] = $current['site_section_urls'];
 		if ( ! $newer_schema ) {
 			$payload['schema_version'] = self::SCHEMA_VERSION;
 		}

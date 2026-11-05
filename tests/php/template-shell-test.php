@@ -1237,6 +1237,17 @@ function b7_mode_shell_admin( string $project ): void {
 	b7_check( 'A11-logo-fallback-hal', false !== strpos( $html, '>HAL</div>' ) && false === strpos( $html, 'logo.png' ),
 		'without a branding attachment the shell renders the recorded HAL text fallback and no logo file path',
 		'HAL fallback missing or a fixed logo path leaked' );
+	// v1.1.1 (W1): صفوف sb-title المضافة — fallback الحرفية عند فراغ
+	// الإعدادات + عدّا علامتي HAL الثابتتين (B9-L1) على الرندرين، ثم
+	// الاستبدال عند إسناد قيم. إضافة بحتة بلا مساس بصفوف A القائمة.
+	b7_check( 'A15-sb-fallback', false !== strpos( $html, 'Dashboard · Hossam Adel Law Firm' )
+			&& false !== strpos( $html, '<span>Law Firm Portal</span>' )
+			&& 1 === preg_match( '/class="sb-title">\s*Hossam Adel\s*<span>/', $html ),
+		'v1.1.1 W1 with empty settings the real shell renders the recorded fallbacks at every position: <title> and alt carry "Hossam Adel Law Firm", sb-title "Hossam Adel", the span "Law Firm Portal"',
+		'sb-title fallback mismatch' );
+	b7_check( 'A15-sb-hal-fallback-count', 1 === substr_count( $html, '>HAL</div>' ),
+		'v1.1.1 W1 the HAL constant marks stay intact on the no-logo render (exactly the visible fallback div — B9-L1)',
+		'HAL mark count on fallback render: ' . substr_count( $html, '>HAL</div>' ) );
 	$GLOBALS['B7_ATTACHMENT_URL'] = 'https://site.test/wp-content/uploads/2026/09/brand.png';
 	$GLOBALS['B7_POSTS'][ 55 ] = new WP_Post( array( 'ID' => 55, 'post_type' => 'attachment' ) );
 	$GLOBALS['B7_OPTIONS'] = array();
@@ -1247,7 +1258,32 @@ function b7_mode_shell_admin( string $project ): void {
 	b7_check( 'A12-branding-attachment', false !== strpos( $html_brand, 'src="https://site.test/wp-content/uploads/2026/09/brand.png"' ),
 		'with a validated branding attachment the shell renders its URL from the Media Library',
 		'branding attachment URL missing in output' );
+	b7_check( 'A15-sb-hal-brand-count', 1 === substr_count( $html_brand, '>HAL</div>' ) && false !== strpos( $html_brand, 'style="display:none;' ) && false !== strpos( $html_brand, 'alt="Hossam Adel Law Firm"' ),
+		'v1.1.1 W1 with an attachment the img branch renders and the constant HAL mark remains as the hidden img-fallback div (display:none — one of the two template-source HAL marks, B9-L1; the source carries exactly 2) while the alt falls back to the settings-empty literal',
+		'HAL marks on brand render: ' . substr_count( $html_brand, '>HAL</div>' ) );
 	$html = $html_brand;
+	// v1.1.1 (W1): الاستبدال — إسناد قيم للإعدادين يبدل كل موضع من
+	// الحرفية إلى قيمة المستخدم وتختفي الحرفيات.
+	HAL_Frontend_Dashboard_Settings_Repository::save( array(
+		'branding_site_title'   => 'مكتب حسام عادل',
+		'branding_site_tagline' => 'بوابة المكتب',
+	) );
+	HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
+	$html_replaced = b7_render_shell();
+	b7_check( 'A15-sb-replacement', false !== strpos( $html_replaced, 'Dashboard · مكتب حسام عادل' )
+			&& false !== strpos( $html_replaced, 'alt="مكتب حسام عادل"' )
+			&& 1 === preg_match( '/class="sb-title">\s*مكتب حسام عادل\s*<span>بوابة المكتب<\/span>/', $html_replaced ),
+		'v1.1.1 W1 with saved values every position renders the user value escaped: <title>, the logo alt, sb-title and the tagline span',
+		'sb-title replacement mismatch' );
+	b7_check( 'A15-sb-replacement-fallback-gone', false === strpos( $html_replaced, 'Hossam Adel Law Firm' ) && false === strpos( $html_replaced, 'Law Firm Portal' )
+			&& 0 === preg_match( '/class="sb-title">\s*Hossam Adel\s*</', $html_replaced ),
+		'v1.1.1 W1 with saved values the three fallback literals are fully displaced (no double rendering of fallback + value)',
+		'fallback literals still present after replacement' );
+	HAL_Frontend_Dashboard_Settings_Repository::save( array(
+		'branding_site_title'   => '',
+		'branding_site_tagline' => '',
+	) );
+	HAL_Frontend_Dashboard_Settings_Repository::invalidate_cache();
 	b7_check( 'A13-head-foot-markers', false !== strpos( $html, $GLOBALS['B7_HEAD_MARK'] ) && false !== strpos( $html, $GLOBALS['B7_FOOT_MARK'] ),
 		'shell calls wp_head() and wp_footer() directly (no theme header/footer include)',
 		'wp_head/wp_footer markers missing' );

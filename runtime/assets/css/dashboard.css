@@ -1077,6 +1077,33 @@ dialog.hossam-oeb-dialog::backdrop{background:rgba(23,24,37,.5)}
 .hossam-oeb-actions .btn{margin:0}
 
 /* ══════════════════════════════════════════════════════════════
+   [E1] v1.1.1 — تمييز OEB بصريًا (كتلة مستقلة ملاصقة لـ[OEB-U1] —
+   [OEB-U1] نفسه بلا أي لمس: كل القواعد أدناه إضافات تركيبية تسبق/
+   تتبع قواعده دون تعديلها). المعالجة: إطار علوي ذهبي للحوار (إطار)
+   + شارة معيّن قبل نص الزر (شارة) + سطر «بوابة الإدارة» في رأس
+   الحوار (نص توضيحي بنمط __() بنطاق hal-frontend-dashboard —
+   markup القالب). بلا توكنات خام جديدة: الرسم عبر التوكنات القائمة
+   أعلى الملف حصرًا. صفر قنوات رسائل بين النوافذ وصفر تضمين لوحة
+   الإدارة وصفر مساس بمسار posts.js:884-1078 (النافذة/اللقطة/
+   return-sync). بلا fixed|sticky (عدّاد الملف = 4 — عقد B14E-14).
+   RTL أولًا.
+   ══════════════════════════════════════════════════════════════ */
+[dir="rtl"] dialog.hossam-oeb-dialog .hossam-oeb-gate-note{direction:rtl;text-align:right}
+[dir="rtl"] dialog.hossam-oeb-dialog .hossam-oeb-gate-note span:last-child{margin-right:0;margin-left:auto}
+dialog.hossam-oeb-dialog{border-top:3px solid var(--gold)}
+.hossam-oeb-btn::before{content:'◆';font-size:9px;line-height:1;opacity:.85}
+dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;margin:0;
+  background:var(--gold-glow);border-bottom:1px solid var(--gold-pale);
+  font-size:11.5px;color:var(--txt-2)
+}
+.hossam-oeb-gate-chip{
+  display:inline-flex;align-items:center;flex-shrink:0;padding:2px 8px;
+  background:var(--navy);color:var(--gold);font-size:10px;font-weight:700;
+  letter-spacing:.3px;border-radius:3px;white-space:nowrap;user-select:none
+}
+
+/* ══════════════════════════════════════════════════════════════
    [R22] v1.1.0 (H6 §2/§4) — دمج v1.1.0: إسقاط PROPOSED + ضغط v2.8
    (وسم مستقل مجاور لـ[OEB-U1] — بلا دمج بنيوي). يبقى كما هو بلا
    لمس: media queries التجاوب الثلاثي (Fluid/768-1024/<768)؛ طي
@@ -1114,4 +1141,61 @@ dialog.hossam-oeb-dialog::backdrop{background:rgba(23,24,37,.5)}
   }
   #panel-write .form-actions .btn,
   #panel-edit-article .form-actions .btn{padding:5px 10px;font-size:11px}
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [#panel-write] v1.1.1 (C1 — إعادة تغليب لوحة «مقال جديد» وفق
+   النموذج المعتمد v1.0.9-article-editor-v2). عزل تام (C3): كل قواعد
+   هذه الكتلة تحت #panel-write حصرًا — صفر مساس بلوحات edit-article/
+   all-articles/overview أو الشريط الجانبي. الرسم عبر التوكنات القائمة
+   أعلى الملف حصرًا (لا قيم ألوان/ظلال/خطوط خام من النموذج؛ خريطة
+   الدلتا في تقرير الموجة). صفر fixed|sticky (عدّاد الملف = 4 — عقد
+   B14E-14/B15S-8) والشريط/الكانفس ساكنان في التدفق (قرار v2.8).
+   RTL أولًا. الأصناف الجديدة ببادئة hossam-write-. لا محرك تحرير —
+   BlockCanvas القائم هو السطح الوحيد. الأسلوب السطري المضغوط = عرف
+   الملف (النطاق الاسمي للميزانية افترض أسلوبًا مطولًا).
+   ══════════════════════════════════════════════════════════════ */
+/* RTL أولًا — فصل الشارة وترتيب سطر السياسة */
+[dir="rtl"] #panel-write .hossam-write-h1-badge{border-right:none;border-left:1px solid var(--border)}
+[dir="rtl"] #panel-write .hossam-write-title-hint{flex-direction:row-reverse;justify-content:flex-start}
+/* مساحة العمل: عمود الكتابة + عمود بطاقة AI المستقلة (النموذج:
+   editor-layout-grid) — بلا البطاقة ينسدل إلى عمود واحد */
+#panel-write .hossam-write-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;max-width:1440px;margin:0 auto}
+#panel-write .hossam-write-workspace.hossam-write-has-aside{grid-template-columns:minmax(0,1fr) 320px}
+#panel-write .hossam-write-card{margin-bottom:0}
+/* (1) صف العنوان — غلاف + شارة H1 + سطر السياسة (النموذج:
+   title-input-container / title-field-shell / h1-lock-badge /
+   title-footer-hint / policy-pill) */
+#panel-write .hossam-write-title-shell{display:flex;align-items:stretch;background:var(--white);border:2px solid var(--border);border-radius:var(--radius);transition:border-color var(--trans),box-shadow var(--trans)}
+#panel-write .hossam-write-title-shell:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow)}
+#panel-write .hossam-write-h1-badge{display:flex;align-items:center;padding:0 12px;background:var(--navy);color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.5px;border-right:1px solid var(--border);white-space:nowrap;user-select:none}
+#panel-write .hossam-write-title-input{flex:1;min-width:0;border:none;border-radius:0;background:transparent;outline:none;box-shadow:none;padding:11px 14px;font-size:17px;font-weight:700;color:var(--txt-1);font-family:inherit}
+#panel-write .hossam-write-title-input::placeholder{color:var(--txt-3);font-weight:400}
+#panel-write .hossam-write-title-hint{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-3);margin-top:2px}
+#panel-write .hossam-write-policy-pill{background:var(--gold-pale);color:var(--gold-dim);padding:1px 6px;border-radius:3px;font-weight:600}
+/* (2) لوحة المحتوى — صندوق ملتحق واحد: الـtextarea (حقل مصدر الحقيقة)
+   والحامل الغني (شريط الأدوات فوق الكانفس) داخل غلاف بسعر واحد وفي
+   التدفق (النموذج: pro-toolbar-container + editor-canvas-surface —
+   ساكن بلا تثبيت). تسطيح حدود/ظلال الأبناء داخل الغلاف هنا حصرًا؛
+   [B9-U3] يبقى بلا لمس خارج اللوحة. */
+#panel-write .hossam-write-editor-surface{display:flex;flex-direction:column;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+#panel-write .hossam-write-editor-surface:focus-within{border-color:var(--gold)}
+#panel-write .hossam-write-editor-surface .form-input{border:none;border-radius:0;background:var(--white)}
+#panel-write .hossam-write-editor-surface .form-input:focus{border:none;box-shadow:none}
+#panel-write .hossam-write-editor-surface .hossam-rich-editor{margin-top:8px;border:none;border-radius:0;box-shadow:none}
+#panel-write .hossam-write-editor-surface .hossam-rich-editor-canvas{min-height:340px}
+/* (3) بطاقة AI المستقلة — العمود الجانبي (النموذج: Panel 5 cardAi —
+   hal-card-header/title + وصف + صف أفعال). الأزرار وسماتها من posts.js
+   بلا لمس؛ النتائج داخل اللوحة (لا نافذة منبثقة — B14E-15). */
+#panel-write .hossam-write-ai-card{margin-bottom:0}
+#panel-write .hossam-write-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--cream)}
+#panel-write .hossam-write-card-title{font-size:12px;font-weight:700;color:var(--txt-1);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+#panel-write .hossam-write-card-ico{font-size:13px}
+#panel-write .hossam-write-card-tag{font-size:10px;color:var(--gold-dim);font-weight:600}
+#panel-write .hossam-write-card-desc{font-size:12px;color:var(--txt-2);margin-bottom:10px}
+#panel-write .hossam-write-ai-actions .filter-select{max-width:110px}
+/* التجاوب — العمود الجانبي ينسدل تحت عمود الكتابة (النموذج: طي
+   العمودين في العروض الضيقة) */
+@media(max-width:900px){
+  #panel-write .hossam-write-workspace.hossam-write-has-aside{grid-template-columns:1fr}
 }

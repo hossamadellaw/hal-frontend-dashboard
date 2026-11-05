@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.0.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.1.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,20 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.1 =
+* Approved design for the new-article screen: the Write panel is re-wrapped per the approved mockup (two-column shell, title badge, side AI card) while the same block editor is reused as-is; the sidebar and every other panel are untouched.
+* Text formatting toolbar: Bold/Italic/list controls appear automatically when a text block is focused, via the official WordPress format-library package behind the existing safe-load guards.
+* Encrypted Amelia key entry in the admin UI: a new field in the Integrations tab stores the key in the encrypted store, and saving or deleting it runs an immediate health check so the result shows instantly instead of after the next cycle.
+* Site name and tagline from settings: two new Branding fields (site title up to 60 characters, tagline up to 80) replace the hardcoded texts in the panel header and card marks, with each position keeping its own fallback text.
+* Dashboard page shown read-only: an info block displays the owned dashboard page (id, status, link, open button) with no UI writing to the page setting.
+* Site-section links can be overridden: the eight closed section links accept a manual replacement URL (http/https only; invalid values are ignored) on the fallback path only — the primary menu still wins when present.
+* A description under every feature: the Features tab shows a one-line explanation under each key instead of the raw name.
+* Rich editor modes explained: plain-language descriptions for official/embed/off, the smart default, and the master-switch rule.
+* The manual-update button is visually marked as an admin gate: still admin-only in official mode, with a tagged visual distinction, no cross-window messaging, and no wp-admin embedding inside the panel.
+* New admin strings are translatable: wp-admin descriptions follow the interface language via the standard translation pattern.
+* Version identity 1.1.1 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 9 (basis: the 2026-11-05 acceptance audit ACCEPTED and the execution ledger c012452b...).
+* UNVERIFIED (post-launch by owner decision): the live acceptance scene (section 9-1 visual acceptance on both accounts including the sidebar before/after), the live kses round-trip matrix, the owner staging measurements (M1-M4), the manual popup-blocker pass, Amelia env/constant setup, the six acceptance drafts deletion, the design-decisions record (D1-D4), and the nine console warnings review — all scheduled for the 1.1.2 acceptance cycle (Y1-Y8).
 
 = 1.1.0 =
 * Rate limiting on every write point (article create/update/translate/trash-restore, uploads, messages, SEO save, AI polling) with per-minute and daily caps — abusive bursts get a short wait message instead of loading the site.

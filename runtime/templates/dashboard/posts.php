@@ -101,28 +101,62 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
       <?php if ( $is_writer && ! $is_author && ! $is_editor && ! $is_admin ) : ?>
       <div class="ph-notice"><?php echo esc_html( hossam_t( 'Your articles go to review before publishing.' ) ); ?></div>
       <?php endif; ?>
-      <div class="card mb-14">
+      <?php
+      // v1.1.1 C1: بوابة AI نفسها حرفيًا (تُقيَّم مرة واحدة لصنف عمود
+      // المساحة ولعرض بطاقة AI — قراءة خالصة، بلا أي قرار جديد).
+      $hossam_write_ai_on = current_user_can( 'edit_posts' )
+          && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' )
+          && function_exists( 'hossam_ai_interface_available' )
+          && hossam_ai_interface_available();
+      ?>
+      <!-- v1.1.1 C1: إعادة التغليب وفق النموذج المعتمد
+           (v1.0.9-article-editor-v2) — مساحة عمل بعمودين: عمود الكتابة
+           (العنوان/لوحة المحتوى بأدواتها الملتحقة/الأفعال) + بطاقة AI
+           المستقلة في العمود الجانبي. كل id/name/data-attribute تعتمدها
+           posts.js/setup.php محفوظة حرفيًا (صفر لمس JS). النموذج بنية
+           مرجعية للغلاف حصرًا: لا محرك تحرير ولا حقل تحرير مباشر —
+           BlockCanvas القائم هو السطح الوحيد، والشريط يدوي من posts.js. -->
+      <div class="hossam-write-workspace<?php echo $hossam_write_ai_on ? ' hossam-write-has-aside' : ''; ?>">
         <!-- Core-first (الدفعة الثانية): المسار الأساسي hossam_create_article —
              الكاتب يُعيَّن من جلسة الخادم، ولا AI هنا (قيد البند 3). -->
-        <form id="hossam-post-create-form" onsubmit="event.preventDefault(); hossamCreateArticle(this); return false;">
-          <div class="form-group mb-8">
+        <form id="hossam-post-create-form" onsubmit="event.preventDefault(); hossamCreateArticle(this); return false;" class="hossam-write-primary">
+          <div class="card hossam-write-card">
+          <!-- (1) صف العنوان — النموذج: title-input-container (غلاف + شارة
+               H1 + سطر سياسة العناوين). شارة H1 تذكير بسياسة governance
+               القائمة ([R21-أ] تطبيع H1→H2 عند اللصق في المحرر). -->
+          <div class="form-group mb-8 hossam-write-title-group">
             <label class="form-label" for="hossam-new-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
-            <input type="text" class="form-input" id="hossam-new-title" name="title" maxlength="255" />
-          </div>
-          <div class="form-group mb-8">
-            <label class="form-label" for="hossam-new-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
-            <textarea class="form-input" id="hossam-new-content" name="content" rows="10"></textarea>
-            <?php if ( $hossam_rich_editor_feature && 'off' !== $hossam_editor_mode ) : ?>
-            <!-- v1.0.6 §9: موضع المحرر الغني (inserter/أدوات/canvas) داخل حقل
-                 المحتوى بقالب HAL — الـtextarea أعلاه يبقى حقل النموذج ظاهرًا
-                 ولا يُخفى إلا بعد نجاح التهيئة (posts.js)؛ التهيئة عند أول
-                 فتح اللوحة. اللوحة نفسها مشروطة بـ$sees_content (edit_posts). -->
-            <div class="hossam-rich-editor" id="hossam-rich-editor-new" data-textarea="hossam-new-content" hidden>
-              <div class="hossam-rich-editor-inserter" data-role="inserter"></div>
-              <div class="hossam-rich-editor-toolbar" data-role="toolbar"></div>
-              <div class="hossam-rich-editor-canvas" data-role="canvas"></div>
+            <div class="hossam-write-title-shell">
+              <span class="hossam-write-h1-badge" title="<?php echo esc_attr( __( 'سياسة العناوين: H1 محجوز للعنوان الرئيسي حصرًا — متن المقال يبدأ من H2 فأعلى.', 'hal-frontend-dashboard' ) ); ?>">H1</span>
+              <input type="text" class="form-input hossam-write-title-input" id="hossam-new-title" name="title" maxlength="255" placeholder="<?php echo esc_attr( __( 'أدخل عنوان المقال هنا…', 'hal-frontend-dashboard' ) ); ?>" />
             </div>
-            <?php endif; ?>
+            <div class="hossam-write-title-hint">
+              <span class="hossam-write-policy-pill">H1</span>
+              <span><?php echo esc_html( __( 'H1 محجوز للعنوان حصرًا — متن المقال يبدأ من H2 فأعلى.', 'hal-frontend-dashboard' ) ); ?></span>
+            </div>
+          </div>
+          <!-- (2) لوحة المحتوى — النموذج: شريط أدوات ملتحق فوق الكانفس في
+               صندوق ساكن واحد (pro-toolbar-container + editor-canvas-surface
+               بدون فصل ولا تثبيت — قرار v2.8). الغلاف يضم الـtextarea (حقل
+               النموذج الدائم وحامل مصدر الحقيقة) والحامل الغني؛ posts.js
+               يخفي الـtextarea بعد نجاح التهيئة فقط (عقد textarea-fallback
+               بلا لمس). -->
+          <div class="form-group mb-8 hossam-write-content-group">
+            <label class="form-label" for="hossam-new-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
+            <div class="hossam-write-editor-surface">
+              <textarea class="form-input hossam-write-content-input" id="hossam-new-content" name="content" rows="10"></textarea>
+              <?php if ( $hossam_rich_editor_feature && 'off' !== $hossam_editor_mode ) : ?>
+              <!-- v1.0.6 §9: موضع المحرر الغني (inserter/أدوات/canvas) داخل حقل
+                   المحتوى بقالب HAL — الـtextarea أعلاه يبقى حقل النموذج ظاهرًا
+                   ولا يُخفى إلا بعد نجاح التهيئة (posts.js)؛ التهيئة عند أول
+                   فتح اللوحة. اللوحة نفسها مشروطة بـ$sees_content (edit_posts). -->
+              <div class="hossam-rich-editor" id="hossam-rich-editor-new" data-textarea="hossam-new-content" hidden>
+                <div class="hossam-rich-editor-inserter" data-role="inserter"></div>
+                <div class="hossam-rich-editor-toolbar" data-role="toolbar"></div>
+                <div class="hossam-rich-editor-canvas" data-role="canvas"></div>
+              </div>
+              <?php endif; ?>
+            </div>
           </div>
           <div class="form-group mb-8">
             <label class="form-label" for="hossam-new-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
@@ -185,27 +219,39 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
               <?php endif; ?>
             </select>
           </div>
+          <!-- صفوف الحقول الوصفية (مقتطف/تصنيفات/صورة بارزة/حالة) تبقى
+               حرفيًا داخل النموذج الواحد — عقد posts.js (form.querySelector
+               على hossam-post-create-form) يمنع تقسيم النموذج، فلا يُكرَّر
+               تقسيم أعمدة النموذج المرجعي هنا (دلتا موسومة). -->
           <div class="form-actions mt-12">
             <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
           </div>
+          </div><!-- /hossam-write-card -->
         </form>
-      </div>
-      <?php if ( current_user_can( 'edit_posts' ) && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) && function_exists( 'hossam_ai_interface_available' ) && hossam_ai_interface_available() ) : ?>
-      <!-- الدفعة الثالثة (7.4): أزرار AI تُعرض فقط عند إثبات قدرة استراتيجية صالحة
-           وصلاحية المستخدم — الإخفاء شرط عرضي، والتفويض يعاد خادميًا فى كل endpoint.
-           (الدفعة 7: + بوابة المالك B3-08 is_feature_enabled('ai')). -->
-      <div class="card mb-14">
-        <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
-        <div class="filter-bar">
-          <button type="button" class="btn btn-sm js-ai-run" data-job-type="grammar" data-source="hossam-new-content" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Grammar Check' ) ); ?></button>
-          <input type="text" class="filter-select" id="hossam-ai-target-write" maxlength="8" placeholder="<?php echo esc_attr( hossam_t( 'Target language code' ) ); ?>" />
-          <button type="button" class="btn btn-sm js-ai-run" data-job-type="translation" data-source="hossam-new-content" data-lang-source="hossam-ai-target-write" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest Translation' ) ); ?></button>
-          <button type="button" class="btn btn-sm js-ai-run" data-job-type="seo" data-source="hossam-new-content" data-title-source="hossam-new-title" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest SEO' ) ); ?></button>
-          <button type="button" class="btn btn-sm js-ai-run" data-job-type="improvement" data-source="hossam-new-content" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest Improvements' ) ); ?></button>
+        <?php if ( $hossam_write_ai_on ) : ?>
+        <!-- الدفعة الثالثة (7.4): أزرار AI تُعرض فقط عند إثبات قدرة استراتيجية صالحة
+             وصلاحية المستخدم — الإخفاء شرط عرضي، والتفويض يعاد خادميًا فى كل endpoint.
+             (الدفعة 7: + بوابة المالك B3-08 is_feature_enabled('ai')).
+             v1.1.1 C1: بطاقة AI المستقلة في العمود الجانبي وفق النموذج
+             (Panel 5) — كل أزرار .js-ai-run وسمات data والنتيجة المخفية
+             حرفيًا كما هي (ai.js يقرأها بالتفويض). -->
+        <div class="card hossam-write-ai-card">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">✨</span><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( __( 'اختياري', 'hal-frontend-dashboard' ) ); ?></span>
+          </div>
+          <p class="hossam-write-card-desc"><?php echo esc_html( __( 'مساعد اختياري للتدقيق والترجمة والسيو — النتائج تظهر داخل هذه اللوحة.', 'hal-frontend-dashboard' ) ); ?></p>
+          <div class="filter-bar hossam-write-ai-actions">
+            <button type="button" class="btn btn-sm js-ai-run" data-job-type="grammar" data-source="hossam-new-content" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Grammar Check' ) ); ?></button>
+            <input type="text" class="filter-select" id="hossam-ai-target-write" maxlength="8" placeholder="<?php echo esc_attr( hossam_t( 'Target language code' ) ); ?>" />
+            <button type="button" class="btn btn-sm js-ai-run" data-job-type="translation" data-source="hossam-new-content" data-lang-source="hossam-ai-target-write" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest Translation' ) ); ?></button>
+            <button type="button" class="btn btn-sm js-ai-run" data-job-type="seo" data-source="hossam-new-content" data-title-source="hossam-new-title" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest SEO' ) ); ?></button>
+            <button type="button" class="btn btn-sm js-ai-run" data-job-type="improvement" data-source="hossam-new-content" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Suggest Improvements' ) ); ?></button>
+          </div>
+          <div id="ai-suggestion-result-write" class="hidden"></div>
         </div>
-        <div id="ai-suggestion-result-write" class="hidden"></div>
-      </div>
-      <?php endif; ?>
+        <?php endif; ?>
+      </div><!-- /hossam-write-workspace -->
       <!-- Fallback محدد: [frontend_admin] مخفي افتراضيًا؛ لا يُفتَح إلا عند فشل تقني
            (شبكة/5xx/رد غير قابل للتحليل) من posts.js — أبدًا لا عند رفض أمني أو
            مدخل غير صالح (بوابة 8.2 نصًا). -->
@@ -364,7 +410,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <!-- v1.1.0 OEB (H1 §7-1 — دمج R23): زر فتح المحرر الرسمي —
                            للمدير حصرًا × official من get_effective_editor_mode()؛
                            لغير المدير غائب عن DOM كليًا. النص: i18n oeb_open (R41). -->
-                      <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></a>
+                      <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>" title="<?php echo esc_attr( __( 'بوابة الإدارة — يُفتح المحرر الرسمي في تبويب مستقل للمدير حصرًا.', 'hal-frontend-dashboard' ) ); ?>"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></a>
                       <?php endif; ?>
                     </div>
                   </td>
@@ -402,6 +448,12 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
            اليدوي الاحتياطي بنفس editorUrl (يملؤه JS من data-oeb-post للزر المنقور
            عند الفتح)؛ زر إغلاق. شرطه كشرط الزر: official × المدير حصرًا. -->
       <dialog id="hossam-oeb-dialog" class="hossam-oeb-dialog">
+        <!-- v1.1.1 E1: سطر تمييز «بوابة الإدارة» — نص جديد بنمط __() بنطاق
+             hal-frontend-dashboard (واجهة فقط؛ لا منطق ولا مسار جديد). -->
+        <div class="hossam-oeb-gate-note">
+          <span class="hossam-oeb-gate-chip"><?php echo esc_html( __( 'بوابة الإدارة', 'hal-frontend-dashboard' ) ); ?></span>
+          <span><?php echo esc_html( __( 'فتح المحرر الرسمي في تبويب مستقل — متاح للمدير حصرًا.', 'hal-frontend-dashboard' ) ); ?></span>
+        </div>
         <div class="hossam-oeb-dialog-head"><?php echo esc_html( hossam_t( 'التحديث اليدوي' ) ); ?></div>
         <p class="hossam-oeb-status" id="hossam-oeb-dialog-status"><?php echo esc_html( hossam_t( 'جارٍ التحقق من وجود تحديث…' ) ); ?></p>
         <div class="hossam-oeb-actions">

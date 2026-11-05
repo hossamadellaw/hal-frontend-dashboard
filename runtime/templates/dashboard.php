@@ -328,6 +328,16 @@ if ( $_branding_attachment_id > 0 ) {
     }
 }
 
+// v1.1.1 (W1/W3): اسم الموقع والوصف وروابط الأقسام من Settings Repository
+// بنفس نمط وصول الشعار أعلاه (استدعاء مباشر) — قيم مستخدم تُخرج مهرَّبة
+// PHP عند الرندر حصرًا (لا hossam_t ولا تسجيل i18n). '' = fallback النصي
+// القائم لكل موضع (ازدواج fallback محسوم بالعقد — لكل موضع fallbackه).
+$_hal_settings = HAL_Frontend_Dashboard_Settings_Repository::get_all();
+$site_section_urls = $_hal_settings['site_section_urls'];
+$_hal_site_title_full = '' !== $_hal_settings['branding_site_title'] ? $_hal_settings['branding_site_title'] : 'Hossam Adel Law Firm';
+$_hal_site_title_short = '' !== $_hal_settings['branding_site_title'] ? $_hal_settings['branding_site_title'] : 'Hossam Adel';
+$_hal_site_tagline = '' !== $_hal_settings['branding_site_tagline'] ? $_hal_settings['branding_site_tagline'] : 'Law Firm Portal';
+
 // م19 — Inbox unread count — PHP-embedded, no AJAX (B7-03: لا استعلام
 // مع تعطيل inbox؛ $unread_inbox يبقى null فتعرض الشارات unavailable).
 global $wpdb;
@@ -358,7 +368,7 @@ if ( $wpdb->last_error ) {
 <meta charset="<?php bloginfo('charset'); ?>"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta name="robots" content="noindex,nofollow"/>
-<title><?php echo esc_html($user_name); ?> — Dashboard · Hossam Adel Law Firm</title>
+<title><?php echo esc_html($user_name); ?> — Dashboard · <?php echo esc_html( $_hal_site_title_full ); // v1.1.1 (W1): من الإعداد بfallback النصي لهذا الموضع. ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})()</script>
@@ -392,7 +402,7 @@ wp_head();
   <div class="sb-brand">
     <?php if ( '' !== $logo_url ) : ?>
     <img src="<?php echo esc_url($logo_url); ?>"
-         alt="Hossam Adel Law Firm"
+         alt="<?php echo esc_attr( $_hal_site_title_full ); // v1.1.1 (W1): من الإعداد بfallback النصي لهذا الموضع. ?>"
          class="sb-logo-img"
          width="34" height="34"
          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
@@ -401,8 +411,8 @@ wp_head();
     <div class="sb-logo" style="display:flex;width:34px;height:34px;background:var(--gold);border-radius:6px;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-weight:700;font-size:15px;color:var(--navy);flex-shrink:0;">HAL</div>
     <?php endif; ?>
     <div class="sb-title">
-      Hossam Adel
-      <span>Law Firm Portal</span>
+      <?php echo esc_html( $_hal_site_title_short ); // v1.1.1 (W1): من الإعداد بfallback النصي لهذا الموضع. ?>
+      <span><?php echo esc_html( $_hal_site_tagline ); // v1.1.1 (W1): من الإعداد بfallback النصي لهذا الموضع. ?></span>
     </div>
   </div>
 
@@ -573,6 +583,15 @@ wp_head();
         ];
         $nav_items = [];
         foreach ( $section_defs as $key => $def ) {
+            // v1.1.1 (W3): override روابط الأقسام من الإعدادات — يسري على
+            // قائمة الأقسام الاحتياطية فقط (القائمة primary تسبقه دائمًا
+            // وأصله أعلاه)؛ '' = auto عبر المحلل القائم. المعالجة بنفس
+            // نمط عناصر القائمة primary (hossam_wpml_permalink).
+            $override = $site_section_urls[ $key ] ?? '';
+            if ( '' !== $override ) {
+                $nav_items[] = [ 'url' => hossam_wpml_permalink( $override ), 'label' => $def['label'], 'icon' => '' ];
+                continue;
+            }
             $result = hossam_resolve_site_section( $key, $def['candidates'] );
             if ( $result ) { $nav_items[] = [ 'url' => $result['url'], 'label' => $def['label'], 'icon' => '' ]; }
         }
