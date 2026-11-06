@@ -1002,6 +1002,57 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			b2s_result_line( $mode );
 			// no fallthrough
 
+		case 'failure-reasons':
+			// v1.1.2: the store is blocked here (sodium loaded, no key
+			// constant defined) so every failure path below routes to its
+			// dedicated message key while unknown codes keep the generic
+			// fallback notice and the guidance block stays free of key
+			// material.
+			b2s_require_runtime();
+			$GLOBALS['B2S_CAN_MANAGE']  = true;
+			$GLOBALS['B2S_NONCE_VALID'] = true;
+			$notice_ref = new ReflectionMethod( 'HAL_Frontend_Dashboard_Admin_Controller', 'render_notice_from_query' );
+			$notice_ref->setAccessible( true );
+			$ss_a_expect = array(
+				'secret_failed_sodium'  => 'the PHP sodium extension is missing',
+				'secret_failed_key'     => 'no valid external encryption key was found',
+				'secret_failed_persist' => 'writing the encrypted record to the database failed',
+				'secret_failed_value'   => 'the submitted value was rejected',
+			);
+			foreach ( $ss_a_expect as $ss_a_key => $ss_a_needle ) {
+				$_GET['hal_msg'] = $ss_a_key;
+				ob_start();
+				$notice_ref->invoke( null );
+				$ss_a_html = (string) ob_get_clean();
+				b2s_check( 'SS-A-' . $ss_a_key, false !== strpos( $ss_a_html, $ss_a_needle ), "the {$ss_a_key} notice renders its dedicated reason", "{$ss_a_key} notice mismatch" );
+			}
+			$_GET['hal_msg'] = 'not_a_known_code';
+			ob_start();
+			$notice_ref->invoke( null );
+			$ss_a_html = (string) ob_get_clean();
+			b2s_check( 'SS-A-unknown', '' === $ss_a_html, 'an unknown message key renders no notice', 'unknown key printed' );
+			$_GET['hal_msg'] = 'secret_failed';
+			ob_start();
+			$notice_ref->invoke( null );
+			$ss_a_html = (string) ob_get_clean();
+			b2s_check( 'SS-A-generic', false !== strpos( $ss_a_html, 'encrypted storage is blocked or the value was rejected' ), 'the generic failure notice keeps its legacy text and behavior', 'generic notice changed' );
+			$_POST = array( 'secret_id' => 'ai_direct_key', 'secret_value' => 'plain-observable-value', 'hal_frontend_dashboard_nonce' => 'fixture-nonce' );
+			$redirect = b2s_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_set_secret' ) );
+			b2s_check( 'SS-B', false !== strpos( $redirect->target, 'hal_msg=secret_failed_key' ) && ! isset( $GLOBALS['B2S_OPTIONS']['hal_frontend_dashboard_secrets'] ), 'a blocked store routes the handler to the dedicated key reason without storing anything', 'handler redirect mismatch: ' . $redirect->target );
+			$_GET = array( 'tab' => 'status' );
+			ob_start();
+			HAL_Frontend_Dashboard_Admin_Controller::render_page();
+			$ss_d_html = (string) ob_get_clean();
+			b2s_check( 'SS-D',
+				false !== strpos( $ss_d_html, "define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY'" )
+					&& false !== strpos( $ss_d_html, 'Local key generation command' )
+					&& false !== strpos( $ss_d_html, 'Expected read-back' )
+					&& 0 === preg_match_all( '/[0-9a-f]{64}/', $ss_d_html ),
+				'the blocked-store guidance block renders the copy-ready key line, the generation command and the read-back with zero raw 64-hex material',
+				'guidance block mismatch: raw64=' . preg_match_all( '/[0-9a-f]{64}/', $ss_d_html ) );
+			b2s_result_line( $mode );
+			// no fallthrough
+
 		case 'sodium-absent':
 			// B3-04: REAL PHP 8.3 WITHOUT the sodium extension (spawned
 			// with -n) plus a valid synthetic key: the store reports the
@@ -1037,6 +1088,24 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			HAL_Frontend_Dashboard_Admin_Controller::render_page();
 			$html = (string) ob_get_clean();
 			b2s_check( 'NA5', false !== strpos( $html, 'blocked' ) && false !== strpos( $html, 'constant' ), 'the status tab shows the blocked store with its key source (explicit diagnosis)', 'status diagnosis mismatch' );
+			// v1.1.2: in this real sodium-less runtime the blocked-store
+			// guidance renders the sodium reason with the copy-ready line
+			// and never leaks the 64-hex key material held in memory.
+			b2s_check( 'NA6',
+				false !== strpos( $html, "define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY'" )
+					&& false !== strpos( $html, 'Local key generation command' )
+					&& false !== strpos( $html, 'Expected read-back' )
+					&& false !== strpos( $html, 'Reason: the PHP sodium extension is missing' )
+					&& 0 === preg_match_all( '/[0-9a-f]{64}/', $html ),
+				'the sodium-blocked status tab renders the guidance block with the sodium reason and zero raw 64-hex material',
+				'sodium guidance mismatch: raw64=' . preg_match_all( '/[0-9a-f]{64}/', $html ) );
+			$GLOBALS['B2S_NONCE_VALID'] = true;
+			$_POST = array( 'secret_id' => 'ai_direct_key', 'secret_value' => 'plain-value-na7', 'hal_frontend_dashboard_nonce' => 'fixture-nonce' );
+			$na7_redirect = b2s_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_set_secret' ) );
+			b2s_check( 'NA7',
+				false !== strpos( $na7_redirect->target, 'hal_msg=secret_failed_sodium' ),
+				'the full handler path in the sodium-less runtime lands on the dedicated sodium reason',
+				'handler redirect mismatch: ' . $na7_redirect->target );
 			b2s_result_line( $mode );
 			// no fallthrough
 
@@ -1736,6 +1805,7 @@ b2s_run_mode( 'store-delete-audit' );
 b2s_run_mode( 'store-salt-coupling' );
 b2s_run_mode( 'ciphertext-version' );
 b2s_run_mode( 'site-scope' );
+b2s_run_mode( 'failure-reasons' );
 b2s_run_mode( 'sodium-absent', array(), false );
 b2s_run_mode( 'settings-repo' );
 b2s_run_mode( 'features-marker' );

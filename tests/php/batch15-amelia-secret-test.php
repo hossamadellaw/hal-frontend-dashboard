@@ -484,12 +484,29 @@ function a15_mode( string $mode, array $args, string $project ): void {
 		define( 'MINUTE_IN_SECONDS', 60 );
 		define( 'HOUR_IN_SECONDS', 3600 );
 	}
-	define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', hash( 'sha256', 'a15-key-' . $mode ) );
+	if ( 'failure-reasons' !== $mode ) {
+		define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', hash( 'sha256', 'a15-key-' . $mode ) );
+	}
 	a15_require_runtime();
 	$GLOBALS['A15_CAN_MANAGE']  = true;
 	$GLOBALS['A15_NONCE_VALID'] = true;
 
 	switch ( $mode ) {
+		case 'failure-reasons':
+			// v1.1.2: with the store blocked (no key constant is defined
+			// for this mode) the handler reports the dedicated key reason
+			// while the six-tab redirect allowlist behavior stays intact.
+			$GLOBALS['A15_CAN_MANAGE']  = true;
+			$GLOBALS['A15_NONCE_VALID'] = true;
+			$_POST = array( 'secret_id' => 'ai_direct_key', 'secret_value' => 'A15-PLAINTEXT-VALUE', 'secret_tab' => 'integrations', 'hal_frontend_dashboard_nonce' => 'fixture-nonce' );
+			$redirect = a15_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_set_secret' ) );
+			a15_check( 'A15-N1', false !== strpos( $redirect->target, 'hal_msg=secret_failed_key' ) && false !== strpos( $redirect->target, 'tab=integrations&' ), 'a blocked store lands on the dedicated key reason and keeps the allowlisted tab redirect', 'redirect mismatch: ' . $redirect->target );
+			$_POST = array( 'secret_id' => 'ai_direct_key', 'secret_value' => 'A15-PLAINTEXT-VALUE', 'hal_frontend_dashboard_nonce' => 'fixture-nonce' );
+			$redirect = a15_capture_redirect( array( 'HAL_Frontend_Dashboard_Admin_Controller', 'handle_set_secret' ) );
+			a15_check( 'A15-N2', false !== strpos( $redirect->target, 'hal_msg=secret_failed_key' ) && false !== strpos( $redirect->target, 'tab=ai&' ), 'without a secret_tab the blocked-store failure keeps the TAB_AI fallback with the dedicated key reason', 'redirect mismatch: ' . $redirect->target );
+			a15_result_line( $mode );
+			// no fallthrough
+
 		case 'redirect-tab':
 			// secret_redirect_tab through the REAL handle_set_secret: each
 			// case performs a real set (the store IS touched on the allow-
@@ -752,6 +769,7 @@ a15_run_mode( 'redirect-tab' );
 a15_run_mode( 'probe' );
 a15_run_mode( 'setup-alignment' );
 a15_run_mode( 'render-blocks' );
+a15_run_mode( 'failure-reasons' );
 
 echo "HAL Frontend Dashboard — B15 Amelia secret test (v1.1.1 E3)\n";
 echo str_repeat( '─', 72 ) . "\n";
