@@ -734,8 +734,22 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 							)
 						);
 						?>
-					</p>
-					<table class="widefat striped hal-fd-status" role="presentation">
+						</p>
+						<?php if ( ! $store_available ) : ?>
+							<p class="description">
+								<?php
+								$blocker = HAL_Frontend_Dashboard_Secret_Store::get_blocker();
+								echo esc_html( 'sodium_missing' === $blocker
+									? __( 'Reason: the PHP sodium extension is missing on this server.', 'hal-frontend-dashboard' )
+									: __( 'Reason: no valid external encryption key was found (environment variable or wp-config.php constant).', 'hal-frontend-dashboard' ) );
+								?>
+							</p>
+							<p class="description"><?php esc_html_e( 'To enable encrypted storage, generate a key locally on your own machine and add this line to wp-config.php above the stop-editing comment:', 'hal-frontend-dashboard' ); ?></p>
+							<p><code>define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', '&lt;paste-64-hex-characters&gt;' );</code></p>
+							<p class="description"><?php esc_html_e( 'Local key generation command: php -r \'echo bin2hex(random_bytes(32));\'', 'hal-frontend-dashboard' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Expected read-back after saving wp-config.php and reloading this page: "Secret store: available — key source: constant — key fingerprint: <32 hex characters>".', 'hal-frontend-dashboard' ); ?></p>
+						<?php endif; ?>
+						<table class="widefat striped hal-fd-status" role="presentation">
 						<?php foreach ( self::render_integration_rows() as $row ) : ?>
 							<tr>
 								<th scope="row"><?php echo esc_html( $row['label'] ); ?></th>
