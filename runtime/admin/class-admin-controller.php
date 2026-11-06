@@ -399,7 +399,24 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 		}
 		HAL_Frontend_Dashboard_Integration_Health_Monitor::run_checks();
 		// v1.1.1 (E3): الإحالة لتبويب المصدر (secret_tab) بدل TAB_AI الصلب.
-		self::redirect_back( self::secret_redirect_tab(), is_wp_error( $result ) ? 'secret_failed' : 'secret_saved', $secret_id );
+		// v1.1.2: the store error code maps to a dedicated message key so the
+		// notice names the actual failure reason; unknown codes keep the
+		// generic message below as the fallback (text and behavior intact).
+		if ( is_wp_error( $result ) ) {
+			$code    = $result->get_error_code();
+			$map     = array(
+				'hal_secret_bad_id'            => 'secret_failed_value',
+				'hal_secret_empty_value'       => 'secret_failed_value',
+				'hal_secret_persist_failed'    => 'secret_failed_persist',
+				'hal_secret_store_unavailable' => ( 'sodium_missing' === HAL_Frontend_Dashboard_Secret_Store::get_blocker() )
+					? 'secret_failed_sodium'
+					: 'secret_failed_key',
+			);
+			$message = isset( $map[ $code ] ) ? $map[ $code ] : 'secret_failed';
+		} else {
+			$message = 'secret_saved';
+		}
+		self::redirect_back( self::secret_redirect_tab(), $message, $secret_id );
 	}
 
 	public static function handle_delete_secret(): void {
@@ -828,6 +845,10 @@ final class HAL_Frontend_Dashboard_Admin_Controller {
 			'save_failed'    => array( __( 'Settings were not saved — the submitted values were rejected.', 'hal-frontend-dashboard' ), 'error' ),
 			'secret_saved'   => array( __( 'Secret stored (encrypted).', 'hal-frontend-dashboard' ), 'success' ),
 			'secret_failed'  => array( __( 'The secret was not stored — encrypted storage is blocked or the value was rejected.', 'hal-frontend-dashboard' ), 'error' ),
+			'secret_failed_sodium'  => array( __( 'The secret was not stored — the PHP sodium extension is missing on this server, so encrypted storage is unavailable.', 'hal-frontend-dashboard' ), 'error' ),
+			'secret_failed_key'     => array( __( 'The secret was not stored — no valid external encryption key was found. Set HAL_FRONTEND_DASHBOARD_SECRET_KEY in the environment or wp-config.php (32 raw bytes, 64 hex characters, or base64 of 32 bytes) — see the Status tab.', 'hal-frontend-dashboard' ), 'error' ),
+			'secret_failed_persist' => array( __( 'The secret was not stored — writing the encrypted record to the database failed.', 'hal-frontend-dashboard' ), 'error' ),
+			'secret_failed_value'   => array( __( 'The secret was not stored — the submitted value was rejected (empty or malformed input).', 'hal-frontend-dashboard' ), 'error' ),
 			'secret_deleted' => array( __( 'Secret deleted.', 'hal-frontend-dashboard' ), 'success' ),
 			'secret_missing' => array( __( 'No stored secret matched that id.', 'hal-frontend-dashboard' ), 'error' ),
 			'unknown_secret' => array( __( 'Unknown secret id.', 'hal-frontend-dashboard' ), 'error' ),
