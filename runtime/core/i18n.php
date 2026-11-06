@@ -222,6 +222,11 @@ add_action( 'init', function(): void {
         // جديد خارجها). تُسجَّل آليًا بالبوابة القائمة hossam_i18n_v أعلاه؛
         // الصياغة النهائية بقبول المراجع.
         'التحديث اليدوي', 'جارٍ التحقق من وجود تحديث…', 'تم بدء التحديث اليدوي.',
+        // v1.1.2: the AI assistant card tag and description (posts.php :241/:243)
+        // move from unregistered Arabic __() strings to registered English
+        // hossam_t() sources — same hash-gated mechanism as the batches above.
+        'Optional',
+        'Optional assistant for proofreading, translation and SEO — results appear inside this panel.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
