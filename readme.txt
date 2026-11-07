@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -29,6 +29,13 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.2 =
+* The AI assistant card is fully in English: the "Optional" tag and the card description now use the standard translation helper with English source strings registered for translation.
+* Failed secret saves report the specific reason (missing sodium extension, missing or invalid external key, or a database write failure) instead of one generic message, and the Status tab adds a copy-ready wp-config.php key line with the expected read-back check.
+* Release notes are generated from a neutral version-variable template instead of text pinned to an older release.
+* The security policy states that fixes target the latest stable MINOR line only.
+* Version identity 1.1.2 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 10.
 
 = 1.1.1 =
 * Approved design for the new-article screen: the Write panel is re-wrapped per the approved mockup (two-column shell, title badge, side AI card) while the same block editor is reused as-is; the sidebar and every other panel are untouched.

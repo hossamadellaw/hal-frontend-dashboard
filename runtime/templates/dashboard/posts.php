@@ -238,9 +238,9 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <div class="card hossam-write-ai-card">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">✨</span><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
-            <span class="hossam-write-card-tag"><?php echo esc_html( __( 'اختياري', 'hal-frontend-dashboard' ) ); ?></span>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
-          <p class="hossam-write-card-desc"><?php echo esc_html( __( 'مساعد اختياري للتدقيق والترجمة والسيو — النتائج تظهر داخل هذه اللوحة.', 'hal-frontend-dashboard' ) ); ?></p>
+          <p class="hossam-write-card-desc"><?php echo esc_html( hossam_t( 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ) ); ?></p>
           <div class="filter-bar hossam-write-ai-actions">
             <button type="button" class="btn btn-sm js-ai-run" data-job-type="grammar" data-source="hossam-new-content" data-result="ai-suggestion-result-write"><?php echo esc_html( hossam_t( 'Grammar Check' ) ); ?></button>
             <input type="text" class="filter-select" id="hossam-ai-target-write" maxlength="8" placeholder="<?php echo esc_attr( hossam_t( 'Target language code' ) ); ?>" />

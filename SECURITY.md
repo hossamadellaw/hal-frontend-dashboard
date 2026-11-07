@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes target the latest stable release. The initial release line will be `1.0.x` when it is published; this repository baseline is not a statement that a production release is already deployed.
+Security fixes target the latest stable MINOR release only; earlier release lines are unsupported.
 
 ## Reporting a vulnerability
 

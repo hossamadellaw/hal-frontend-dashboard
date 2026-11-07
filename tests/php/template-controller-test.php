@@ -316,6 +316,41 @@ if ( ! is_resource( $proc ) ) {
 	);
 }
 
+/* T14 — v1.1.2: the AI assistant card speaks the registered English
+ * translation sources. The zero-Arabic-__() rule is scoped to the AI
+ * card block (adopted definition: from the ai-feature gate to its
+ * matching endif); the six legacy Arabic strings outside that block
+ * stay byte-identical — their conversion belongs to the later language
+ * round, and this assertion guards that boundary. */
+hal_tc_check( 'T14-OPTIONAL-TAG',
+	1 === substr_count( $tc_posts, "hossam_t( 'Optional' )" ) && false === strpos( $tc_posts, 'اختياري' ),
+	"the card tag uses hossam_t( 'Optional' ) exactly once and the Arabic tag is gone",
+	'tag source mismatch' );
+hal_tc_check( 'T14-CARD-DESC',
+	false !== strpos( $tc_posts, 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ) && false === strpos( $tc_posts, 'مساعد اختياري' ),
+	'the card description uses the registered English source and the Arabic text is gone',
+	'card description mismatch' );
+$tc_card_start = strpos( $tc_posts, '<?php if ( $hossam_write_ai_on ) : ?>' );
+$tc_card_end   = strpos( $tc_posts, '<?php endif; ?>', (int) $tc_card_start );
+$tc_card_block = is_int( $tc_card_start ) && is_int( $tc_card_end )
+	? substr( $tc_posts, $tc_card_start, $tc_card_end - $tc_card_start + strlen( '<?php endif; ?>' ) )
+	: false;
+hal_tc_check( 'T14-CARD-BLOCK-ENGLISH',
+	is_string( $tc_card_block ) && 0 === preg_match( '/__\(\s*\'[^\']*[\x{0600}-\x{06FF}]/u', $tc_card_block ),
+	'the AI card block carries zero unregistered Arabic __() strings (scoped rule)',
+	'Arabic __() inside the AI card block' );
+hal_tc_check( 'T14-LEGACY-BOUNDARY',
+	6 === preg_match_all( '/__\(\s*\'[^\']*[\x{0600}-\x{06FF}]/u', $tc_posts )
+		&& false !== strpos( $tc_posts, "__( 'سياسة العناوين: H1 محجوز للعنوان الرئيسي حصرًا — متن المقال يبدأ من H2 فأعلى.', 'hal-frontend-dashboard' )" )
+		&& false !== strpos( $tc_posts, "__( 'بوابة الإدارة', 'hal-frontend-dashboard' )" ),
+	'the six legacy Arabic strings outside the card block remain byte-identical',
+	'legacy Arabic strings changed' );
+$tc_i18n = (string) file_get_contents( $project . '/runtime/core/i18n.php' );
+hal_tc_check( 'T14-I18N-SOURCES',
+	false !== strpos( $tc_i18n, "'Optional'," ) && false !== strpos( $tc_i18n, 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ),
+	'the i18n registry lists both English card sources verbatim',
+	'i18n sources missing' );
+
 $pass = 0;
 foreach ( $GLOBALS['HAL_TC_RESULTS'] as $result ) {
 	if ( $result['ok'] ) {
