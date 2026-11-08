@@ -415,10 +415,10 @@ $file_ajax = b14_file_from_FILES( 'file' );
 $result_ajax = call_user_func( $prefilter, $file_ajax );
 b14_check( 'T3-1-ajax-path-over-limit-rejected',
 	isset( $result_ajax['error'] )
-		&& false !== strpos( (string) $result_ajax['error'], 'يتجاوز الحد المسموح' )
+		&& false !== strpos( (string) $result_ajax['error'], 'exceeds the allowed limit' )
 		&& false !== strpos( (string) $result_ajax['error'], 'contract-scan.pdf' )
-		&& false !== strpos( (string) $result_ajax['error'], 'ميغابايت' ),
-	'AJAX path (hossam_upload_file): 9MB rejected with the clear Arabic message carrying the file name and both human sizes',
+		&& false !== strpos( (string) $result_ajax['error'], 'MB' ),
+	'AJAX path (hossam_upload_file): 9MB rejected with the clear message carrying the file name and both human sizes',
 	'AJAX size rejection deviated: ' . var_export( $result_ajax['error'] ?? null, true ) );
 
 $GLOBALS['_FILES']['file'] = array(
@@ -433,9 +433,9 @@ $file_rest = b14_file_from_FILES( 'file' );
 $result_rest = call_user_func( $prefilter, $file_rest );
 b14_check( 'T3-1-rest-path-over-limit-rejected',
 	isset( $result_rest['error'] )
-		&& false !== strpos( (string) $result_rest['error'], 'يتجاوز الحد المسموح' )
+		&& false !== strpos( (string) $result_rest['error'], 'exceeds the allowed limit' )
 		&& false !== strpos( (string) $result_rest['error'], 'rest-media.pdf' ),
-	'REST wp/v2/media path: 10MB rejected by the same single hook with the same Arabic message (one chokepoint, both paths)',
+	'REST wp/v2/media path: 10MB rejected by the same single hook with the same message (one chokepoint, both paths)',
 	'REST size rejection deviated: ' . var_export( $result_rest['error'] ?? null, true ) );
 
 b14_check( 'T3-1-rejection-before-write-and-quota',
@@ -466,8 +466,8 @@ $GLOBALS['_FILES']['file'] = array( 'name' => 'two-k.pdf', 'size' => 2000, 'acti
 $result_small = call_user_func( $prefilter, b14_file_from_FILES( 'file' ) );
 remove_filter( 'hossam_uploads_max_file_size', $small_cb, 10 );
 b14_check( 'T3-1-filter-overrides-down',
-	isset( $result_small['error'] ) && false !== strpos( (string) $result_small['error'], 'يتجاوز الحد المسموح' )
-		&& false !== strpos( (string) $result_small['error'], 'كيلوبايت' ),
+	isset( $result_small['error'] ) && false !== strpos( (string) $result_small['error'], 'exceeds the allowed limit' )
+		&& false !== strpos( (string) $result_small['error'], 'KB' ),
 	'the hossam_uploads_max_file_size filter overrides the cap down (2000B vs 1000 ⇒ rejected, kilobyte wording)',
 	'filter override deviated: ' . var_export( $result_small['error'] ?? null, true ) );
 
@@ -529,8 +529,8 @@ $bad_ajax = call_user_func( $prefilter, b14_file_from_FILES( 'file' ) );
 $GLOBALS['_FILES']['file'] = array( 'name' => 'evil-2.exe', 'size' => 500, 'action' => 'rest_wp_v2_media' );
 $bad_rest = call_user_func( $prefilter, b14_file_from_FILES( 'file' ) );
 b14_check( 'T3-2-forbidden-rejected-both-paths',
-	isset( $bad_ajax['error'] ) && 'نوع الملف غير مسموح.' === $bad_ajax['error']
-		&& isset( $bad_rest['error'] ) && 'نوع الملف غير مسموح.' === $bad_rest['error'],
+	isset( $bad_ajax['error'] ) && 'File type not allowed.' === $bad_ajax['error']
+		&& isset( $bad_rest['error'] ) && 'File type not allowed.' === $bad_rest['error'],
 	'forbidden extension (outside the intersection) rejected on both paths with the identical literal message',
 	'forbidden-path handling deviated: ' . var_export( array( $bad_ajax['error'] ?? null, $bad_rest['error'] ?? null ), true ) );
 
@@ -634,7 +634,7 @@ b14_check( 'T3-3-no-manual-fallback-detection',
 
 /* The alternative behavior is documented in the unit docblock. */
 b14_check( 'T3-3-alternative-behavior-documented',
-	false !== strpos( $rl_src, 'wp_check_filetype_and_ext' ) && false !== strpos( $rl_src, 'السلوك البديل الموثق' ),
+	false !== strpos( $rl_src, 'wp_check_filetype_and_ext' ) && false !== strpos( $rl_src, 'documented fallback behavior' ),
 	'the unit docblock documents the fallback behavior when fileinfo is absent (deep check leans on the stored extension; the deny-list remains)',
 	'docblock documentation missing' );
 

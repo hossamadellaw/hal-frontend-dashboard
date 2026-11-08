@@ -861,11 +861,11 @@ b14_reset();
 $GLOBALS['B14_USER_ID'] = 7;
 $f_big = call_user_func( $prefilter, array( 'name' => 'scan.pdf', 'size' => 9437184 ) );
 b14_check( 'T1-S13-size-reject-arabic-before-write',
-	isset( $f_big['error'] ) && false !== strpos( (string) $f_big['error'], 'يتجاوز الحد المسموح' )
+	isset( $f_big['error'] ) && false !== strpos( (string) $f_big['error'], 'exceeds the allowed limit' )
 		&& false !== strpos( (string) $f_big['error'], 'scan.pdf' )
-		&& false !== strpos( (string) $f_big['error'], 'ميغابايت' )
+		&& false !== strpos( (string) $f_big['error'], 'MB' )
 		&& ! isset( $GLOBALS['B14_TRANSIENTS']['hossam_rl_upload_7'] ),
-	'9MB file rejected with the Arabic size message (name + sizes included) before any counter consumption or file write',
+	'9MB file rejected with the size message (name + sizes included) before any counter consumption or file write',
 	'size rejection deviated: ' . var_export( $f_big['error'] ?? null, true ) );
 
 /* Size limit value itself passes (8388608 is not > 8388608). */
@@ -880,7 +880,7 @@ b14_reset();
 $GLOBALS['B14_USER_ID'] = 7;
 $f_exe = call_user_func( $prefilter, array( 'name' => 'evil.exe', 'size' => 100 ) );
 b14_check( 'T1-S13-ext-reject',
-	isset( $f_exe['error'] ) && 'نوع الملف غير مسموح.' === $f_exe['error']
+	isset( $f_exe['error'] ) && 'File type not allowed.' === $f_exe['error']
 		&& ! isset( $GLOBALS['B14_TRANSIENTS']['hossam_rl_upload_7'] ),
 	'extension outside the unified intersection rejected with the literal message, zero quota consumed',
 	'extension rejection deviated: ' . var_export( $f_exe['error'] ?? null, true ) );
