@@ -2,30 +2,32 @@
 /**
  * runtime/core/i18n.php
  * ══════════════════════════════════════════════════════════════
- * الدور: كل ما يخص الترجمة عبر WPML String Translation — الدالة
- * المساعدة، تسجيل النصوص، ومصدر واحد لمصفوفة i18n المُرسَلة لـJS.
+ * Role: everything WPML String Translation related — the helper function,
+ * string registration, and the single source of the i18n array sent to JS.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/core/i18n.php
- * (الدفعة 2 من HAL Frontend Dashboard) — بلا أي تغيير في المفاتيح أو
- * القيم أو نصوص التسجيل:
- *   - hossam_t() كما هي.
- *   - تسجيل نصوص WPML عبر icl_register_string() باسم context
- *     'hossam-dashboard' (hook init، priority 5) مع منطق الـmd5 hash
- *     لمنع إعادة التسجيل غير الضرورية — كما هو.
- *   - hossam_get_i18n_strings() كاملة بكل المفاتيح (الأصلية + مفاتيح
- *     T-31 الثمانية والعشرين + إضافات الدفعات) دون أي تغيير.
+ * Source: a verbatim 1:1 move from legacy mu-plugins/hossam-dashboard/core/i18n.php
+ * (batch 2 of HAL Frontend Dashboard) — with no change to the keys, values or
+ * registration texts at that time:
+ *   - hossam_t() as it was.
+ *   - WPML string registration via icl_register_string() under the context
+ *     name 'hossam-dashboard' (init hook, priority 5) with the md5 hash logic
+ *     preventing unnecessary re-registration — as it was.
+ *   - hossam_get_i18n_strings() complete with all keys (the originals + the
+ *     twenty-eight T-31 keys + the batch additions) without any change then.
  *
- * قرار text domain مؤجَّل (موثَّق لعروضه على المالك): تسجيل WPML عبر
- * icl_register_string() لا يعتمد على text domain أصلًا، والقيم الحرفية
- * للنصوص لا تتغير في هذه الدفعة. استبدال text domain لسلاسل الواجهة
- * (__('...','astra-child') المتبقية في runtime) مؤجَّل إلى دفعة القوالب
- * حيث تُقرَّر الواجهة الجديدة — لا يتغير أي نص معروض هنا.
+ * Text-domain decision (documented for its owner presentations): WPML
+ * registration via icl_register_string() does not depend on a text domain at
+ * all. In this release the text domain of the interface strings was unified —
+ * the remaining __() calls in runtime now use 'hal-frontend-dashboard' (no
+ * 'astra-child' remains in runtime), and the changed keys/values above are
+ * re-registered through the same hash-gated mechanism.
  *
- * [وسم دلتا — H4 §2.4-D1 | docblock حصرًا — صفر تغيير سلوك] (OEB/7):
- * تكامل String Translation قائم وهو آلية الإضافة ذاتها
- * (icl_register_string :218 / icl_t :33)؛ text domain محسوم (تسجيل
- * WPML لا يعتمده؛ سلاسل __() الـ109 على نطاق القالب الابن عمدًا)؛
- * الوصفة المستقبلية موثقة H4 §2.1-6 وتفتح بقرار مالك فقط.
+ * [Delta tag — H4 §2.4-D1 | docblock only — zero behavior change] (OEB/7):
+ * the String Translation integration was existing and is the plugin's own
+ * mechanism (icl_register_string :218 / icl_t :33); the text domain was
+ * then settled (WPML registration does not depend on it; the 109 __()
+ * strings sat on the child-theme domain deliberately at that time); the
+ * future recipe is documented in H4 §2.1-6 and opens by owner decision only.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -131,9 +133,10 @@ add_action( 'init', function(): void {
         'Order %s status changed to: %s',
         'Translating…', 'Try again', 'Could not create translation.', 'Unable to load schedule.',
         'WPML not active.', 'Invalid language.',
-        // مفاتيح الوحدات الناقصة (T-31) — القيم الحرفية مطابقة لقيم
-        // fallback فى modules/*.js حرفيًا.
-        // (النصوص: Status/Name/Email/Role/Product/Price/Stock مسجَّلة بالفعل أعلاه)
+        // Missing-module keys (T-31) — the literals match the fallback values
+        // in modules/*.js verbatim.
+        // (The Status/Name/Email/Role/Product/Price/Stock texts are already
+        // registered above.)
         'Delete failed', 'Disabled', 'Enabled', 'File deleted',
         'This Month',
         'No appointments yet.',
@@ -147,13 +150,14 @@ add_action( 'init', function(): void {
         'Card', 'Expires', 'Ending in',
         'Restore', 'Restore failed',
         'Translation created', 'Translation failed',
-        // نصوص تعديلات الدفعة الثانية التاريخية — جدول الصحة العام
-        // (admin.php)، نموذج تحرير SEO (قالب seo.php)، وتأكيد الحذف/الصفحات.
+        // Historic second-batch edits texts — the general health table
+        // (admin.php), the SEO edit form (the seo.php template), and the
+        // delete confirmations/pages.
         'Integrations Health', 'Version', 'Capabilities', 'Reason',
         'Edit SEO', 'Focus Keyword', 'Meta Description', 'Robots',
         'Save SEO', 'SEO settings saved.', 'Cancel',
         'Delete this file permanently?', 'Load more',
-        // نماذج أصلية وfallback للدفعة التاريخية — Core-first (Posts + Upload)
+        // Native forms and fallback for the historic batch — Core-first (Posts + Upload)
         'Content', 'Categories', 'Save Article',
         'Move this article to trash?', 'Moved to trash.',
         'Move “%s” to trash?', 'Move to Trash',
@@ -161,12 +165,12 @@ add_action( 'init', function(): void {
         'File', 'File uploaded.',
         'Allowed types: images, PDF, and Office documents.',
         'Legacy uploader unavailable.',
-        // v1.0.5 (A2+B): excerpt + featured image + keep-categories disclosure.
+        // v1.0.5 (A2+B): excerpt + featured image + the keep-categories disclosure.
         'Excerpt', 'Featured Image', 'Set featured image',
         'Leave all unchecked to keep the current categories.',
         // v1.0.6 §11 (P2): only strings actually rendered now (P1) — no slug,
         // no Gutenberg/WordPress copies. 'View'/'Edit' already registered above (:74).
-        'Remove featured image', 'Permalink', 'مؤقت — النهائي عند النشر', 'Preview',
+        'Remove featured image', 'Permalink', 'Temporary — final on publish', 'Preview',
         // v1.0.6 §9 (§11): HAL-owned rich-editor strings only — failure notice
         // + upload-failure message. WordPress/Gutenberg UI is translated by
         // its own packages; nothing is copied here.
@@ -179,8 +183,9 @@ add_action( 'init', function(): void {
         'You do not have permission to create this translation.',
         'You do not have permission to edit this translation.',
         'This translation does not belong to the requested article.',
-        // v1.0.7 REC-5 (5.1): كل سلاسل hossam_t() الحرفية المتبقية في runtime
-        // (قوالب + ajax) — قائمة الفجوة المرصودة (118 سلسلة — جرد PHP 8.4).
+        // v1.0.7 REC-5 (5.1): every remaining literal hossam_t() string in
+        // runtime (templates + ajax) — the observed gap list (118 strings — a
+        // PHP 8.4 inventory).
         'AI Writing Assistant', 'API', 'API Key', 'About',
         'Account settings are unavailable.', 'Active', 'Active languages on this site:', 'Additional links',
         'Advanced SEO Dashboard', 'All Members', 'All Posts', 'All articles have a focus keyword set.',
@@ -211,17 +216,19 @@ add_action( 'init', function(): void {
         'Translation editing is managed through the site administration area.', 'Translation management', 'Trash is empty.', 'Ultimate Member status',
         'Unreachable', 'Upload', 'User Management', 'WooCommerce status',
         'You do not have permission to view appointments.', 'You do not have permission to view products.',
-        // v1.0.7 REC-5 (5.2): نصوص مفاتيح JS الجديدة التي لا نظير مسجَّل لها
-        // (الباقي منها مسجَّل أعلاه ضمن كتلة 5.1 حرفيًا؛ وloadFailed مستبعد من
-        // الخريطة بموافقة المالك — يبقى fallback-only بلا نص جديد).
+        // v1.0.7 REC-5 (5.2): texts of the new JS keys with no registered
+        // counterpart (the rest of them registered above within the 5.1 block
+        // verbatim; loadFailed excluded from the map by owner approval — it
+        // stays fallback-only with no new text).
         'AI is working on it…', 'Could not start the AI request.', 'The AI request took too long. Please try again.',
         'AI request failed.', 'No suggestion returned.', 'AI suggestion', 'Apply', 'Dismiss',
         'Invalid server response', 'Appointment integration is unavailable.', 'Request failed',
-        // v1.1.0 OEB/7 (H1 §6-8): مفاتيح OEB الثلاثة الوريثة — زر/dialog/toast
-        // التحديث اليدوي (إلزامية: عقد assets-test يمنع أي fallback inline
-        // جديد خارجها). تُسجَّل آليًا بالبوابة القائمة hossam_i18n_v أعلاه؛
-        // الصياغة النهائية بقبول المراجع.
-        'التحديث اليدوي', 'جارٍ التحقق من وجود تحديث…', 'تم بدء التحديث اليدوي.',
+        // v1.1.0 OEB/7 (H1 §6-8): the three inherited OEB keys — the manual
+        // update button/dialog/toast (binding: the assets-test contract
+        // forbids any new inline fallback beyond them). Registered
+        // automatically through the existing hossam_i18n_v gate above; the
+        // final wording accepted via T-1.
+        'Manual update', 'Checking for updates…', 'Manual update started.',
         // v1.1.2: the AI assistant card tag and description (posts.php :241/:243)
         // move from unregistered Arabic __() strings to registered English
         // hossam_t() sources — same hash-gated mechanism as the batches above.
@@ -312,9 +319,9 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'translateFailed'     => hossam_t('Could not create translation.'),
             'scheduleLoadFailed'  => hossam_t('Unable to load schedule.'),
 
-            // مفاتيح الوحدات الناقصة (T-31 التاريخي). كل قيمة هنا
-            // مطابقة حرفيًا لنص fallback فى الاستدعاء الفعلي داخل
-            // modules/*.js حتى لا يتغير أي نص معروض قبل الترجمة الحية.
+            // Missing-module keys (historic T-31). Every value here matches
+            // the fallback text in the actual call inside modules/*.js
+            // verbatim so no displayed text changes before live translation.
             'deleteFailed'        => hossam_t('Delete failed'),        // uploads.js
             'disabled'            => hossam_t('Disabled'),             // finance.js
             'enabled'             => hossam_t('Enabled'),              // finance.js
@@ -344,20 +351,20 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'translationCreated'  => hossam_t('Translation created'),  // posts.js
             'translationFailed'   => hossam_t('Translation failed'),   // posts.js
 
-            // مفاتيح التعديلات (الدفعة الثانية التاريخية).
-            // القيم مطابقة حرفيًا لقيم fallback فى الاستدعاءات الفعلية.
+            // The edits keys (the historic second batch).
+            // Values match the fallback values in the actual calls verbatim.
             'confirmDeleteFile'   => hossam_t('Delete this file permanently?'), // uploads.js
             'loadMore'            => hossam_t('Load more'),                     // uploads.js
-            'editSeo'             => hossam_t('Edit SEO'),                      // قالب seo.php (inline)
-            'metaDescription'     => hossam_t('Meta Description'),              // قالب seo.php (inline)
-            'robots'              => hossam_t('Robots'),                        // قالب seo.php (inline)
-            'saveSeo'             => hossam_t('Save SEO'),                      // قالب seo.php (inline)
-            'seoSaved'            => hossam_t('SEO settings saved.'),           // قالب seo.php (inline)
+            'editSeo'             => hossam_t('Edit SEO'),                      // seo.php template (inline)
+            'metaDescription'     => hossam_t('Meta Description'),              // seo.php template (inline)
+            'robots'              => hossam_t('Robots'),                        // seo.php template (inline)
+            'saveSeo'             => hossam_t('Save SEO'),                      // seo.php template (inline)
+            'seoSaved'            => hossam_t('SEO settings saved.'),           // seo.php template (inline)
 
-            // الدفعة التاريخية — Core-first (Posts + Upload)
-            'content'             => hossam_t('Content'),                       // posts.js + قالب posts.php
-            'categories'          => hossam_t('Categories'),                    // قالب posts.php
-            'saveArticle'         => hossam_t('Save Article'),                  // قالب posts.php
+            // The historic batch — Core-first (Posts + Upload)
+            'content'             => hossam_t('Content'),                       // posts.js + posts.php template
+            'categories'          => hossam_t('Categories'),                    // posts.php template
+            'saveArticle'         => hossam_t('Save Article'),                  // posts.php template
             'draftSaved'          => hossam_t('Draft saved'),                   // posts.js
             'submittedReview'     => hossam_t('Submitted for review'),          // posts.js
             'published'           => hossam_t('Published'),                     // posts.js
@@ -365,13 +372,13 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'confirmTrashArticle' => hossam_t('Move this article to trash?'),   // posts.js
             'movedToTrash'        => hossam_t('Moved to trash.'),               // posts.js
             'fallbackNotice'      => hossam_t('Opening the legacy form due to a technical issue.'), // posts.js + uploads.js
-            'fileLabel'           => hossam_t('File'),                          // قالب files.php
+            'fileLabel'           => hossam_t('File'),                          // files.php template
             'fileUploaded'        => hossam_t('File uploaded.'),                // uploads.js
-            'moveToTrashBtn'      => hossam_t('Move to Trash'),                 // قالب posts.php (زر)
-            // v1.0.5 (A2+B) — القيم مطابقة حرفيًا لنصوص fallback في الاستدعاءات الفعلية.
-            'excerptLabel'        => hossam_t('Excerpt'),                        // قالب posts.php
-            'featuredImage'       => hossam_t('Featured Image'),                // posts.js + قالب posts.php
-            'setFeaturedImage'    => hossam_t('Set featured image'),            // posts.js + قالب posts.php
+            'moveToTrashBtn'      => hossam_t('Move to Trash'),                 // posts.php template (button)
+            // v1.0.5 (A2+B) — values match the fallback texts in the actual calls verbatim.
+            'excerptLabel'        => hossam_t('Excerpt'),                        // posts.php template
+            'featuredImage'       => hossam_t('Featured Image'),                // posts.js + posts.php template
+            'setFeaturedImage'    => hossam_t('Set featured image'),            // posts.js + posts.php template
             // v1.0.6 §11: JS keys match posts.js fallbacks literally (P1-visible only).
             'removeFeaturedImage' => hossam_t('Remove featured image'),   // posts.js
             'viewLink'            => hossam_t('View'),                     // posts.js
@@ -384,11 +391,13 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             // posts.js match these values literally.
             'richEditorUnavailable' => hossam_t('Rich editor unavailable — using the plain text field.'), // posts.js
             'richUploadFailed'  => hossam_t('Media upload failed.'), // posts.js
-            'keepCategoriesNote'  => hossam_t('Leave all unchecked to keep the current categories.'), // قالب posts.php
-            // v1.0.7 REC-5 (5.2): مفاتيح t() الـ14 المعرَّفة — القيم مطابقة
-            // حرفيًا لنصوص fallback في ملفات JS (والجديدة منها مسجَّلة أعلاه).
-            // loadFailed مستبعد بقرار مالك — يبقى fallback-only (انظر المخاطر).
-            // ملفات JS لا تُلمس إطلاقًا.
+            'keepCategoriesNote'  => hossam_t('Leave all unchecked to keep the current categories.'), // posts.php template
+            // v1.0.7 REC-5 (5.2): the fourteen defined t() keys — values match
+            // the fallback texts in the JS files verbatim (and the new ones
+            // registered above).
+            // loadFailed excluded by owner decision — stays fallback-only (see
+            // the risks).
+            // JS files are never touched.
             'aiThinking'             => hossam_t('AI is working on it…'),                        // ai.js:58
             'aiSubmitFailed'         => hossam_t('Could not start the AI request.'),             // ai.js:77
             'aiTimeout'              => hossam_t('The AI request took too long. Please try again.'), // ai.js:124
@@ -397,19 +406,19 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'aiSuggestion'           => hossam_t('AI suggestion'),                               // ai.js:170
             'aiApply'                => hossam_t('Apply'),                                       // ai.js:173
             'aiDismiss'              => hossam_t('Dismiss'),                                     // ai.js:174
-            'contractError'          => hossam_t('Invalid server response'),                     // bookings.js:42,59؛ inbox.js:49,80,160؛ members.js:52,54
+            'contractError'          => hossam_t('Invalid server response'),                     // bookings.js:42,59; inbox.js:49,80,160; members.js:52,54
             'forbidden'              => hossam_t('You do not have permission to view appointments.'), // bookings.js:52
             'integrationUnavailable' => hossam_t('Appointment integration is unavailable.'),     // bookings.js:53
-            'requestFailed'          => hossam_t('Request failed'),                              // inbox.js:51؛ members.js:53
-            'allFocusKeywords'       => hossam_t('All articles have a focus keyword set.'),      // seo.php:306 (JS مضمّن)
-            'noNoindexArticles'      => hossam_t('No noindex articles.'),                        // seo.php:307 (JS مضمّن)
+            'requestFailed'          => hossam_t('Request failed'),                              // inbox.js:51; members.js:53
+            'allFocusKeywords'       => hossam_t('All articles have a focus keyword set.'),      // seo.php:306 (inline JS)
+            'noNoindexArticles'      => hossam_t('No noindex articles.'),                        // seo.php:307 (inline JS)
 
-            // v1.1.0 OEB/7 (H1 §6-8): مفاتيح OEB الثلاثة الوريثة — زر/dialog/toast
-            // التحديث اليدوي. النصوص عربية وظيفية موجزة والمصدر الحرفي مسجَّل
-            // أعلاه في القائمة (الصياغة النهائية بقبول المراجع).
-            'oeb_open'               => hossam_t('التحديث اليدوي'),                   // زر فتح dialog التحديث اليدوي
-            'oeb_dialog_status'      => hossam_t('جارٍ التحقق من وجود تحديث…'),        // سطر حالة dialog التحديث اليدوي
-            'oeb_manual_update'      => hossam_t('تم بدء التحديث اليدوي.'),           // toast بدء التحديث اليدوي
+            // v1.1.0 OEB/7 (H1 §6-8): the three inherited OEB keys — the manual
+            // update button/dialog/toast. The literal sources registered above
+            // in the strings list (final wording accepted via T-1).
+            'oeb_open'               => hossam_t('Manual update'),                    // the manual-update dialog open button
+            'oeb_dialog_status'      => hossam_t('Checking for updates…'),            // the manual-update dialog status line
+            'oeb_manual_update'      => hossam_t('Manual update started.'),           // the manual-update started toast
         ];
     }
 }
