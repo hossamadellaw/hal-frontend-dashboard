@@ -1,44 +1,49 @@
 <?php
 /**
- * runtime/adapters/ai.php (الدفعة 4)
+ * runtime/adapters/ai.php (batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: Registry وDispatcher مقيَّدان للذكاء الاصطناعي (المرجع الموحد
- * §7.4 حرفيًا) — الاستراتيجيتان المعتمدتان فقط: wp_ai_client وdirect_key.
+ * Role: a tightly bound AI Registry and Dispatcher (the unified reference
+ * §7.4 verbatim) — the two approved strategies only: wp_ai_client and
+ * direct_key.
  *
- * المصدر: نقل من legacy mu-plugins/hossam-dashboard/adapters/ai.php
- * (الدفعة 4 من HAL Frontend Dashboard) — التعديلات المصرَّح بها وحدها
- * (عقد credential/إعداد الدفعة 3 المعتمد):
- *   - hossam_ai_get_preference(): تقرأ تفضيل الاستراتيجية من
- *     HAL_Frontend_Dashboard_Settings_Repository (المالك المعتمد
- *     للإعداد — enum مغلق مطابق)؛ خارج ترتيب التحميل الطبيعي يبقى
- *     خيار legacy 'hossam_ai_preference' fallback محميًا.
- *   - hossam_ai_set_preference(): تكتب عبر repository save() في ترتيب
- *     التحميل الطبيعي (مسار كتابة واحد — §8.3)؛ خارج طبقة الدفعة 3
- *     يبقى خيار legacy محميًا بحارس class_exists — بنفس توقيع bool
- *     التاريخي.
- *   - hossam_ai_direct_key_ready(): بوابة إعداد المزود (الثابت
- *     HOSSAM_AI_PROVIDER) + وجود السر المشفر ai_direct_key في
- *     HAL Secret Store عبر has() حصرًا — بلا فك تشفير (تُستدعى من
- *     resolve_strategy في مسارات عرض/صحة). غياب السر ليس قرارًا هنا:
- *     مراقب الصحة يبلّغه بكود direct_key_secret_missing المغلق.
- *   - hossam_ai_resolve_strategy(): التفضيل الصريح direct_key مرفوض
- *     بكود hossam_ai_direct_key_not_fallback عند توفر قدرة WP AI
- *     Client (fallback فقط — المعمارية §7.6)؛ لا انتقال صامت لمزود
- *     آخر بعد بدء تنفيذ فعلي، وحسم الاستراتيجية عند submit وحده.
- *   - hossam_ai_connector_source_status(): حالة مصدر Connector غير
- *     حساسة (capable/source/reason) بلا المفتاح؛ التعذر عبر
- *     no_source_contract عند غياب عقد كاشف.
- *   - hossam_ai_allowed_models(): allowlist ثابتة (gemini-1.5-flash)؛
- *     غير المدرج مرفوض بكود hossam_ai_unsupported_model قبل الاتصال.
- *   - hossam_ai_get_provider_config(): provider/model من الثوابت كما
- *     هو، والمفتاح من HAL encrypted fallback حصرًا (قرار المالك §2.4:
- *     «direct_key المشفر fallback فقط» + RG3: allowlist المزود ملك
- *     هذا المحول). قناة HOSSAM_AI_API_KEY الثابتة للمفتاح استُبدلت
- *     بالمخزن المشفر؛ فشل فك السر يفشل مغلقًا بكود منقح بلا قيمة.
- *   - المنفِّذان والمطالبات وverify_* كما هي حرفيًا: endpoint ثابت،
- *     المفتاح في ترويسة x-goog-api-key فقط (لا query/body/log)،
- *     بلا streaming/embeddings، بلا fallback بين المزودين بعد بدء
- *     تنفيذ فعلي، وحسم الاستراتيجية عند submit وحده.
+ * Source: moved from legacy mu-plugins/hossam-dashboard/adapters/ai.php
+ * (batch 4 of HAL Frontend Dashboard) — the declared edits alone (the
+ * approved batch-3 credential/setup contract):
+ *   - hossam_ai_get_preference(): reads the strategy preference from
+ *     HAL_Frontend_Dashboard_Settings_Repository (the approved owner of the
+ *     setting — a closed matching enum); outside the natural load order the
+ *     legacy 'hossam_ai_preference' option remains the protected fallback.
+ *   - hossam_ai_set_preference(): writes via the repository save() in the
+ *     natural load order (one write path — §8.3); outside the batch-3 layer
+ *     the legacy option remains protected with a class_exists guard — with
+ *     the same historic bool signature.
+ *   - hossam_ai_direct_key_ready(): the provider setup gate (the constant
+ *     HOSSAM_AI_PROVIDER) + the encrypted secret ai_direct_key existing in
+ *     the HAL Secret Store via has() only — no decryption (called from
+ *     resolve_strategy in display/health paths). A missing secret is not a
+ *     decision here: the health monitor reports it with the closed
+ *     direct_key_secret_missing code.
+ *   - hossam_ai_resolve_strategy(): an explicit direct_key preference is
+ *     rejected with the hossam_ai_direct_key_not_fallback code when a WP AI
+ *     Client capability is available (fallback only — architecture §7.6);
+ *     no silent switch to another provider after actual execution starts,
+ *     and the strategy is settled at submit alone.
+ *   - hossam_ai_connector_source_status(): non-sensitive Connector source
+ *     status (capable/source/reason) without the key; undetermined via
+ *     no_source_contract when no detector contract exists.
+ *   - hossam_ai_allowed_models(): a fixed allowlist (gemini-1.5-flash);
+ *     anything unlisted is rejected with the hossam_ai_unsupported_model
+ *     code before the call.
+ *   - hossam_ai_get_provider_config(): provider/model from the constants
+ *     as-is, and the key from the HAL encrypted fallback only (owner
+ *     decision §2.4: "the encrypted direct_key as fallback only" + RG3: the
+ *     provider allowlist belongs to this adapter). The HOSSAM_AI_API_KEY
+ *     constant channel for the key was replaced by the encrypted store; a
+ *     secret-decrypt failure fails closed with a refined code and no value.
+ *   - The two executors, the prompt builders and verify_* as-is verbatim:
+ *     fixed endpoint, the key in the x-goog-api-key header only (no query/
+ *     body/log), no streaming/embeddings, no cross-provider fallback after
+ *     actual execution starts, and the strategy settled at submit alone.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -47,13 +52,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 1) فحص القدرة المعتمد + جاهزية direct_key
+// 1) The approved capability check + direct_key readiness
 // ══════════════════════════════════════════════════════════════
 
 /**
- * فحص القدرة المعتمد حرفيًا — محلي، بلا API call، بلا transient.
- * الحراسة الدفاعية (method_exists/is_object) تفصل حالة «الدالة موجودة
- * لكن عقد الـConnector مختلف» عن الفشل الصامت دون تغيير دلالة الفحص.
+ * The approved capability check verbatim — local, no API call, no transient.
+ * The defensive guards (method_exists/is_object) separate the state "the
+ * function exists but the Connector contract differs" from a silent failure
+ * without changing the check's semantics.
  */
 if ( ! function_exists( 'hossam_ai_wp_client_supported' ) ) {
 	function hossam_ai_wp_client_supported(): bool {
@@ -71,9 +77,10 @@ if ( ! function_exists( 'hossam_ai_wp_client_supported' ) ) {
 }
 
 /**
- * جاهزية direct_key: المزود مهيأ (ثابت موثق) والسر المشفر موجود في
- * HAL Secret Store — has() بلا فك تشفير. قراءة القيمة نفسها وقت
- * التنفيذ فقط عبر hossam_ai_get_provider_config().
+ * direct_key readiness: the provider is configured (a documented constant)
+ * and the encrypted secret exists in the HAL Secret Store — has() with no
+ * decryption. Reading the value itself happens at execution time only via
+ * hossam_ai_get_provider_config().
  */
 if ( ! function_exists( 'hossam_ai_direct_key_ready' ) ) {
 	function hossam_ai_direct_key_ready(): bool {
@@ -92,15 +99,15 @@ if ( ! function_exists( 'hossam_ai_direct_key_ready' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 2) الـRegistry — allow-list ثابت + توسعة مقيدة بالفلتر الرسمي
+// 2) The Registry — a fixed allow-list + extension bound to the official filter
 // ══════════════════════════════════════════════════════════════
 
 if ( ! function_exists( 'hossam_ai_base_strategies' ) ) {
-	/**
-	 * القائمة الثابتة — لا يزيلها الفلتر ولا يستبدل callbacks الخاصة بها.
-	 *
-	 * @return array<string,array{label:string,callback:callable,timeout:int}>
-	 */
+		/**
+		 * The fixed list — no filter removes it or replaces its callbacks.
+		 *
+		 * @return array<string,array{label:string,callback:callable,timeout:int}>
+		 */
 	function hossam_ai_base_strategies(): array {
 		$profile = hossam_ai_get_runtime_profile();
 		if ( is_wp_error( $profile ) ) {
@@ -123,12 +130,13 @@ if ( ! function_exists( 'hossam_ai_base_strategies' ) ) {
 }
 
 if ( ! function_exists( 'hossam_ai_get_strategies' ) ) {
-	/**
-	 * الـRegistry الفعلي: الأساس الثابت + ما يضيفه الفلتر من PHP موثوق،
-	 * بعد تنقية صارم (مفتاح نصي، callback قابل للاستدعاء، timeout محدود).
-	 *
-	 * @return array<string,array{label:string,callback:callable,timeout:int}>
-	 */
+		/**
+		 * The effective Registry: the fixed base + whatever trusted PHP adds via
+		 * the filter, after strict sanitization (a string key, a callable
+		 * callback, a bounded timeout).
+		 *
+		 * @return array<string,array{label:string,callback:callable,timeout:int}>
+		 */
 	function hossam_ai_get_strategies(): array {
 		$base = hossam_ai_base_strategies();
 		if ( empty( $base ) ) {
@@ -137,7 +145,7 @@ if ( ! function_exists( 'hossam_ai_get_strategies' ) ) {
 
 		$clean = [];
 
-		// التوسعة أولًا من الفلتر (PHP موثوق فقط)، ثم التنقية.
+		// Extension first from the filter (trusted PHP only), then sanitization.
 		foreach ( (array) apply_filters( 'hossam_ai_strategies', [] ) as $key => $entry ) {
 			if ( ! is_string( $key ) || '' === $key || ! is_array( $entry ) ) {
 				continue;
@@ -156,7 +164,7 @@ if ( ! function_exists( 'hossam_ai_get_strategies' ) ) {
 			];
 		}
 
-		// الأساس الثابت يُفرض أخيرًا: لا حذف ولا عطل بفلتر مخالف.
+		// The fixed base is enforced last: no deletion or breakage by a violating filter.
 		foreach ( $base as $key => $entry ) {
 			$clean[ $key ] = $entry;
 		}
@@ -166,7 +174,7 @@ if ( ! function_exists( 'hossam_ai_get_strategies' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 3) التفضيل — عبر Settings Repository (المالك المعتمد للإعداد)
+// 3) The preference — via the Settings Repository (the approved owner of the setting)
 // ══════════════════════════════════════════════════════════════
 
 if ( ! function_exists( 'hossam_ai_allowed_preferences' ) ) {
@@ -184,7 +192,7 @@ if ( ! function_exists( 'hossam_ai_get_preference' ) ) {
 			return HAL_Frontend_Dashboard_Settings_Repository::get_ai_preference();
 		}
 
-		// خارج ترتيب التحميل الطبيعي (طبقة الدفعة 3 غائبة): خيار legacy.
+		// Outside the natural load order (the batch-3 layer absent): the legacy option.
 		$pref = (string) get_option( 'hossam_ai_preference', 'auto' );
 		return in_array( $pref, hossam_ai_allowed_preferences(), true ) ? $pref : 'auto';
 	}
@@ -192,9 +200,9 @@ if ( ! function_exists( 'hossam_ai_get_preference' ) ) {
 
 if ( ! function_exists( 'hossam_ai_set_preference' ) ) {
 	/**
-	 * الكتابة الفعلية للتفضيل عبر repository save() حصرًا (مسار كتابة
-	 * واحد — §8.3). المتصل (endpoint الإدارة) هو من يفرض nonce +
-	 * capability؛ هذه الدالة تفرض النظافة والسماح فقط.
+	 * The actual preference write via the repository save() only (one write
+	 * path — §8.3). The caller (the admin endpoint) is what enforces nonce +
+	 * capability; this function enforces sanitization and the allowlist only.
 	 */
 	function hossam_ai_set_preference( string $preference ): bool {
 		$preference = sanitize_key( $preference );
@@ -210,20 +218,20 @@ if ( ! function_exists( 'hossam_ai_set_preference' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 4) حسم الاستراتيجية عند submit — بلا أي انتقال بين المزودين
+// 4) Strategy resolution at submit — no switching between providers at all
 // ══════════════════════════════════════════════════════════════
 
 if ( ! function_exists( 'hossam_ai_resolve_strategy' ) ) {
-	/**
-	 * @return string|WP_Error strategy_id غير الحساس، أو WP_Error فشل آمن.
-	 */
+		/**
+		 * @return string|WP_Error The non-sensitive strategy_id, or a fail-safe WP_Error.
+		 */
 	function hossam_ai_resolve_strategy( ?string $preference = null ) {
 		$preference = $preference ?: hossam_ai_get_preference();
 		$strategies = hossam_ai_get_strategies();
 		if ( empty( $strategies ) ) {
 			return new WP_Error(
 				'hossam_ai_unavailable',
-				__( 'AI assistance is unavailable in this environment.', 'astra-child' )
+				__( 'AI assistance is unavailable in this environment.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -232,7 +240,7 @@ if ( ! function_exists( 'hossam_ai_resolve_strategy' ) ) {
 				if ( ! isset( $strategies['wp_ai_client'] ) || ! hossam_ai_wp_client_supported() ) {
 					return new WP_Error(
 						'hossam_ai_unavailable',
-						__( 'WordPress AI Client text generation is not available.', 'astra-child' )
+						__( 'WordPress AI Client text generation is not available.', 'hal-frontend-dashboard' )
 					);
 				}
 				return 'wp_ai_client';
@@ -241,13 +249,13 @@ if ( ! function_exists( 'hossam_ai_resolve_strategy' ) ) {
 			if ( ! isset( $strategies['direct_key'] ) || ! hossam_ai_direct_key_ready() ) {
 				return new WP_Error(
 					'hossam_ai_unavailable',
-					__( 'The direct AI provider key is not configured.', 'astra-child' )
+					__( 'The direct AI provider key is not configured.', 'hal-frontend-dashboard' )
 				);
 			}
 			if ( hossam_ai_wp_client_supported() ) {
 				return new WP_Error(
 					'hossam_ai_direct_key_not_fallback',
-					__( 'The direct provider key is only a fallback when no WordPress AI Client capability is available.', 'astra-child' )
+					__( 'The direct provider key is only a fallback when no WordPress AI Client capability is available.', 'hal-frontend-dashboard' )
 				);
 			}
 			return 'direct_key';
@@ -262,36 +270,38 @@ if ( ! function_exists( 'hossam_ai_resolve_strategy' ) ) {
 				}
 				return new WP_Error(
 					'hossam_ai_no_provider',
-					__( 'No AI provider is currently available.', 'astra-child' )
+					__( 'No AI provider is currently available.', 'hal-frontend-dashboard' )
 				);
 		}
 	}
 }
 
 if ( ! function_exists( 'hossam_ai_interface_available' ) ) {
-	/**
-	 * بوابة العرض الخادمية لواجهة Posts: هل توجد استراتيجية صالحة الآن؟
-	 * (إظهار الأزرار شرطٌ عرضي فقط — التفويض يعاد في كل endpoint.)
-	 */
+		/**
+		 * The server-side display gate for the Posts interface: is there a
+		 * valid strategy now? (Showing the buttons is a display condition
+		 * only — authorization is re-enforced on every endpoint.)
+		 */
 	function hossam_ai_interface_available(): bool {
 		return ! is_wp_error( hossam_ai_resolve_strategy() );
 	}
 }
 
 if ( ! function_exists( 'hossam_ai_connector_source_status' ) ) {
-	/**
-	 * حالة مصدر اعتماد Connector غير حساسة (عقد الدفعة 4 — المعمارية §15):
-	 * قدرة text generation ومصدر الاعتماد الفعلي، بلا نسخ المفتاح أو
-	 * كشفه. لا يستخدم version check ولا يجري API call. السطح المثبت
-	 * المستشار وحده هو `wp_ai_client_prompt()` مع
-	 * `is_supported_for_text_generation()` (Owner §2.6) — قدرة فقط
-	 * بلا حقل مصدر؛ لذا `undetermined/no_source_contract` هي القيمة
-	 * الصادقة الوحيدة دون قراءة السر. لا تُخترع أسماء
-	 * Environment/constants ولا يُكتفى بالتحذير العام.
-	 *
-	 * @return array{capable:bool,source:string,reason:string} source:
-	 *         none|undetermined (التوسعة Change Request مستقل).
-	 */
+		/**
+		 * Non-sensitive Connector credential source status (the batch-4 contract
+		 * — architecture §15): the text-generation capability and the actual
+		 * credential source, with no key copy or disclosure. It uses no version
+		 * check and makes no API call. The single advisor-pinned surface is
+		 * `wp_ai_client_prompt()` with `is_supported_for_text_generation()`
+		 * (Owner §2.6) — capability only with no source field; therefore
+		 * `undetermined/no_source_contract` is the only honest value without
+		 * reading the secret. No Environment/constants names are invented and
+		 * the generic warning is not enough.
+		 *
+		 * @return array{capable:bool,source:string,reason:string} source:
+		 *         none|undetermined (extension is a separate Change Request).
+		 */
 	function hossam_ai_connector_source_status(): array {
 		if ( ! hossam_ai_wp_client_supported() ) {
 			return array(
@@ -310,12 +320,13 @@ if ( ! function_exists( 'hossam_ai_connector_source_status' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 5) منفِّذا الاستراتيجيتين — كلٌّ يستقبل prompt جاهزًا ويعيد نصًا أو WP_Error
+// 5) The two strategy executors — each receives a ready prompt and returns a text or a WP_Error
 // ══════════════════════════════════════════════════════════════
 
 /**
- * قائمة models الثابتة المعتمدة لاستراتيجية direct_key — أي model
- * خارجها يُرفض قبل الاتصال. التوسعة Change Request مستقل.
+ * The fixed approved models list for the direct_key strategy — any model
+ * outside it is rejected before the call. Extension is a separate Change
+ * Request.
  *
  * @return string[]
  */
@@ -326,9 +337,10 @@ if ( ! function_exists( 'hossam_ai_allowed_models' ) ) {
 }
 
 /**
- * قراءة إعداد direct_key: provider/model من الثوابت، والمفتاح من
- * HAL encrypted fallback (ai_direct_key) حصرًا. مركزية هنا فقط —
- * القيمة تُقرأ وقت التنفيذ ولا تُمرر للمتصفح/السجل أبدًا.
+ * The direct_key setup read: provider/model from the constants, and the key
+ * from the HAL encrypted fallback (ai_direct_key) only. Centralized here
+ * only — the value is read at execution time and never passed to the
+ * browser/log.
  *
  * @return array{provider:string,api_key:string,model:string}|WP_Error
  */
@@ -337,7 +349,7 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 		if ( ! defined( 'HOSSAM_AI_PROVIDER' ) || ! is_string( HOSSAM_AI_PROVIDER ) || '' === sanitize_key( (string) HOSSAM_AI_PROVIDER ) ) {
 			return new WP_Error(
 				'hossam_ai_not_configured',
-				__( 'AI provider is not configured.', 'astra-child' )
+				__( 'AI provider is not configured.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -346,14 +358,14 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 		if ( ! class_exists( 'HAL_Frontend_Dashboard_Secret_Store' ) || ! HAL_Frontend_Dashboard_Secret_Store::has( 'ai_direct_key' ) ) {
 			return new WP_Error(
 				'hossam_ai_not_configured',
-				__( 'AI provider is not configured.', 'astra-child' )
+				__( 'AI provider is not configured.', 'hal-frontend-dashboard' )
 			);
 		}
 		$api_key = HAL_Frontend_Dashboard_Secret_Store::get( 'ai_direct_key' );
 		if ( is_wp_error( $api_key ) || ! is_string( $api_key ) || '' === trim( $api_key ) ) {
 			return new WP_Error(
 				'hossam_ai_credential_unreadable',
-				__( 'The AI credential could not be read.', 'astra-child' )
+				__( 'The AI credential could not be read.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -363,7 +375,7 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 		if ( ! in_array( $model, hossam_ai_allowed_models(), true ) ) {
 			return new WP_Error(
 				'hossam_ai_unsupported_model',
-				__( 'The configured AI model is not supported.', 'astra-child' )
+				__( 'The configured AI model is not supported.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -377,8 +389,9 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 
 if ( ! function_exists( 'hossam_ai_execute_wp_ai_client' ) ) {
 	/**
-	 * تنفيذ استراتيجية WordPress AI Client — فشل آمن عند غياب العقد.
-	 * الفحص عبر is_supported_for_text_generation() حصرًا (لا generate_text للفحص).
+	 * Execute the WordPress AI Client strategy — fail-safe when the contract
+	 * is absent. The check via is_supported_for_text_generation() only (no
+	 * generate_text for probing).
 	 *
 	 * @return string|WP_Error
 	 */
@@ -392,7 +405,7 @@ if ( ! function_exists( 'hossam_ai_execute_wp_ai_client' ) ) {
 		if ( ! hossam_ai_wp_client_supported() ) {
 			return new WP_Error(
 				'hossam_ai_wp_client_unavailable',
-				__( 'WordPress AI Client text generation is not available.', 'astra-child' )
+				__( 'WordPress AI Client text generation is not available.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -409,16 +422,16 @@ if ( ! function_exists( 'hossam_ai_execute_wp_ai_client' ) ) {
 			if ( ! is_object( $prompt_object ) || ! method_exists( $prompt_object, 'generate_text' ) ) {
 				return new WP_Error(
 					'hossam_ai_wp_client_contract_missing',
-					__( 'AI generation is unavailable in this environment.', 'astra-child' )
+					__( 'AI generation is unavailable in this environment.', 'hal-frontend-dashboard' )
 				);
 			}
 
 			$text = $prompt_object->generate_text();
 		} catch ( Throwable $e ) {
-			// فشل آمن: لا تسريب لرسائل الاستثناء الداخلية للمتصفح أو الجدول.
+			// Fail-safe: no leak of internal exception messages to the browser or the table.
 			return new WP_Error(
 				'hossam_ai_generation_failed',
-				__( 'AI generation failed.', 'astra-child' )
+				__( 'AI generation failed.', 'hal-frontend-dashboard' )
 			);
 		} finally {
 			remove_filter( 'wp_ai_client_default_request_timeout', $timeout_filter );
@@ -427,14 +440,14 @@ if ( ! function_exists( 'hossam_ai_execute_wp_ai_client' ) ) {
 		if ( is_wp_error( $text ) ) {
 			return new WP_Error(
 				'hossam_ai_generation_failed',
-				__( 'AI generation failed.', 'astra-child' )
+				__( 'AI generation failed.', 'hal-frontend-dashboard' )
 			);
 		}
 
 		if ( ! is_string( $text ) || '' === trim( $text ) ) {
 			return new WP_Error(
 				'hossam_ai_empty_result',
-				__( 'AI returned an empty result.', 'astra-child' )
+				__( 'AI returned an empty result.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -444,11 +457,12 @@ if ( ! function_exists( 'hossam_ai_execute_wp_ai_client' ) ) {
 
 if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 	/**
-	 * تنفيذ استراتيجية direct_key — منطق Gemini REST القائم كما هو مع
-	 * فرقين موثقَين (منقولان من المصدر):
-	 *   - timeout يأتي من الـRegistry لكل استراتيجية.
-	 *   - جسم استجابة المزود الخام لا يُرفَق فى data الخطأ حتى لا
-	 *     يتسرب إلى أي تخزين/سجل؛ رسالة الخطأ آمنة (رمز HTTP فقط).
+	 * Execute the direct_key strategy — the existing Gemini REST logic as-is
+	 * with two documented differences (carried from the source):
+	 *   - the timeout comes from the Registry per strategy.
+	 *   - the raw provider response body is not attached to the error data so
+	 *     it cannot leak into any storage/log; the error message is safe (the
+	 *     HTTP code only).
 	 *
 	 * @return string|WP_Error
 	 */
@@ -466,7 +480,7 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 		if ( 'gemini' !== $config['provider'] ) {
 			return new WP_Error(
 				'hossam_ai_unsupported_provider',
-				__( 'The configured AI provider is not supported.', 'astra-child' )
+				__( 'The configured AI provider is not supported.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -476,8 +490,8 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 		];
 		$options = wp_parse_args( $options, $defaults );
 
-		// المصادقة عبر ترويسة x-goog-api-key — المفتاح لا يدخل query string
-		// ولا body ولا logs ولا options أبدًا.
+		// Authentication via the x-goog-api-key header — the key never enters the
+		// query string, the body, logs or options.
 		$endpoint = sprintf(
 			'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
 			rawurlencode( $config['model'] )
@@ -512,7 +526,7 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 		if ( is_wp_error( $response ) ) {
 			return new WP_Error(
 				'hossam_ai_request_failed',
-				__( 'AI request failed.', 'astra-child' )
+				__( 'AI request failed.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -522,14 +536,14 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 				'hossam_ai_http_error',
 				sprintf(
 					/* translators: %d: HTTP status code */
-					__( 'AI provider returned HTTP %d.', 'astra-child' ),
+					__( 'AI provider returned HTTP %d.', 'hal-frontend-dashboard' ),
 					(int) $status
 				)
 			);
 		}
 
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		// بنية رد Gemini الرسمية: candidates[0].content.parts[0].text.
+		// The official Gemini response shape: candidates[0].content.parts[0].text.
 		$text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
 		if ( null === $text ) {
@@ -539,10 +553,10 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 				$block_reason
 					? sprintf(
 						/* translators: %s: Gemini block reason */
-						__( 'AI provider blocked this request (reason: %s).', 'astra-child' ),
+						__( 'AI provider blocked this request (reason: %s).', 'hal-frontend-dashboard' ),
 						sanitize_key( (string) $block_reason )
 					)
-					: __( 'AI provider response did not contain the expected content field.', 'astra-child' )
+					: __( 'AI provider response did not contain the expected content field.', 'hal-frontend-dashboard' )
 			);
 		}
 
@@ -551,44 +565,46 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// دوال بناء الـPrompts — كل واحدة تخص قدرة واحدة فقط من قدرات
-// النطاق الأولي المعتمَد (مساعد كتابة). لا شىء منها يتصل بالشبكة
-// مباشرة — تُستدعى من ajax/ai.php ثم تمرر نتيجتها للمنفِّذ المطابق.
+// Prompt builder functions — each serves exactly one capability of the
+// approved initial scope (the writing assistant). None of them touches the
+// network directly — ajax/ai.php calls them and passes their result to the
+// matching executor.
 // ══════════════════════════════════════════════════════════════
 
 if ( ! function_exists( 'hossam_ai_build_grammar_prompt' ) ) {
 	function hossam_ai_build_grammar_prompt( string $content ): string {
-		return "راجع النص القانوني/العربي التالي لغويًا ونحويًا فقط، بلا تغيير المعنى أو الأسلوب. أرجع النص مصححًا فقط، بلا شرح إضافي:\n\n{$content}";
+		return "Proofread the following Arabic legal text for grammar and syntax errors only, without changing meaning or style. Return only the corrected text, with no additional commentary:\n\n{$content}";
 	}
 }
 
 if ( ! function_exists( 'hossam_ai_build_translation_prompt' ) ) {
 	function hossam_ai_build_translation_prompt( string $content, string $target_lang ): string {
-		return "ترجم النص التالي إلى اللغة ذات الرمز \"{$target_lang}\" بدقة، محافظًا على المصطلحات القانونية. أرجع الترجمة فقط:\n\n{$content}";
+		return "Translate the following text into the language with code \"{$target_lang}\" accurately, preserving legal terminology. Return only the translation:\n\n{$content}";
 	}
 }
 
 if ( ! function_exists( 'hossam_ai_build_seo_prompt' ) ) {
 	function hossam_ai_build_seo_prompt( string $title, string $content ): string {
-		return "اقترح لهذا المقال: كلمة مفتاحية رئيسية واحدة، ووصف Meta لا يتجاوز 160 حرفًا. رجِّع النتيجة بصيغة JSON فقط بالمفتاحين focus_keyword وmeta_description:\n\nالعنوان: {$title}\n\nالمحتوى: {$content}";
+		return "Suggest for this article: one primary focus keyword and a Meta description of no more than 160 characters. Return the result as JSON only with the keys focus_keyword and meta_description:\n\nTitle: {$title}\n\nContent: {$content}";
 	}
 }
 
 if ( ! function_exists( 'hossam_ai_build_improvement_prompt' ) ) {
 	function hossam_ai_build_improvement_prompt( string $content ): string {
-		return "اقترح 3 تحسينات محدَّدة وموجزة لوضوح وقوة صياغة هذا المقال القانوني (لا تكتب المقال من جديد، فقط اقتراحات نقطية):\n\n{$content}";
+		return "Suggest 3 specific, concise improvements for the clarity and strength of this legal article's wording (do not rewrite the article; bullet-point suggestions only):\n\n{$content}";
 	}
 }
 
 /**
- * (ب) التحقق الحي من صحة المعلومة — توسّع مستقبلي، غير مُنفَّذ عمدًا
- * فى هذا النطاق (خارج نطاق الدفعات المعتمدة بلا طلب وظيفي مستقل).
+ * (b) Live fact verification — a future expansion, deliberately not
+ * implemented in this scope (outside the approved batches without a separate
+ * functional request).
  */
 if ( ! function_exists( 'hossam_ai_verify_facts' ) ) {
 	function hossam_ai_verify_facts( string $claim ) {
 		return new WP_Error(
 			'hossam_ai_not_implemented',
-			__( 'Live fact verification is a future expansion — not part of the initial AI scope.', 'astra-child' )
+			__( 'Live fact verification is a future expansion — not part of the initial AI scope.', 'hal-frontend-dashboard' )
 		);
 	}
 }
