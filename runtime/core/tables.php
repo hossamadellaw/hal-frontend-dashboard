@@ -2,29 +2,29 @@
 /**
  * runtime/core/tables.php
  * ══════════════════════════════════════════════════════════════
- * الدور: إنشاء الجداول المخصَّصة الثلاثة المملوكة للـrelease عبر dbDelta().
+ * Role: creating the three release-owned custom tables via dbDelta().
  *
- * المصدر: نقل من legacy mu-plugins/hossam-dashboard/core/tables.php
- * (الدفعة 2 من HAL Frontend Dashboard) مع إعادة ترتيب واحدة مصرَّح بها
- * (فصل schema versions): السكيمات الثلاث معزولة الآن في بنية واحدة
- * (hossam_dashboard_table_schemas()) ودالة موحَّدة
- * hossam_dashboard_ensure_table() تُنفِّذ لكل جدول نفس السلوك الحرفي
- * الذي كانت تنفِّذه الكتل الثلاث المتكررة: نفس SQL، نفس أسماء options،
- * نفس أرقام versions، نفس التحقق عبر hossam_dashboard_table_is_ready()
- * قبل update_option()، نفس guards، ونفس تسجيل hook init.
+ * Source: ported from legacy mu-plugins/hossam-dashboard/core/tables.php
+ * (batch 2 of HAL Frontend Dashboard) with one sanctioned reorder
+ * (separating the schema versions): the three schemas are now isolated in one structure
+ * (hossam_dashboard_table_schemas()) and one unified function
+ * hossam_dashboard_ensure_table() that executes, for each table, the exact same behavior
+ * the three repeated blocks used to execute: same SQL, same option names,
+ * same version numbers, same verification via hossam_dashboard_table_is_ready()
+ * before update_option(), same guards, and the same init hook registration.
  *
- * الجداول (سكيمات منفصلة، كل جدول بـschema version خاص به):
+ * Tables (separate schemas, each table with its own schema version):
  *   - {prefix}hossam_notifications  → option hossam_notifications_db_version = 1.0.2
  *   - {prefix}hossam_messages       → option hossam_messages_db_version      = 1.0.2
  *   - {prefix}hossam_ai_jobs        → option hossam_ai_jobs_db_version      = 1.1.2
  *
- * توافق rollback: dbDelta() يضيف الأعمدة/الفهارس الجديدة فقط على جدول
- * قائم — لا يحذف أعمدة أو جداول عند وجود نسخة أعلى مسجَّلة، فالتراجع
- * إلى release أقدم لا يُدمِّر بيانات أعمدة السكيمة الأحدث (تبقى موجودة
- * وتُهمَل). عمود error_message من سكيمة AI 1.0.0 يبقى legacy للسجل
- * التاريخي فقط؛ الكود يكتب ويقرأ last_error حصريًا. القيمة القديمة
- * 1.0.0 للجدولين الأوليين غير موثوقة لأنها كانت تُسجَّل بلا تحقق؛
- * 1.0.1 هي علامة اكتمال التصحيح بعد dbDelta وفحص الأعمدة والفهارس.
+ * Rollback compatibility: dbDelta() only adds new columns/indexes to an existing
+ * table — it does not delete columns or tables when a higher version is registered, so rolling back
+ * to an older release does not destroy the columns' data of the newer schema (they remain present
+ * and are ignored). The error_message column from AI schema 1.0.0 remains legacy for the
+ * historical record only; the code writes and reads last_error exclusively. The old
+ * 1.0.0 value for the first two tables is unreliable because it was recorded without verification;
+ * 1.0.1 is the marker of the fix's completion after dbDelta and the columns/indexes checks.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -69,11 +69,11 @@ function hossam_dashboard_table_is_ready( string $table, array $required_columns
 }
 
 /**
- * الفصل المعتمد للسكيمات (دفعة 2): تعريف معزول واحد لكل جدول —
- * اسم الجدول، الأعمدة المطلوبة، الفهارس المطلوبة، سكيمة CREATE
- * الكاملة، واسم option الـschema version وقيمته المستهدفة. نفس
- * القيم الحرفية من المصدر بلا أي تغيير في أسماء الجداول أو السكيمات
- * أو أسماء options أو أرقام versions.
+ * The sanctioned separation of the schemas (batch 2): one isolated definition per table —
+ * the table name, the required columns, the required indexes, the full CREATE
+ * schema, and the name of the schema-version option and its target value. The same
+ * literal values from the source with no change whatsoever in the table names or the schemas
+ * or the option names or the version numbers.
  *
  * @return array<string, array{table_suffix:string, version:string, option:string, columns:string[], indexes:string[], schema:callable(string,string):string}>
  */
@@ -160,17 +160,17 @@ function hossam_dashboard_table_schemas(): array {
 }
 
 /**
- * دالة موحَّدة (دفعة 2) تُستدعى لكل جدول بدل الكتل الثلاث المتكررة في
- * المصدر — بنفس السلوك الحرفي: guard على قيمة option المسجَّلة، ثم
- * dbDelta()، ثم التحقق عبر hossam_dashboard_table_is_ready() قبل
- * update_option() لنجاح الـmigration. فشل التحقق يترك الـoption دون
- * تغيير ليُعاد المحاولة في init التالي بأمان.
+ * A unified function (batch 2) called for each table instead of the three repeated blocks in
+ * the source — with the exact same behavior: a guard on the recorded option value, then
+ * dbDelta(), then verification via hossam_dashboard_table_is_ready() before
+ * update_option() for the migration's success. A verification failure leaves the option unchanged
+ * so the next init retries safely.
  *
- * B2-02 (معمارية §8.4: لا downgrade تلقائيًا لمخطط البيانات): قيمة
- * مسجَّلة تطابق الهدف تعني idempotency كما كانت، وقيمة أعلى تُحفَظ
- * كما هي — لا ترحيل أقدم ولا إعادة كتابة رقم أقل فوق سكيمة أحدث
- * (نافذة rollback تبقى ببياناتها وشكلها الأحدث). أما غياب القيمة أو
- * قيمة أدنى فيُرحَّل ويُسجَّل الهدف بعد التحقق كما في المصدر.
+ * B2-02 (architecture §8.4: no automatic downgrade of the data schema): a recorded
+ * value matching the target means idempotency as before, and a higher value is kept
+ * as is — no older migration and no rewriting a lower number over a newer schema
+ * (the rollback window keeps its data and its newer shape). As for a missing value or
+ * a lower one, it is migrated and the target is recorded after verification, as in the source.
  *
  * @param array{table_suffix:string, version:string, option:string, columns:string[], indexes:string[], schema:callable(string,string):string} $definition
  */
@@ -212,13 +212,13 @@ add_action( 'init', function (): void {
 } );
 
 /**
- * جدول مهام الذكاء الاصطناعي (Job Queue غير متزامن) — نفس نمط
- * الجدولين أعلاه حرفيًا عبر الدالة الموحَّدة: dbDelta() + تتبُّع نسخة
- * سكيمة عبر Option. السكيمة 1.1.1 تشمل أعمدة 1.1.0 غير الحساسة
- * (strategy_id وattempt_count وlocked_at وnext_run_at وlast_error)
- * مع تصحيح تتبع النسخة؛ dbDelta() يضيف الأعمدة الجديدة فقط على جدول
- * قائم بلا حذف ولا تعديل للأعمدة القائمة — ترقية قابلة للتكرار
- * وبقاء البيانات القديمة كاملًا.
+ * The artificial-intelligence jobs table (an asynchronous Job Queue) — the exact same
+ * pattern as the two tables above via the unified function: dbDelta() + schema version
+ * tracking via an Option. Schema 1.1.1 includes the non-sensitive 1.1.0 columns
+ * (strategy_id and attempt_count and locked_at and next_run_at and last_error)
+ * with a version-tracking fix; dbDelta() only adds the new columns to an existing
+ * table with no deletion and no modification of the existing columns — a repeatable upgrade
+ * with the old data kept fully intact.
  */
 add_action( 'init', function (): void {
 	hossam_dashboard_ensure_table( hossam_dashboard_table_schemas()['ai_jobs'] );

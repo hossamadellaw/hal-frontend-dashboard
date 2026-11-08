@@ -863,7 +863,7 @@ b14z_check( 'T7-STATIC-single-block',
 	1 === substr_count( $ai_src, 'attempt_count >= %d OR next_run_at IS NULL' )
 		&& 1 === substr_count( $ai_src, "'attempts_exhausted'" )
 		&& 1 === substr_count( $ai_src, "'orphaned_pending'" )
-		&& false !== strpos( $ai_src, 'V110-H2' ) && false !== strpos( $ai_src, 'فشل نهائي بلا أي retry' ),
+		&& false !== strpos( $ai_src, 'V110-H2' ) && false !== strpos( $ai_src, 'Final failure with no retry' ),
 	'the (ج) delta is exactly one block in the sweep callback (one SQL, one reason ternary) with its V110-H2 docblock',
 	'block counts deviate: zombie_sql=' . substr_count( $ai_src, 'attempt_count >= %d OR next_run_at IS NULL' ) );
 b14z_check( 'T7-STATIC-schema-clean',
@@ -873,7 +873,7 @@ b14z_check( 'T7-STATIC-schema-clean',
 	'zero CREATE/ALTER and zero error_message column writes in ai.php (the only matches are the WP_Error get_error_message() method); tables.php carries zero zombie tokens',
 	'schema surface polluted' );
 b14z_check( 'T7-STATIC-retention-contract',
-	false !== strpos( $audit_src, 'عقد التكامل مع الزومبي' ) && false !== strpos( $audit_src, 'terminal-only' )
+	false !== strpos( $audit_src, 'Zombie integration contract' ) && false !== strpos( $audit_src, 'terminal-only' )
 		&& false !== strpos( $audit_src, "AND status IN ('completed','failed')" )
 		&& false !== strpos( $ai_src, "WHERE id = %d AND status IN ('pending', 'processing')" ),
 	'the zombie-retention integration contract is documented on both sides and terminal production stays with the state machine',

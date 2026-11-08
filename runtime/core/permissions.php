@@ -2,25 +2,25 @@
 /**
  * runtime/core/permissions.php
  * ══════════════════════════════════════════════════════════════
- * الدور: تسجيل Capabilities مخصَّصة لأدوار Amelia.
+ * Role: registering custom Capabilities for the Amelia roles.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/core/
- * permissions.php (الدفعة 2 من HAL Frontend Dashboard) — نقل بلا
- * توسيع صلاحيات: لا capability جديدة ولا دور جديد يُضاف هنا.
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/core/
+ * permissions.php (batch 2 of HAL Frontend Dashboard) — a port without
+ * privilege expansion: no new capability and no new role is added here.
  *
- * العقد المنقول كما هو (ملخَّص من المصدر):
- *   - تسجيل view_amelia_calendar / view_amelia_calendar_all عبر hook init.
- *   - amelia_manager يأخذ الصلاحيتين معًا؛ amelia_employee يأخذ
- *     view_amelia_calendar فقط.
- *   - add_cap() على الدور الموجود فعليًا عبر get_role() فقط — لا
- *     add_role() (الدوران مفترض وجودهما مسبقًا فى قاعدة بيانات
- *     WordPress الحية). get_role() يُرجع null بأمان لو الدور غير
- *     موجود، بلا fatal.
- *   - has_cap() حارس قبل كل add_cap() — add_cap() يكتب update_option()
- *     فعليًا فى كل مرة، وبدون الحارس سيكتب على قاعدة البيانات فى كل
- *     طلب init.
- *   - تُستهلَك الصلاحيتان من adapters/amelia.php وajax/appointments.php
- *     (خارج هذه الدفعة) بجانب manage_options.
+ * Contract carried over as-is (summarized from the source):
+ *   - Registers view_amelia_calendar / view_amelia_calendar_all via the init hook.
+ *   - amelia_manager takes both capabilities together; amelia_employee takes
+ *     view_amelia_calendar only.
+ *   - add_cap() on the actually existing role via get_role() only — no
+ *     add_role() (both roles are assumed to already exist in the live
+ *     WordPress database). get_role() safely returns null if the role is
+ *     not present, with no fatal.
+ *   - has_cap() guard before every add_cap() — add_cap() actually performs an
+ *     update_option() write every single time, and without the guard it would
+ *     write to the database on every init request.
+ *   - The two capabilities are consumed by adapters/amelia.php and ajax/appointments.php
+ *     (outside this batch) alongside manage_options.
  * ══════════════════════════════════════════════════════════════
  */
 

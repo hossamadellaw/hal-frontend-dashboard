@@ -18,9 +18,9 @@
  * Text-domain decision (documented for its owner presentations): WPML
  * registration via icl_register_string() does not depend on a text domain at
  * all. In this release the text domain of the interface strings was unified —
- * the remaining __() calls in runtime now use 'hal-frontend-dashboard' (no
- * 'astra-child' remains in runtime), and the changed keys/values above are
- * re-registered through the same hash-gated mechanism.
+ * the remaining __() calls in runtime now use 'hal-frontend-dashboard' and the
+ * child-theme domain no longer appears anywhere in runtime; the changed
+ * keys/values above are re-registered through the same hash-gated mechanism.
  *
  * [Delta tag — H4 §2.4-D1 | docblock only — zero behavior change] (OEB/7):
  * the String Translation integration was existing and is the plugin's own
@@ -234,6 +234,9 @@ add_action( 'init', function(): void {
         // hossam_t() sources — same hash-gated mechanism as the batches above.
         'Optional',
         'Optional assistant for proofreading, translation and SEO — results appear inside this panel.',
+        // v1.1.3 T1 (wordpress-posts.php :120/:213): the H1 rejection source
+        // moves to the unified domain and registers here in the same batch.
+        'The H1 tag is not allowed in the article content — use a level-2 heading instead.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
