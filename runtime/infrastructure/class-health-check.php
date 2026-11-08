@@ -41,9 +41,10 @@ final class HAL_Frontend_Dashboard_Health_Check {
 			)
 		);
 
-		// B1-08 / U §13 + O §2.4: loopback يبنى من home_url()/المسار الثابت
-		// بلا redirects أو cookies، مع إلزام HTTPS وsslverify=true وحد
-		// صريح لحجم الاستجابة — token لا يسافر عبر نص صافٍ أبدًا.
+		// B1-08 / U §13 + O §2.4: the loopback is built from home_url()/the
+		// fixed path with no redirects or cookies, enforcing HTTPS with
+		// sslverify=true and an explicit response size limit — the token never
+		// travels in plain text.
 		$url = admin_url( 'admin-ajax.php' );
 		if ( 'https' !== strtolower( (string) wp_parse_url( $url, PHP_URL_SCHEME ) ) ) {
 			return false;

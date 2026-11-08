@@ -173,8 +173,9 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 						if ( is_array( $active_now ) && $release_id === ( $active_now['release_id'] ?? null ) ) {
 							return;
 						}
-						// committed موجود لكن active لا يطابقه (مثل انقطاع قبل
-						// إتمام التحويل): لا يعد idempotent — تكمل العملية.
+						// committed exists but active does not match it (e.g. an
+						// interruption before the switch completed): not idempotent —
+						// continue the operation.
 					}
 					if ( ! $same && ( ! isset( $committed['version'], $committed['release_sequence'] ) || ! is_int( $committed['release_sequence'] ) || ! version_compare( $version, (string) $committed['version'], '>' ) || $sequence <= $committed['release_sequence'] ) ) {
 						self::fail( 'HAL_PROMOTION_REPLAY_REJECTED' );
@@ -182,11 +183,13 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 				}
 			$active = $manager->read_pointer( 'active.json' );
 			$previous = $active;
-			// مصالحة ترويج مقطوع (نافذة W1): active يشير أصلًا إلى المرشح
-			// بينما committed ما زال يسمي آخر إصدار معتمد كاملًا. هدف
-			// الرجوع هو ذلك الإصدار المعتمد — لا المرشح المؤقت الذي يشير
-			// إليه active — وإلا أدّى فشل health في المصالحة إلى "رجوع"
-			// زائف إلى المرشح نفسه ودنس previous.json به.
+			// Reconciliation of an interrupted promotion (window W1): active
+			// already points at the candidate while committed still names the
+			// last fully approved release. The rollback target is that approved
+			// release — not the temporary candidate that active points to —
+			// otherwise a health failure during reconciliation would cause a
+			// false "rollback" to the candidate itself and pollute
+			// previous.json with it.
 			if (
 				is_array( $active )
 				&& $release_id === ( $active['release_id'] ?? null )
@@ -241,9 +244,10 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 				if ( true !== $health_check( $operation, $release_id, $version, $deadline, $loader_id ) ) {
 					self::fail( 'HAL_PROMOTION_HEALTH_FAILED' );
 				}
-				// committed يكتب أخيرًا فقط بعد اكتمال history وstatus وحذف
-				// promotion — أي انقطاع قبله يترك active/previous صحيحين
-				// وسجل promotion قائمًا ليعالجه recovery في request لاحق.
+				// committed is written last, only after history and status are
+				// complete and promotion is deleted — any interruption before
+				// that leaves active/previous correct and the promotion record
+				// in place for recovery to process in a later request.
 				$history = $manager->read_state_json( 'history.json' );
 				$release_history = is_array( $history['releases'] ?? null ) ? $history['releases'] : array();
 				$release_history = array_values( array_filter( $release_history, 'is_string' ) );
@@ -301,8 +305,9 @@ final class HAL_Frontend_Dashboard_Release_Manager {
 						),
 					)
 				);
-				// إزالة committed الخاص بالمرشح الفاشل حتى لا تسجَّل اعتمادية
-				// زائفة لنسخة لم تكتمل (مثل فشل كتابة history بعد committed).
+				// Remove the failed candidate's committed record so no false
+				// approval is recorded for a release that did not complete
+				// (e.g. a history write failure after committed).
 				$failed_committed = $manager->read_state_json( 'committed.json' );
 				if ( is_array( $failed_committed ) && $release_id === ( $failed_committed['release_id'] ?? null ) ) {
 					$committed_path = $manager->state_path( 'committed.json' );

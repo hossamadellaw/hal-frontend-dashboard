@@ -25,11 +25,11 @@ defined( 'ABSPATH' ) || exit;
 
 	final class HAL_Frontend_Dashboard_Site_Provisioner {
 	/**
-	 * اسم خيار الصفحة المملوكة (العقد §7.5).
+	 * Name of the owned-page option (contract §7.5).
 	 */
 	const PAGE_ID_OPTION = 'hal_frontend_dashboard_page_id';
 
-	/** علامة meta داخلية تميّز الصفحة المنشأة للمشروع (لا slug). */
+	/** Internal meta flag marking the page provisioned for the project (not a slug). */
 	const PAGE_META_KEY = '_hal_frontend_dashboard_page';
 
 	/**
@@ -59,11 +59,11 @@ defined( 'ABSPATH' ) || exit;
 	}
 
 	/**
-	 * §7.2.9 / قاعدة تسليم الدفعة 3: منح capability إدارة HAL الافتراضي
-	 * لدور administrator بشكل idempotent بعد اكتمال التثبيت البنيوي
-	 * (root anchor). فحوص الـruntime تستخدم الـcapability فقط ولا تفحص
-	 * أسماء الأدوار (قرار المالك §2.3). البيئات المعزولة بلا roles API
-	 * (harnesses) تُتخطى بأمان — WordPress الحقيقي يملك get_role دائمًا.
+	 * §7.2.9 / batch-3 delivery rule: grant the default HAL management
+	 * capability to the administrator role idempotently after the structural
+	 * installation completes (root anchor). Runtime checks use only the
+	 * capability and never inspect role names (owner decision §2.3).
+	 * Isolated environments without the roles API (harnesses) are skipped safely — real WordPress always has get_role.
 	 * Roles are per-site on multisite, so the grant is isolated by design.
 	 */
 	public static function grant_default_capability(): void {
@@ -77,17 +77,17 @@ defined( 'ABSPATH' ) || exit;
 	}
 
 	/**
-	 * §7.2 بند 9 و§7.5: تسجيل/ربط صفحة Dashboard idempotently.
-	 * - مسؤول الموقع يثبت Page ID الـlegacy صراحةً في خيار
-	 *   hal_frontend_dashboard_page_id عبر WordPress Options API قبل activation.
-	 *   الخيار غير الصفري يُقبل فقط إذا أشار إلى WP_Post/page/publish|private؛
-	 *   القيمة غير الصالحة تفشل دون إنشاء صفحة ثانية.
-	 * - الخيار الصالح يُعاد (مسار ترقية legacy: لا صفحة ثانية أبدًا).
-	 * - وإلا: إنشاء صفحة مملوكة جديدة بعلامة meta داخلية، مع التحقق من
-	 *   نتيجة wp_insert_post() ثم إعادة قراءتها ثم تخزين الخيار.
-	 * - لا اختطاف slug: لا بحث عن أي صفحة موجودة — التكرار في slug
-	 *   يحسمه WordPress نفسه عند الإنشاء.
-	 * - أي تعذر → RuntimeException قبل إعلان الجاهزية (لا redirect عام).
+	 * §7.2 item 9 and §7.5: register/link the Dashboard page idempotently.
+	 * - The site owner pins the legacy Page ID explicitly into the option
+	 *   hal_frontend_dashboard_page_id via the WordPress Options API before
+	 *   activation. A non-zero option is accepted only if it points to a
+	 *   WP_Post/page/publish|private; an invalid value fails without creating a second page.
+	 * - A valid option is returned (the legacy upgrade path: never a second page).
+	 * - Otherwise: create a new owned page with an internal meta flag, verifying
+	 *   the wp_insert_post() result, then re-reading it, then storing the option.
+	 * - No slug hijacking: no search for any existing page — slug duplication
+	 *   is resolved by WordPress itself at creation.
+	 * - Any impossibility → RuntimeException before readiness is declared (no public redirect).
 	 * Options are per-blog on multisite, so each site links its own page.
 	 */
 	public static function ensure_dashboard_page(): void {
@@ -151,8 +151,9 @@ defined( 'ABSPATH' ) || exit;
 	}
 
 	/**
-	 * صلاحية صفحة الهدف: WP_Post من نوع page بحالة قابلة للعرض
-	 * (publish/private) — أي شيء آخر يعيد التهيئة لا الاختطاف.
+	 * Target page validity: a WP_Post of type page with a displayable status
+	 * (publish/private) — anything else triggers re-provisioning, not
+	 * hijacking.
 	 */
 	private static function is_usable_dashboard_page( int $page_id ): bool {
 		if ( $page_id < 1 || ! function_exists( 'get_post' ) ) {

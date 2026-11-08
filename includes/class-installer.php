@@ -9,12 +9,12 @@ defined( 'ABSPATH' ) || exit;
 
 	final class HAL_Frontend_Dashboard_Installer {
 	/**
-	 * اسم خيار الصفحة المملوكة (العقد §7.5) — القارئ الوحيد
-	 * Template Controller (get_owned_page_id)؛ الكاتب الوحيد هنا.
+	 * Name of the owned-page option (contract §7.5) — the only reader is the
+	 * Template Controller (get_owned_page_id); the only writer is here.
 	 */
 	const PAGE_ID_OPTION = 'hal_frontend_dashboard_page_id';
 
-	/** علامة meta داخلية تميّز الصفحة المنشأة للمشروع (لا slug). */
+	/** Internal meta flag marking the page provisioned for the project (not a slug). */
 	const PAGE_META_KEY = '_hal_frontend_dashboard_page';
 	public static function activate( bool $network_wide = false ): void {
 		self::preflight();
@@ -282,9 +282,10 @@ defined( 'ABSPATH' ) || exit;
 	}
 
 	/**
-	 * B1-07 / U §10: رفض التثبيت بجوار legacy loader نشط قبل أي أثر
-	 * دائم، منعًا للتحميل المزدوج. Legacy المعروف: ملف hossam-dashboard.php
-	 * أو مجلد hossam-dashboard داخل mu-plugins.
+	 * B1-07 / U §10: refuse installation next to an active legacy loader
+	 * before any permanent effect, preventing double loading. Known legacy:
+	 * a hossam-dashboard.php file or a hossam-dashboard directory inside
+	 * mu-plugins.
 	 */
 	private static function assert_no_legacy_loader_active(): void {
 		$legacy_file = rtrim( WPMU_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'hossam-dashboard.php';
