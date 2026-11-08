@@ -1,24 +1,24 @@
 <?php
 /**
- * runtime/ajax/inbox.php (الدفعة 6)
+ * runtime/ajax/inbox.php (Batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: الإشعارات الداخلية + البريد الداخلي — ستة endpoints:
- * get_notifications/mark_read/mark_all_read [SECTION 11] و
- * send_message (rate-limit 10/دقيقة)/get_inbox/mark_message_read [SECTION 12].
+ * Role: internal notifications + internal mail — six endpoints:
+ * get_notifications/mark_read/mark_all_read [SECTION 11] and
+ * send_message (rate-limit 10/minute)/get_inbox/mark_message_read [SECTION 12].
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/inbox.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/inbox.php — the source fingerprint is pinned byte-for-byte in the Batch 6
+ * inventory (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ): بوابة feature
- * في الستة، بعد nonce وحرس 401 وقبل أي معالجة —
- * is_feature_enabled('inbox') === false → feature_disabled 403 فشل مغلق؛
- * الافتراضي (enabled) يطابق سلوك المصدر حرفيًا.
+ * The only authorized delta (owner decision B3-08, option a): a feature gate
+ * in all six, after the nonce and the 401 guard and before any processing —
+ * is_feature_enabled('inbox') === false → feature_disabled 403 closed failure;
+ * the default (enabled) matches the source behavior verbatim.
  *
- * العقد المنقول كما هو: فشل DB (last_error) → 500 برسالة آمنة + error_log،
- * الملكية داخل WHERE (user_id/receiver_id)، quota عبر GET_LOCK مع
- * release في finally، تحديث نتيجته false→500 و0→404، وتنسيق آمن
- * (sanitize/vsprintf بحارس pattern/esc_url_raw) — كلها حرفية.
+ * The carried-over contract as-is: a DB failure (last_error) → 500 with a safe message + error_log,
+ * ownership inside WHERE (user_id/receiver_id), the quota via GET_LOCK with
+ * the release in finally, its result update false→500 and 0→404, and safe formatting
+ * (sanitize/vsprintf with a pattern guard/esc_url_raw) — all verbatim.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -108,8 +108,8 @@ add_action( 'wp_ajax_hossam_mark_read', function(): void {
         wp_send_json_error( [ 'message' => 'Invalid ID' ], 400 );
     }
 
-    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
-    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    // R7 (G3 §1.3-11): the gray-zone reads limit 120/min — after all validations and before
+    // the write directly (contract §1.1-1). The translation in the existing error_data['status'] pattern.
     $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
     if ( is_wp_error( $quota ) ) {
         $data = $quota->get_error_data();
@@ -150,8 +150,8 @@ add_action( 'wp_ajax_hossam_mark_all_read', function(): void {
         wp_send_json_error( array( 'code' => 'feature_disabled', 'message' => 'This feature is disabled.' ), 403 );
     }
 
-    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
-    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    // R7 (G3 §1.3-11): the gray-zone reads limit 120/min — after all validations and before
+    // the write directly (contract §1.1-1). The translation in the existing error_data['status'] pattern.
     $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
     if ( is_wp_error( $quota ) ) {
         $data = $quota->get_error_data();
@@ -239,8 +239,8 @@ add_action( 'wp_ajax_hossam_send_message', function(): void {
         wp_send_json_error( [ 'message' => 'Insert failed' ], 500 );
     }
 
-    // R7 (G4 §3-أ-10): message_send بعد النجاح وقبل success — meta
-    // receiver_id حصرًا (لا نص الرسالة إطلاقًا)؛ قيمة الإرجاع تُتجاهل عمدًا.
+    // R7 (G4 §3-a-10): message_send after success and before success — meta
+    // receiver_id exclusively (never the message text); the return value is deliberately ignored.
     hossam_audit_log(
         'message_send',
         [
@@ -281,7 +281,7 @@ add_action( 'wp_ajax_hossam_get_inbox', function(): void {
         wp_send_json_error( [ 'message' => 'Inbox is unavailable.' ], 500 );
     }
 
-    // [H-07] T3-13 — sender_name: تجلب اسم المُرسِل لكل رسالة
+    // [H-07] T3-13 — sender_name: fetches the sender's name for every message
     if ( ! empty($rows) ) {
         $ids   = array_unique( array_column( (array) $rows, 'sender_id' ) );
         $users = get_users( [ 'include' => $ids, 'fields' => [ 'ID', 'display_name' ] ] );
@@ -315,8 +315,8 @@ add_action( 'wp_ajax_hossam_mark_message_read', function(): void {
         wp_send_json_error( [ 'message' => 'Invalid ID' ], 400 );
     }
 
-    // R7 (G3 §1.3-11): حد القراءات الرمادي 120/د — بعد كل التحققات وقبل
-    // الكتابة مباشرة (عقد §1.1-1). الترجمة بنمط error_data['status'] القائم.
+    // R7 (G3 §1.3-11): the gray-zone reads limit 120/min — after all validations and before
+    // the write directly (contract §1.1-1). The translation in the existing error_data['status'] pattern.
     $quota = hossam_rate_limit_consume( 'read', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
     if ( is_wp_error( $quota ) ) {
         $data = $quota->get_error_data();
@@ -346,8 +346,8 @@ add_action( 'wp_ajax_hossam_mark_message_read', function(): void {
         wp_send_json_error( [ 'message' => 'Message not found or already read' ], 404 );
     }
 
-    // R7 (G4 §3-أ-11): message_mark_read بعد النجاح وقبل success — بلا
-    // meta؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+    // R7 (G4 §3-a-11): message_mark_read after success and before success — no
+    // meta; the return value is deliberately ignored (G4 §5).
     hossam_audit_log( 'message_mark_read', [ 'object_id' => $message_id ] );
 
     wp_send_json_success();

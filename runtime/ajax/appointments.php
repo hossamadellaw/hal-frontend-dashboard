@@ -1,27 +1,27 @@
 <?php
 /**
- * runtime/ajax/appointments.php (الدفعة 6)
+ * runtime/ajax/appointments.php (Batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: نقطتا AJAX للمواعيد (Amelia): hossam_get_upcoming_appointments
- * (nonce: hossam_nonce) وhossam_lazy_appointments (nonce منفصل:
- * hossam_lazy_appointments). الاستثناء الوحيد الموثق في المصدر يبقى كما هو:
- * أول endpoint يُستدعى من <script> مضمَّن في القالب لا من JS module.
+ * Role: the two AJAX endpoints for appointments (Amelia): hossam_get_upcoming_appointments
+ * (nonce: hossam_nonce) and hossam_lazy_appointments (a separate nonce:
+ * hossam_lazy_appointments). The only documented exception in the source remains as it is:
+ * the first endpoint is called from a <script> inlined in the template, not from a JS module.
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/appointments.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/appointments.php — the source fingerprint is pinned byte-for-byte in the Batch 6
+ * inventory (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ — ربط نقاط
- * الاستهلاك بعقدها عند الترحيل): بوابة feature في كلا الـendpoints،
- * بعد nonce وحرس 401 وقبل أي capability check:
+ * The only authorized delta (owner decision B3-08, option a — binding the consumption
+ * points to their contracts at migration): a feature gate in both endpoints,
+ * after the nonce and the 401 guard and before any capability check:
  *   HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled('amelia')
- *   === false → wp_send_json_error( feature_disabled, 403 ) فشل مغلق.
- *   الغياب/الافتراضي (enabled) يطابق سلوك المصدر حرفيًا — المصدر الأصلي
- *   بلا feature toggles إطلاقًا فلا يُزال أي سلوك قائم.
+ *   === false → wp_send_json_error( feature_disabled, 403 ) closed failure.
+ *   The absence/the default (enabled) matches the source behavior verbatim — the original source
+ *   has no feature toggles at all so no existing behavior is removed.
  *
- * العقد المنقول كما هو (ملخص رأس المصدر): 401/403/503 (plugin_missing/
- * not_configured/feature_unavailable — حالة التكامل، مستقلة عن بوابة
- * المالك) و500 db_error عبر adapters/amelia.php؛ صفر SQL مباشر هنا.
+ * The carried-over contract as-is (a summary of the source header): 401/403/503 (plugin_missing/
+ * not_configured/feature_unavailable — the integration state, independent of the owner
+ * gate) and 500 db_error via adapters/amelia.php; zero direct SQL here.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -31,8 +31,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // ══════════════════════════════════════════════════════════════
 // [H-06] T3-03 — Endpoint: hossam_get_upcoming_appointments + transient cache
-// الدليل: Amelia SQL خام في page-dashboard.php بدون كاش
-// يُستخدَم في: page-dashboard.php [P-07]
+// Evidence: raw Amelia SQL in page-dashboard.php without a cache
+// Used in: page-dashboard.php [P-07]
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_get_upcoming_appointments', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -67,7 +67,7 @@ add_action( 'wp_ajax_hossam_get_upcoming_appointments', function(): void {
 
 // ══════════════════════════════════════════════════════════════
 // [H-14] PERF-02 — Lazy-load Appointments Panel (Amelia)
-// nonce منفصل 'hossam_lazy_appointments' — مُولَّد فعلاً فى page-dashboard.php
+// a separate nonce 'hossam_lazy_appointments' — actually generated in page-dashboard.php
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_lazy_appointments', function(): void {
     check_ajax_referer( 'hossam_lazy_appointments', 'nonce' );

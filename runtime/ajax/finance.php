@@ -1,27 +1,27 @@
 <?php
 /**
- * runtime/ajax/finance.php (الدفعة 6)
+ * runtime/ajax/finance.php (Batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: نقاط AJAX الأربع لـFinance & Payments عبر WooCommerce الرسمي
- * حصرًا (صفر SQL مباشر): hossam_get_orders [SECTION 13]،
- * hossam_finance_summary [FIN-03، كاش transient 5 دقائق مع epoch
- * hossam_fin_cache_ver]، hossam_get_payment_methods [FIN-06]،
- * hossam_get_saved_tokens [FIN-07، get_last4() فقط — أبدا الرقم الكامل].
+ * Role: the four AJAX endpoints for Finance & Payments via official WooCommerce
+ * exclusively (zero direct SQL): hossam_get_orders [SECTION 13],
+ * hossam_finance_summary [FIN-03, a 5-minute transient cache with the epoch
+ * hossam_fin_cache_ver], hossam_get_payment_methods [FIN-06],
+ * hossam_get_saved_tokens [FIN-07, get_last4() only — never the full number].
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/finance.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/finance.php — the source fingerprint is pinned byte-for-byte in the Batch 6
+ * inventory (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ): بوابة feature
- * في الأربعة، بعد nonce وحرس 401 وقبل أي capability check —
- * is_feature_enabled('finance') === false → feature_disabled 403 فشل مغلق؛
- * الافتراضي (enabled) يطابق سلوك المصدر حرفيًا.
+ * The only authorized delta (owner decision B3-08, option a): a feature gate
+ * in all four, after the nonce and the 401 guard and before any capability check —
+ * is_feature_enabled('finance') === false → feature_disabled 403 closed failure;
+ * the default (enabled) matches the source behavior verbatim.
  *
- * العقد المنقول كما هو: scope المدير عبر manage_options/manage_woocommerce
- * (غيره customer scope)، استثناء class_exists('WC_Payment_Tokens') المتعمَّد
- * في المصدر (503 واضحة لا نجاح فارغ)، وقرار التكامل عبر
- * hossam_get_integration_decision('woocommerce') بجانب hossam_wc_is_active()،
- * وفشل قراءة DB (last_error) → 500 برسالة آمنة بدل نجاح فارغ (B6-UNVERIFIED).
+ * The carried-over contract as-is: the administrator scope via manage_options/manage_woocommerce
+ * (others customer scope), the deliberate class_exists('WC_Payment_Tokens') exception
+ * in the source (a clear 503, not an empty success), and the integration decision via
+ * hossam_get_integration_decision('woocommerce') beside hossam_wc_is_active(),
+ * and a DB read failure (last_error) → 500 with a safe message instead of an empty success (B6-UNVERIFIED).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -98,8 +98,8 @@ add_action( 'wp_ajax_hossam_get_orders', function(): void {
 
 
 // ══════════════════════════════════════════════════════════════
-// [FIN-03] Endpoint: hossam_finance_summary — KPI مالية + Cache 5 دقائق
-// مرتبط: page-dashboard.php (#fin-kpi-grid) + dashboard.js (loadFinanceSummary)
+// [FIN-03] Endpoint: hossam_finance_summary — financial KPIs + 5-minute Cache
+// Related: page-dashboard.php (#fin-kpi-grid) + dashboard.js (loadFinanceSummary)
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_finance_summary', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -123,8 +123,8 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
     $user_id = get_current_user_id();
     $is_mgr  = current_user_can( 'manage_options' ) || current_user_can( 'manage_woocommerce' );
     $period  = strtotime( $range_map[ $range ] );
-    // إبطال عند woocommerce_order_status_changed: epoch يرتفع من
-    // hossam_bump_fin_cache_epoch() (core/notifications.php) فيُهمَل الكاش القديم.
+    // Invalidation on woocommerce_order_status_changed: the epoch is raised by
+    // hossam_bump_fin_cache_epoch() (core/notifications.php) so the stale cache is ignored.
     $epoch   = (int) get_option( 'hossam_fin_cache_ver', 0 );
     $key     = 'hossam_fin_summary_' . $epoch . '_' . $user_id . '_' . ( $is_mgr ? 'mgr' : 'own' ) . '_' . $range;
 
@@ -138,12 +138,12 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
         if ( '' !== (string) $wpdb->last_error ) {
             wp_send_json_error( [ 'message' => hossam_t( 'Summary could not be loaded.' ) ], 500 );
         }
-        // R15 (G5 §7-4/5) — انحراف أداء معلن: حلقة تجميع الإيراد مقيّدة بسقف
-        // صفحات عبر الفلتر hossam_fin_summary_max_pages (افتراضي 20). عند
-        // تجاوز عدد الصفحات السقف يكون total_revenue جزئيًا ويُعلَن ذلك
-        // بـ revenue_capped في حمل KPI، بينما total_orders يبقى دقيقًا
-        // دائمًا: يأتي من عدّ DB في الصفحة الأولى ($first_page['total'])
-        // لا من الحلقة المُسقَّفة.
+        // R15 (G5 §7-4/5) — a declared performance deviation: the revenue aggregation loop is capped
+        // in pages via the hossam_fin_summary_max_pages filter (default 20). When
+        // the page count exceeds the cap, total_revenue is partial and that is
+        // declared via revenue_capped in the KPI payload, while total_orders stays accurate
+        // always: it comes from the DB count of the first page ($first_page['total'])
+        // not from the capped loop.
         $total_orders  = $first_page['total'];
         $total_revenue = 0.0;
         $pending_count = 0;
@@ -181,7 +181,7 @@ add_action( 'wp_ajax_hossam_finance_summary', function(): void {
 
 // ══════════════════════════════════════════════════════════════
 // [FIN-06] Endpoint: hossam_get_payment_methods
-// الخطر المقبول (H3 §3): قائمة إتاحة عامة: أي مسجل عبر بوابة finance المفعلة يرى عناوين بوابات الدفع المفعلة للموقع — معلومة علنية أصلًا في checkout؛ لا أسرار/مفاتيح/توكنات؛ قرار مالك 2026-11-01 (H3 §3)
+// The accepted risk (H3 §3): a public availability list: any registered user through the enabled finance gate sees the titles of the site's enabled payment gateways — public information already at checkout; no secrets/keys/tokens; owner decision 2026-11-01 (H3 §3)
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_get_payment_methods', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -215,7 +215,7 @@ add_action( 'wp_ajax_hossam_get_payment_methods', function(): void {
 
 
 // ══════════════════════════════════════════════════════════════
-// [FIN-07] Endpoint: hossam_get_saved_tokens — آخر 4 أرقام فقط عبر get_last4()، أبداً الرقم الكامل
+// [FIN-07] Endpoint: hossam_get_saved_tokens — the last 4 digits only via get_last4(), never the full number
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_get_saved_tokens', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );

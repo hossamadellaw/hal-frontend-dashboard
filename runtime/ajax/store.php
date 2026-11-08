@@ -1,25 +1,25 @@
 <?php
 /**
- * runtime/ajax/store.php (الدفعة 6)
+ * runtime/ajax/store.php (Batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: نقطة AJAX واحدة — منتجات WooCommerce hossam_get_products
- * [SECTION 15]. تبويب Orders في بانل Store يعيد استخدام hossam_get_orders
- * من ajax/finance.php حرفيًا (قرار المصدر الموثق — لا endpoint جديد).
+ * Role: a single AJAX endpoint — WooCommerce products hossam_get_products
+ * [SECTION 15]. The Orders tab in the Store panel reuses hossam_get_orders
+ * from ajax/finance.php verbatim (the documented source decision — no new endpoint).
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/store.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/store.php — the source fingerprint is pinned byte-for-byte in the Batch 6
+ * inventory (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ): بوابة feature
- * بعد nonce وحرس 401 وقبل أي capability check —
- * is_feature_enabled('store') === false → feature_disabled 403 فشل مغلق؛
- * الافتراضي (enabled) يطابق سلوك المصدر حرفيًا.
+ * The only authorized delta (owner decision B3-08, option a): a feature gate
+ * after the nonce and the 401 guard and before any capability check —
+ * is_feature_enabled('store') === false → feature_disabled 403 closed failure;
+ * the default (enabled) matches the source behavior verbatim.
  *
- * العقد المنقول كما هو: 403 edit_products لغير المصرح، scope الملكية
- * عبر edit_others_products (غيره: منتجاته فقط عبر get_posts author)،
- * 503 عبر قرار التكامل woocommerce + hossam_wc_is_active()، pagination
- * (per=20 و+1 lookahead وhas_more) — كلها حرفية، وفشل قراءة DB
- * (last_error) → 500 برسالة آمنة بدل نجاح فارغ (B6-UNVERIFIED).
+ * The carried-over contract as-is: 403 edit_products for the unauthorized, the ownership scope
+ * via edit_others_products (others: their own products only via get_posts author),
+ * 503 via the woocommerce integration decision + hossam_wc_is_active(), pagination
+ * (per=20 and +1 lookahead and has_more) — all verbatim, and a DB read failure
+ * (last_error) → 500 with a safe message instead of an empty success (B6-UNVERIFIED).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -30,7 +30,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // ══════════════════════════════════════════════════════════════
 // SECTION 15: STORE — Feature #13
 // ══════════════════════════════════════════════════════════════
-// [WC-endpoint] Endpoint: hossam_get_products — تبويب Orders يُعيد استخدام hossam_get_orders حرفياً (لا endpoint جديد له)
+// [WC-endpoint] Endpoint: hossam_get_products — the Orders tab reuses hossam_get_orders verbatim (no new endpoint for it)
 add_action( 'wp_ajax_hossam_get_products', function(): void {
     check_ajax_referer( 'hossam_nonce', 'nonce' );
     if ( ! is_user_logged_in() ) { wp_send_json_error( [ 'message' => 'Unauthorized' ], 401 ); }
