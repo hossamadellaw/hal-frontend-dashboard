@@ -1,25 +1,27 @@
 <?php
 /**
- * runtime/security/class-secret-store.php — HAL Secret Store (الدفعة 3)
+ * runtime/security/class-secret-store.php — HAL Secret Store (batch 3)
  * ══════════════════════════════════════════════════════════════
- * العقد (معمارية §7.6 HAL Secret Store + قرارات المالك §2.4):
- *   - ترتيب مصدر المفتاح حصريًا: Environment secret ثم PHP constant
- *     HAL_FRONTEND_DASHBOARD_SECRET_KEY خارج المستودع. البيئة تقدَم
- *     على الثابت ولا يمكن لقيمة DB تجاوزهما. لا اشتقاق افتراضي من
- *     WordPress salts ولا توليد يخزن في DB؛ غياب المصدر أو Sodium
- *     يجعل الإدخال المشفر blocked صراحة (بلا fallback أضعف).
- *   - تشفير Sodium AEAD (XChaCha20-Poly1305) بـnonce فريد لكل قيمة
- *     وassociated data يربط site/secret id/schema version.
- *   - في option منفصلة autoload=no تُخزن ciphertext+nonce+version+
- *     key fingerprint فقط — لا plaintext أبدًا ولا يظهر في
+ * The contract (architecture §7.6 HAL Secret Store + owner decisions §2.4):
+ *   - The key source order is exclusive: the Environment secret, then the PHP
+ *     constant HAL_FRONTEND_DASHBOARD_SECRET_KEY outside the repository. The
+ *     environment outranks the constant and no DB value can outrank either.
+ *     No default derivation from WordPress salts and no generation stored in
+ *     the DB; a missing source or Sodium makes the encrypted entry explicitly
+ *     blocked (no weaker fallback).
+ *   - Sodium AEAD encryption (XChaCha20-Poly1305) with a unique nonce per
+ *     value and associated data binding site/secret id/schema version.
+ *   - In a separate autoload=no option only ciphertext+nonce+version+key
+ *     fingerprint are stored — never plaintext, and it never appears in
  *     export/log/HTML/JS/AJAX.
- *   - تغيّر master key (fingerprint مختلف) أو فشل AEAD يترك
- *     ciphertext كما هو، ولا يسجل نجاحًا، وينتج خطأ قابلًا للتشخيص
- *     يفعّل حالة integration blocked في مراقب الصحة.
- *   - audit metadata: actor/time/action/secret id دون قيمة أو prefix،
- *     ولا تسجيل request/response خام.
- *   - الواجهة لا تعيد القيمة إلا للاستهلاك الداخلي الموثوق؛ الحذف
- *     إجراء مستقل ويستدعى من المتحكم بـPOST + nonce + capability.
+ *   - A master key change (a different fingerprint) or an AEAD failure leaves
+ *     the ciphertext as-is, records no success, and produces a diagnosable
+ *     error that raises the integration blocked state in the health monitor.
+ *   - Audit metadata: actor/time/action/secret id without the value or
+ *     prefix, and no raw request/response logging.
+ *   - The interface returns the value only for trusted internal consumption;
+ *     deletion is a separate action called from the controller with
+ *     POST + nonce + capability.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -30,13 +32,13 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	const OPTION_NAME    = 'hal_frontend_dashboard_secrets';
 	const SCHEMA_VERSION = 1;
 
-	/** اسم متغير/ثابت مفتاح التشفير في البيئة ثم PHP (خارج المستودع). */
+	/** The encryption key env-var/constant name: environment first, then PHP (outside the repository). */
 	const KEY_NAME = 'HAL_FRONTEND_DASHBOARD_SECRET_KEY';
 
-	/** بصمة المفتاح: أول 16 بايت من sha256 للبايتات الخام (ليست المفتاح). */
+	/** Key fingerprint: the first 16 bytes of sha256 of the raw bytes (not the key). */
 	const FINGERPRINT_BYTES = 16;
 
-	/** معرفات السر: أحرف صغيرة/أرقام/شرطة سفلية فقط — والقائمة تملكها Registry. */
+	/** Secret ids: lowercase letters/digits/underscore only — the Registry owns the list. */
 	const SECRET_ID_PATTERN = '/\A[a-z0-9_]{1,64}\z/D';
 
 	const ERR_UNAVAILABLE   = 'hal_secret_store_unavailable';
@@ -49,10 +51,10 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	const ERR_UNSUPPORTED_VERSION = 'hal_secret_unsupported_version';
 
 	/**
-	 * حالة التوفر: Sodium موجود ومصدر مفتاح خارجي حاضر — كلاهما مطلوب
-	 * (B3-04: غياب Sodium وحده يكفي للحجب الصريح). غياب أيٍّ منهما
-	 * يجعل الإدخال المشفر blocked (المصادر الخارجية environment/
-	 * constant تبقى قابلة للاستخدام في الأدابتر).
+	 * Availability state: Sodium present AND an external key source present —
+	 * both required (B3-04: a missing Sodium alone suffices for the explicit
+	 * block). A missing either makes the encrypted entry blocked (the external
+	 * sources environment/constant remain usable in the adapters).
 	 */
 	public static function is_available(): bool {
 		return function_exists( 'sodium_crypto_aead_xchacha20poly1305_ietf_encrypt' )
@@ -60,8 +62,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * مصدر المفتاح الفعلي: environment | constant | unavailable.
-	 * البيئة تتقدم على الثابت ولا يمكن لقيمة DB تجاوزهما.
+	 * The actual key source: environment | constant | unavailable.
+	 * The environment outranks the constant and no DB value can outrank either.
 	 */
 	public static function get_key_source(): string {
 		if ( function_exists( 'getenv' ) && is_string( getenv( self::KEY_NAME ) ) && '' !== getenv( self::KEY_NAME ) ) {
@@ -74,9 +76,9 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * بصمة المفتاح الحالي (hex 32 حرفًا من أول 16 بايت من sha256) أو
-	 * null عند غياب المفتاح — تُستخدم للتشخيص وكشف تغيّر المفتاح،
-	 * وليست سرًا.
+	 * The current key fingerprint (hex, 32 chars from the first 16 bytes of
+	 * sha256) or null when the key is absent — used for diagnostics and
+	 * key-change detection, and is not a secret.
 	 */
 	public static function get_key_fingerprint(): ?string {
 		$key = self::resolve_key();
@@ -84,7 +86,7 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * هل السر مضبوط؟ فحص وجود فقط — بلا فك تشفير (render آمن).
+	 * Is the secret set? An existence check only — no decryption (render-safe).
 	 */
 	public static function has( string $secret_id ): bool {
 		if ( ! self::is_valid_secret_id( $secret_id ) ) {
@@ -95,8 +97,9 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * تخزين قيمة سر مشفرة. الفشل (توفّر/تحقق) يعيد WP_Error ولا يكتب
-	 * شيئًا — لا fallback إلى plaintext ولا خوارزمية أضعف.
+	 * Stores an encrypted secret value. A failure (availability/verification)
+	 * returns a WP_Error and writes nothing — no plaintext fallback and no
+	 * weaker algorithm.
 	 *
 	 * @return true|WP_Error
 	 */
@@ -135,10 +138,10 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * فك التشفير للاستهلاك الداخلي الموثوق فقط (أدابتر وقت النداء —
-	 * ليس داخل page render للواجهة). المفاتيح المغلوطة تعيد WP_Error:
-	 * MISSING / KEY_MISMATCH / DECRYPT_FAILED — ciphertext يبقى كما هو
-	 * ولا يُسجل نجاح في أي حالة فشل.
+	 * Decryption for trusted internal consumption only (an adapter at call
+	 * time — not inside the front-end page render). Wrong keys return a
+	 * WP_Error: MISSING / KEY_MISMATCH / DECRYPT_FAILED — the ciphertext
+	 * stays as-is and no success is recorded on any failure.
 	 *
 	 * @return string|WP_Error
 	 */
@@ -154,8 +157,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 		if ( ! isset( $record['v'], $record['key_fp'], $record['nonce'], $record['ct'] ) ) {
 			return new WP_Error( self::ERR_DECRYPT_FAILED, 'Malformed ciphertext record.' );
 		}
-		// B3-05: رفض نسخ ciphertext غير المدعومة صراحة — البايتات تبقى
-		// كما هي بلا مسح صامت، والحالة قابلة للتشخيص.
+		// B3-05: reject unsupported ciphertext copies explicitly — the bytes stay
+		// as-is with no silent wipe, and the state stays diagnosable.
 		if ( ! is_int( $record['v'] ) || self::SCHEMA_VERSION !== $record['v'] ) {
 			return new WP_Error( self::ERR_UNSUPPORTED_VERSION, 'Unsupported ciphertext schema version; the stored bytes are unchanged.' );
 		}
@@ -165,8 +168,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 		}
 		if ( ! is_string( $record['key_fp'] ) || ! hash_equals( $record['key_fp'], (string) self::get_key_fingerprint() ) ) {
 			self::audit( 'key_mismatch', $secret_id );
-			// تغيّر master key: ciphertext يبقى كما هو (لا يمسح) وينتج
-			// حالة blocked قابلة للتشخيص — §8.4.
+			// Master key change: the ciphertext stays as-is (not wiped) and yields
+			// a diagnosable blocked state — §8.4.
 			return new WP_Error( self::ERR_KEY_MISMATCH, 'The master key changed; the stored ciphertext is kept for diagnosis.' );
 		}
 		$ciphertext = base64_decode( (string) $record['ct'], true );
@@ -182,8 +185,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 				$key
 			);
 		} catch ( Throwable $failure ) {
-			// سجل تالف أو nonce بطول خاطئ: فشل مغلق — لا استثناء يهرب
-			// للمستهلك، والبايتات المخزنة تبقى كما هي للتشخيص.
+			// A corrupted record or a wrong-length nonce: fail-closed — no exception
+			// escapes to the consumer, and the stored bytes stay as-is for diagnosis.
 			return new WP_Error( self::ERR_DECRYPT_FAILED, 'AEAD verification failed; the stored ciphertext is unchanged.' );
 		}
 		if ( false === $plaintext ) {
@@ -193,8 +196,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * حذف إجراء مستقل (POST + nonce + capability عند المنادي من
-	 * المتحكم). لا يمس غير السر المطلوب.
+	 * Deletion is a separate action (POST + nonce + capability at the
+	 * controller callers). It touches nothing but the requested secret.
 	 */
 	public static function delete( string $secret_id ): bool {
 		if ( ! self::is_valid_secret_id( $secret_id ) ) {
@@ -211,18 +214,18 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * صلاحية معرف السر: نمط مغلق — والأسماء المسموحة قائمة Registry
-	 * (لا key names حرة من input).
+	 * Secret id validity: a closed pattern — and the allowed names are the
+	 * Registry list (no free-form key names from input).
 	 */
 	public static function is_valid_secret_id( string $secret_id ): bool {
 		return 1 === preg_match( self::SECRET_ID_PATTERN, $secret_id );
 	}
 
 	/**
-	 * B3-05: associated data يربط الموقع بما يتجاوز hostname وحده —
-	 * host + path من home URL، فموقعان بمسارين مختلفين على المضيف
-	 * نفسه غير قابلين لتبادل ciphertext. إضافةً إلى secret id
-	 * وschema version.
+	 * B3-05: the associated data binds the site beyond the hostname alone —
+	 * host + path from the home URL, so two sites with different paths on the
+	 * same host cannot swap ciphertext. In addition to the secret id and the
+	 * schema version.
 	 */
 	private static function associated_data( string $secret_id ): string {
 		$site = '';
@@ -240,8 +243,9 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * B3-04: سبب عدم التوفر منقحًا — sodium_missing أو key_missing أو
-	 * none. يستهلكه مراقب الصحة وشاشة التشخيص بدل تشخيص موحد غامض.
+	 * B3-04: the unavailability reason is refined — sodium_missing, key_missing
+	 * or none. Consumed by the health monitor and the diagnostics screen
+	 * instead of one vague unified diagnosis.
 	 */
 	public static function get_blocker(): string {
 		if ( ! function_exists( 'sodium_crypto_aead_xchacha20poly1305_ietf_encrypt' ) ) {
@@ -259,8 +263,8 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * المفتاح: raw 32 بايت، أو hex 64 محرفًا، أو base64 يقابل 32 بايت.
-	 * أي شيء آخر = unavailable (بلا اشتقاق ولا أضعف بديل).
+	 * The key: raw 32 bytes, or 64 hex chars, or base64 decoding to 32 bytes.
+	 * Anything else = unavailable (no derivation, no weaker alternative).
 	 *
 	 * @return string|null
 	 */
@@ -293,15 +297,16 @@ final class HAL_Frontend_Dashboard_Secret_Store {
 	}
 
 	/**
-	 * طول مفتاح secretbox: 32 بايت ثابتة بمواصفة الخوارزمية (يطابق
-	 * SODIUM_CRYPTO_SECRETBOX_KEYBYTES). قيمة حرفية عمدًا — ثوابت
-	 * sodium لا تُلمس عند تحميل الملف كي لا يفتال مع غياب الامتداد.
+	 * The secretbox key length: a fixed 32 bytes per the algorithm spec
+	 * (matches SODIUM_CRYPTO_SECRETBOX_KEYBYTES). Deliberately a literal
+	 * value — sodium constants are not touched at file load so it cannot
+	 * fatal with the extension absent.
 	 */
 	const KEY_BYTES = 32;
 
 	/**
-	 * audit metadata بلا قيمة ولا prefix ولا request/response خام:
-	 * hook داخلي + سطر log منقح.
+	 * Audit metadata with no value, no prefix and no raw request/response:
+	 * an internal hook + a refined log line.
 	 *
 	 * @param string $action set|delete|key_mismatch
 	 */

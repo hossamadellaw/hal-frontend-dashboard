@@ -2,43 +2,51 @@
 /**
  * runtime/bootstrap.php — Runtime Bootstrap (HAL Frontend Dashboard)
  * ══════════════════════════════════════════════════════════════
- * نقطة تحميل (Bootstrap) فقط للـrelease المملوك للإصدار — بلا أي منطق
- * مباشر هنا. المصدر: legacy mu-plugins/hossam-dashboard.php (الدفعة 2).
+ * A load point (Bootstrap) only for the version-owned release — no direct
+ * logic here. Source: legacy mu-plugins/hossam-dashboard.php (batch 2).
  *
- * العقد (loader-core.php يعرِّف ثوابت الـrelease قبل تحميل هذا الملف):
- *   - HAL_FRONTEND_DASHBOARD_RUNTIME_DIR   مسار جذر الـrelease المنتهي
- *     بـDIRECTORY_SEPARATOR — العقد المعماري (الوثيقة §13، B2-04).
- *   - HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT  الاسم التوافقي نفسه — يعرِّفه
- *     loader-core.php:136 ويستهلكه setup.php:435. يقبل هذا الملف أيًّا
- *     من الاسمين ويعرِّف الناقص من الموجود، فيبقى كلاهما متاحًا.
- *   - HAL_FRONTEND_DASHBOARD_RUNTIME_URL   رابط الـrelease (ينتهي بـ/).
+ * Contract (loader-core.php defines the release constants before this
+ * file is loaded):
+ *   - HAL_FRONTEND_DASHBOARD_RUNTIME_DIR   the release root path ending
+ *     with DIRECTORY_SEPARATOR — the architectural contract (document
+ *     §13, B2-04).
+ *   - HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT  the same compatibility name —
+ *     defined by loader-core.php:136 and consumed by setup.php:435. This
+ *     file accepts either name and defines the missing one from the
+ *     present one, so both remain available.
+ *   - HAL_FRONTEND_DASHBOARD_RUNTIME_URL   the release URL (ending with
+ *     /).
  *   - HAL_FRONTEND_DASHBOARD_RELEASE_ID / HAL_FRONTEND_DASHBOARD_RUNTIME_VERSION.
  *
- * قاعدة إلزامية (ترتيب التحميل الإلزامي Core→Adapters→AJAX):
+ * Mandatory rule (the mandatory load order Core→Adapters→AJAX):
  *   core/setup → core/i18n → core/tables → core/permissions →
  *   core/notifications → adapters/* → ajax/*
- * ترتيب التحميل أدناه ثابت ولا يجوز تغييره. core (الدفعة 2) ثم
- * Backend/Settings/Secrets (الدفعة 3) ثم adapters/* (الدفعة 4 — تُحمَّل
- * بعد core بالكامل وقبل أي AJAX)، والدفعة 5 تضيف ajax/* (تُحمَّل بعد
- * adapters بالكامل — كل ملف ajax يفترض أن دوال core وadapters معرَّفة
- * قبله). هذا الترتيب هو ما يضمن توفر الدوال عند وقت callback، لا ترتيب
- * نظام الملفات.
+ * The load order below is fixed and must not be changed. core (batch 2),
+ * then Backend/Settings/Secrets (batch 3), then adapters/* (batch 4 —
+ * loaded after core in full and before any AJAX), and batch 5 adds
+ * ajax/* (loaded after adapters in full — every ajax file assumes the
+ * core and adapters functions are defined before it). This order is what
+ * guarantees the functions are available at callback time, not the file
+ * system order.
  *
- * الحراسة: إذا لم يُعرَّف أيٌّ من الاسمين فالخروج سليمًا (return — لا
- * fatal ولا إطلاق runtime_ready)، لأن الـLoader المغلق يبني rollback
- * اعتمادًا على عدم إطلاق الـaction في موعد shutdown.
+ * Guarding: if neither name is defined, the exit is clean (a return — no
+ * fatal and no runtime_ready fired), because the closed Loader builds the
+ * rollback based on the action not being fired by shutdown time.
  *
- * READINESS (B2-01): الـaction يُطلَق عند اكتمال تحميل core (عقد
- * Loader المغلق: عمله = «الإقلاع تم»)، بينما فلتر
- * hal_frontend_dashboard_boot_readiness يُقيِّم عند كل نداء نتيجة
- * التهيئة والتحقق الفعليين (نسخة كل جدول مملوك مسجلة أو أعلى محفوظة
- * بعد migrations الـinit). فشل migration يمنع Health acknowledgement
- * الناجح (class-health-check.php يقرأ did_action + apply_filters
- * معًا) دون تغيير توقيت الـaction أو عقد الـLoader. لا static cache
- * للنتيجة: نداء مبكر قبل init يعيد false صادقة ولا يُثبَّت خطأً.
+ * READINESS (B2-01): the action is fired when the core load completes
+ * (the closed Loader contract: its job = "boot done"), while the
+ * hal_frontend_dashboard_boot_readiness filter evaluates on every call
+ * the result of the actual initialization and verification (each owned
+ * table's recorded version at or above the code target, persisted after
+ * the init migrations). A migration failure prevents a successful Health
+ * acknowledgement (class-health-check.php reads did_action +
+ * apply_filters together) without changing the action timing or the
+ * Loader contract. No static cache for the result: an early call before
+ * init returns an honest false and is not pinned as an error.
  *
- * لا state/network هنا. active-version.json وقرار المالك
- * (observability) مؤجَّل التنفيذ خارج هذه الدفعة — لا كود له هنا.
+ * No state/network here. active-version.json and the owner decision
+ * (observability) are deferred outside this batch — no code for them
+ * here.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -51,13 +59,14 @@ if ( defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_DIR' ) ) {
 } elseif ( defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT' ) ) {
 	$hal_runtime_root = HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT;
 } else {
-	// لا release context — خروج سليم بلا fatal ولا runtime_ready؛
-	// الـLoader المغلق يبني rollback عند عدم إطلاق الـaction.
+	// No release context — a clean exit with no fatal and no runtime_ready;
+	// the closed Loader builds the rollback when the action is not fired.
 	return;
 }
 
-// B2-04: توحيد عقد المسار — §13 يطلب RUNTIME_DIR ومستهلكو الـLoader
-// الحاليون يستهلكون RUNTIME_ROOT؛ يُعرَّف الناقص من الموجود.
+// B2-04: unifying the path contract — §13 requires RUNTIME_DIR and the
+// current Loader consumers consume RUNTIME_ROOT; the missing one is
+// defined from the present one.
 if ( ! defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_DIR' ) ) {
 	define( 'HAL_FRONTEND_DASHBOARD_RUNTIME_DIR', $hal_runtime_root );
 }
@@ -66,7 +75,7 @@ if ( ! defined( 'HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// CORE — بالترتيب الإلزامي، لا تُغيَّر
+// CORE — in the mandatory order, do not change
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'core/setup.php';
 require_once $hal_runtime_root . 'core/i18n.php';
@@ -77,11 +86,12 @@ require_once $hal_runtime_root . 'core/rate-limits.php';
 require_once $hal_runtime_root . 'core/audit-log.php';
 
 // ══════════════════════════════════════════════════════════════
-// BACKEND — الدفعة 3: الإعدادات والأسرار وسجل التكاملات والصحة
-// التكاملية والواجهة الإدارية. تُحمَّل بعد core بالكامل وقبل
-// adapters (الدفعة 4 ستستهلك عقود Settings Repository/Secret
-// Store/Registry). كل ملف هنا يسجّل hooks فقط عند التحميل بلا
-// استدعاءات WordPress أخرى — التنفيذ وقت الـcallback.
+// BACKEND — batch 3: the settings, the secrets, the integration registry,
+// the integration health and the admin interface. Loaded after core in
+// full and before adapters (batch 4 will consume the Settings
+// Repository/Secret Store/Registry contracts). Every file here registers
+// hooks only at load time with no other WordPress calls — execution
+// happens at callback time.
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'settings/class-settings-repository.php';
 require_once $hal_runtime_root . 'security/class-secret-store.php';
@@ -90,10 +100,11 @@ require_once $hal_runtime_root . 'health/class-integration-health-monitor.php';
 require_once $hal_runtime_root . 'admin/class-admin-controller.php';
 
 // ══════════════════════════════════════════════════════════════
-// ADAPTERS — الدفعة 4: تُحمَّل هنا بعد core بالكامل وقبل أي AJAX،
-// بالترتيب: wordpress-posts → wordpress-uploads → woocommerce →
-// wpml → amelia → rankmath → ultimatemember → ai
-// (لا ترتيب إلزامي بينها، لكن يجب أن تُحمَّل بعد core بالكامل).
+// ADAPTERS — batch 4: loaded here after core in full and before any
+// AJAX, in the order: wordpress-posts → wordpress-uploads → woocommerce
+// → wpml → amelia → rankmath → ultimatemember → ai
+// (no mandatory order among them, but they must be loaded after core in
+// full).
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'adapters/wordpress-posts.php';
 require_once $hal_runtime_root . 'adapters/wordpress-uploads.php';
@@ -105,18 +116,21 @@ require_once $hal_runtime_root . 'adapters/ultimatemember.php';
 require_once $hal_runtime_root . 'adapters/ai.php';
 
 // ══════════════════════════════════════════════════════════════
-// AJAX — الدفعتان 5 و6 + v1.0.6 §8.3: تُحمَّل بعد adapters بالكامل
-// (تستدعي دوالها مباشرة). كل ملف ajax يفترض أن دوال core وadapters
-// معرَّفة قبله — هذا الترتيب هو ما يضمن ذلك. ترتيب الملفات التسعة:
+// AJAX — batches 5 and 6 + v1.0.6 §8.3: loaded after adapters in full
+// (they call their functions directly). Every ajax file assumes the core
+// and adapters functions are defined before it — this order is what
+// guarantees that. The order of the nine files:
 // posts → uploads → appointments → finance → members → inbox →
-// store → ai → seo (تاسعًا).
+// store → ai → seo (ninth).
 //
-// ajax/seo.php: v1.0.6 §8.3 — قرار موثق (القرار الموحد أ/ج): يُحمَّل
-// تاسعًا بعد ai؛ فُتحت بوابتا القالب والنقطة معًا بكشف وقت التشغيل
-// (setup.php: verified_fields) بدل بوابة إغلاق الدفعة 5 السابقة
-// (تحميله كان سيغيّر action inventory — الآن تغيير موثق: يُسجَّل
-// wp_ajax_hossam_save_seo في التشغيل الفعلي، وتحدَّث الأجنحة المتأثرة
-// بتعديل قائم موثق). مفتاح المالك rank_math_seo يبقى بوابة الإظهار.
+// ajax/seo.php: v1.0.6 §8.3 — a documented decision (unified decision
+// a/j): loaded ninth after ai; the template and endpoint gates were
+// opened together with runtime disclosure (setup.php: verified_fields)
+// instead of the previous batch-5 closure gate (loading it would have
+// changed the action inventory — now a documented change:
+// wp_ajax_hossam_save_seo is registered in the actual runtime, and the
+// affected wings were updated with a documented existing-file edit). The
+// owner key rank_math_seo remains the display gate.
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'ajax/posts.php';
 require_once $hal_runtime_root . 'ajax/uploads.php';
@@ -129,22 +143,25 @@ require_once $hal_runtime_root . 'ajax/ai.php';
 require_once $hal_runtime_root . 'ajax/seo.php';
 
 // ══════════════════════════════════════════════════════════════
-// TEMPLATES — الدفعة 7: Template Controller (نسخة الـRuntime المشتركة
-// §6.1 من includes/class-template-controller.php؛ البناء يولدها —
-// الدفعة 11). تُحمَّل بعد كل الوحدات ولا اعتماد تحميلي عليها ولا لها
-// على AJAX؛ تسجّل filter template_include فقط عند التحميل، والتقييم
-// وقت template_include. عقد الدفعة 7: قالب Runtime للصفحة المملوكة
-// (page ID) وترجمات WPML حصرًا — بلا slug/query parameter — ومحمل
-// أجزاء dashboard بـallowlist مغلقة.
+// TEMPLATES — batch 7: Template Controller (the shared Runtime copy
+// §6.1 of includes/class-template-controller.php; the build generates it
+// — batch 11). Loaded after all modules, with no load dependency on it
+// and none of it on AJAX; it registers only the template_include filter
+// at load time, and evaluation happens at template_include time. The
+// batch-7 contract: a Runtime template for the owned page (page ID) and
+// WPML translations exclusively — no slug/query parameter — and a
+// dashboard parts loader with a closed allowlist.
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'infrastructure/class-template-controller.php';
 
 // ══════════════════════════════════════════════════════════════
-// UPDATE BRIDGE — الدفعة 11: جسر التحديث الدائم (§6.1 نسخة مشتركة
-// من includes/class-update-bridge.php؛ البناء يولدها). يُحمَّل بعد
-// Template Controller مباشرة ولا اعتماد تحميلي عليه ولا له على AJAX؛
-// التهيئة مقيدة بسياقات التحديث فقط (admin/cron/CLI) فلا شبكة في
-// مسار الزائر — is_update_context() يعيد false خارجها فلا تُسجَّل hooks.
+// UPDATE BRIDGE — batch 11: the permanent update bridge (§6.1 shared
+// copy of includes/class-update-bridge.php; the build generates it).
+// Loaded right after the Template Controller, with no load dependency on
+// it and none of it on AJAX; initialization is restricted to update
+// contexts only (admin/cron/CLI), so no network in the visitor path —
+// is_update_context() returns false outside them, so no hooks are
+// registered.
 // ══════════════════════════════════════════════════════════════
 require_once $hal_runtime_root . 'infrastructure/class-update-bridge.php';
 
@@ -184,22 +201,26 @@ HAL_Frontend_Dashboard_Health_Check::register();
 unset( $hal_runtime_root );
 
 // ══════════════════════════════════════════════════════════════
-// READINESS — عقد Health Check المغلق بعد B2-01:
-//   - الـaction يُطلَق هنا عند اكتمال تحميل core (عقد Loader المغلق:
-//     عمل الـaction = «الإقلاع تم»؛ غيابه في shutdown يبني rollback).
-//   - الفلتر لا يمنح true مجانًا: يُقيِّم عند كل نداء نتيجة التهيئة
-//     والتحقق الفعليين، ففشل migration يمنع Health acknowledgement
-//     الناجح (handle_request يقرأ did_action + apply_filters معًا).
+// READINESS — the closed Health Check contract after B2-01:
+//   - The action is fired here when the core load completes (the closed
+//     Loader contract: the action's job = "boot done"; its absence at
+//     shutdown builds the rollback).
+//   - The filter does not grant true for free: it evaluates on every call
+//     the result of the actual initialization and verification, so a
+//     migration failure prevents a successful Health acknowledgement
+//     (handle_request reads did_action + apply_filters together).
 // ══════════════════════════════════════════════════════════════
 
 if ( ! function_exists( 'hossam_dashboard_core_boot_state_verified' ) ) {
 	/**
-	 * B2-01: نتيجة التهيئة والتحقق الفعليين لجاهزية Core.
+	 * B2-01: the actual initialization and verification result for Core
+	 * readiness.
 	 *
-	 * تُقيَّم حيًا عند كل نداء بلا static cache — أي نداء قبل init
-	 * (قبل migrations) يعيد false صادقة، وبعد نجاح migrations يعيد
-	 * true: كل جدول مملوك يحمل نسخة مسجلة تطابق هدف الكود أو أعلى
-	 * محفوظة (B2-02). يُفشل مغلقًا إن لم تكن دالة السكيمات معرَّفة.
+	 * Evaluated live on every call with no static cache — any call before
+	 * init (before the migrations) returns an honest false, and after the
+	 * migrations succeed it returns true: every owned table carries a
+	 * recorded version matching the code target or a higher persisted one
+	 * (B2-02). It fails closed if the schemas function is not defined.
 	 */
 	function hossam_dashboard_core_boot_state_verified(): bool {
 		if ( ! function_exists( 'hossam_dashboard_table_schemas' ) ) {
@@ -220,10 +241,11 @@ if ( ! function_exists( 'hossam_dashboard_core_boot_state_verified' ) ) {
 
 if ( ! function_exists( 'hossam_dashboard_core_boot_ready' ) ) {
 	/**
-	 * فلتر hal_frontend_dashboard_boot_readiness — حالة الجاهزية
-	 * الفعلية، لا إقرار ثابت. وسائط الـrelease الممرَّرة من
-	 * class-health-check.php تُقبل وتُتجاهل هنا (تطابق الإصدار تتحقق
-	 * في consume() عبر تحدي الـhealth المغلق).
+	 * The hal_frontend_dashboard_boot_readiness filter — the actual
+	 * readiness state, not a static assertion. The release arguments passed
+	 * from class-health-check.php are accepted and ignored here (version
+	 * matching is verified in consume() through the closed health
+	 * challenge).
 	 */
 	function hossam_dashboard_core_boot_ready(): bool {
 		return hossam_dashboard_core_boot_state_verified();
