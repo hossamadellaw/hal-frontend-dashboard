@@ -1,20 +1,21 @@
 <?php
 /**
- * runtime/templates/dashboard/inbox.php — بانل البريد الداخلي (الدفعة 8)
+ * runtime/templates/dashboard/inbox.php — Inbox panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/inbox.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/inbox.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): بوابة
- * المالك is_feature_enabled('inbox') بعد حارس ABSPATH — return
- * مبكر؛ فشل آمن بلا إخراج. الحاويات (#inbox-container) وفورم
- * الإرسال المديري (شرط $is_admin من الـshell) باقية كما هي —
- * بلا عمليات كتابة داخل القالب (عقد §19)؛ التحميل والإرسال عبر
- * endpoints الـAJAX حصرًا وتُملأ عبر inbox.js.
+ * The sole authorized delta (owner decision B3-08 — option a): the owner
+ * gate is_feature_enabled('inbox') after the ABSPATH guard — early
+ * return; fail-safe with no output. The containers (#inbox-container)
+ * and the admin send form (the $is_admin condition from the shell)
+ * remain as-is — no write operations inside the template (contract
+ * §19); loading and sending happen exclusively through the AJAX
+ * endpoints and filling is done via inbox.js.
  *
- * args صريحة: يستهلك من الـshell $is_admin (فورم الإرسال) — بقية
- * المحتوى حاويات فارغة؛ يُستدعى من render_part بقائمة args
- * الموثقة.
+ * Explicit args: it consumes $is_admin from the shell (the send form) —
+ * the rest of the content is empty containers; it is called from
+ * render_part with the documented args list.
  *
  */
 

@@ -1,23 +1,24 @@
 <?php
 /**
- * runtime/templates/dashboard/overview.php — بانل النظرة العامة (الدفعة 7)
+ * runtime/templates/dashboard/overview.php — Overview panel (batch 7)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/overview.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 7 — snapshot 67044A2F…).
+ * Source: legacy theme/template-parts/dashboard/overview.php (byte-level
+ * source fingerprint pinned in the batch 7 inventory — snapshot 67044A2F…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ):
- *   1. إعادة حساب $sees_calendar المحلي أضيفت عليها بوابة المالك
- *      is_feature_enabled('amelia') — شروط المصدر (القدرات + حالة
- *      التكامل) باقية كما هي.
- *   2. زر My Profile في _hossam_dashboard_render_quick_actions بقي
- *      غير مشروط في المصدر — أضيفت عليه بوابة المالك
- *      is_feature_enabled('ultimate_member_profile').
- * الأزرار الأخرى تستهلك بوابة المالك ضمنيًا عبر args الـshell:
- * $sees_content (posts) و$can_upload (files) والشرط المحلي
- * $sees_calendar (amelia).
+ * The sole authorized delta (owner decision B3-08 — option a):
+ *   1. The local $sees_calendar recomputation had the owner gate
+ *      is_feature_enabled('amelia') added to it — the source conditions
+ *      (capabilities + integration status) remain as-is.
+ *   2. The My Profile button in _hossam_dashboard_render_quick_actions
+ *      stayed unconditioned in the source — the owner gate
+ *      is_feature_enabled('ultimate_member_profile') was added to it.
+ * The other buttons consume the owner gate implicitly through the shell
+ * args: $sees_content (posts), $can_upload (files) and the local
+ * condition $sees_calendar (amelia).
  *
- * args صريحة: تستقبل متغيراتها من الـshell عبر محمل أجزاء Runtime
- * (render_part) — قائمة args الموثقة في runtime/templates/dashboard.php.
+ * Explicit args: it receives its variables from the shell via the Runtime
+ * part loader (render_part) — the documented args list is in
+ * runtime/templates/dashboard.php.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -28,13 +29,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 $overview_amelia = function_exists( 'hossam_get_integration_decision' )
     ? hossam_get_integration_decision( 'amelia' )
     : [ 'status' => 'unavailable' ];
-// v1.0.8 (2026-10-29) — بوابة جاهزية S4 على $sees_calendar (توصية الفرق الثلاثة المعتمدة — D13:
-// النقطة الكسولة تقيس الجداول في ajax/appointments.php:52-55 فتقيسها البوابة أيضًا).
-// تعديل تعريف المتغير يجري المواضع الخمسة تلقائيًا — والآثار الثلاثة مقصودة:
-// اختفاء بطاقة «جدول اليوم» (:98)، اختفاء بطاقة المواعيد وسكربتها (:143)،
-// تبديل الإجراءات السريعة وإخفاء زر «جدولي» (:214/:242).
-// خارج النطاق في v1.0.8: لوحة المواعيد الصريحة (ترجع 503 بالتصميم عند الفتح) والقائمة الجانبية (dashboard.php).
-// fail-closed: غياب أي دالة → $sees_calendar = false. شرطا القدرات والميزة باقيان كما هما.
+// v1.0.8 (2026-10-29) — S4 readiness gate on $sees_calendar (the approved three-teams recommendation — D13:
+// the lazy point measures the tables in ajax/appointments.php:52-55, so the gate measures them too).
+// Changing the variable's definition covers the five positions automatically — and the three effects are intended:
+// the «Today's Schedule» card disappearing (:98), the appointments card and its script disappearing (:143),
+// the quick actions switching and the «My Schedule» button hiding (:214/:242).
+// Out of scope in v1.0.8: the explicit appointments panel (returns 503 by design when opened) and the side menu (dashboard.php).
+// fail-closed: any missing function → $sees_calendar = false. The capability and feature conditions remain as they are.
 $sees_calendar = 'unavailable' !== $overview_amelia['status']
     && function_exists( 'hossam_amelia_is_active' )
     && hossam_amelia_is_active()
@@ -124,8 +125,8 @@ $sees_calendar = 'unavailable' !== $overview_amelia['status']
 
       <div class="grid g2 mb-16">
 
-        <!-- Recent Activity — WP_Query حقيقي (B7-03: تُعرض فقط مع تمكين
-             posts؛ الـshell لا يشغّل الاستعلام أصلًا عند التعطيل) -->
+        <!-- Recent Activity — a real WP_Query (B7-03: shown only when posts is
+             enabled; the shell does not run the query at all when it is disabled) -->
         <?php if ( $sees_content && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'posts' ) && null !== $activity_query ) : ?>
         <div class="card">
           <div class="flex items-center gap-8 mb-12">
@@ -201,7 +202,7 @@ $sees_calendar = 'unavailable' !== $overview_amelia['status']
         </div>
         <?php endif; ?>
 
-        <!-- م26 — quick-actions helper -->
+        <!-- m26 — quick-actions helper -->
         <?php
         if ( ! function_exists( '_hossam_dashboard_render_quick_actions' ) ) {
             function _hossam_dashboard_render_quick_actions( bool $sees_content, string $extra_btn = '' ): void { ?>

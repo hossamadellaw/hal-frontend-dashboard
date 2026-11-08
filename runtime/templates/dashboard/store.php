@@ -1,19 +1,21 @@
 <?php
 /**
- * runtime/templates/dashboard/store.php — بانل المتجر (الدفعة 8)
+ * runtime/templates/dashboard/store.php — Store panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/store.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/store.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): بوابة
- * المالك is_feature_enabled('store') بعد حارس ABSPATH — return
- * مبكر؛ فشل آمن بلا إخراج. فصل scopes المصدر ($store_can_products
- * بـedit_products و$store_can_orders بـmanage_options أو
- * manage_woocommerce) وregistry states وحالات التبويبين باقية كما
- * هي (عقد §19: فصل products/orders scopes).
+ * The sole authorized delta (owner decision B3-08 — option a): the owner
+ * gate is_feature_enabled('store') after the ABSPATH guard — early
+ * return; fail-safe with no output. The source scopes separation
+ * ($store_can_products with edit_products and $store_can_orders with
+ * manage_options or manage_woocommerce), the registry states and the
+ * two tab states remain as-is (contract §19: products/orders scopes
+ * separation).
  *
- * args صريحة: البانل بلا متغيرات من الـshell — القدرات والـregistry
- * محلية؛ يُستدعى من render_part بقائمة args الموثقة.
+ * Explicit args: the panel has no variables from the shell — the
+ * capabilities and the registry are local; it is called from render_part
+ * with the documented args list.
  *
  */
 
