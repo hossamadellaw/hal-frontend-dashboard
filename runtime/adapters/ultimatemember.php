@@ -1,20 +1,21 @@
 <?php
 /**
- * runtime/adapters/ultimatemember.php (الدفعة 4)
+ * runtime/adapters/ultimatemember.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: كل تكامل Ultimate Member — الشورت‌كودات الرسمية الثلاثة
- * وfilter التوجيه بعد الدخول. لا بديل رسمي مُثبَت فى الكود لهذه
- * الشورت‌كودات (مسارات حسّاسة أمنيًا: تغيير كلمة مرور) — تبقى آلية
- * أساسية، لا احتياطية.
+ * Role: the whole Ultimate Member integration — the three official
+ * shortcodes and the post-login redirect filter. There is no proven official
+ * alternative in the code for these
+ * shortcodes (security-sensitive paths: password change) — they remain a
+ * primary mechanism, not a fallback.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * ultimatemember.php (الدفعة 4 من HAL Frontend Dashboard).
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/adapters/
+ * ultimatemember.php (Batch 4 of HAL Frontend Dashboard).
  *
- * قرار صاحب المشروع المعتمد (2026-08-24، منقول من رأس المصدر): الملف
- * يبقى فارغًا عمدًا كنقطة تكامل مستقبلية موثقة فقط — hook
- * um_login_redirect_url مملوك لـcore/setup.php حصريًا (تسجيل مزدوج =
- * استدعاء مضاعف لنفس الـfilter بلا أي تغيير في النتيجة). الشورت‌كودات
- * تُستهلك من القالب (profile.php، الدفعة 7) لا من هنا.
+ * The approved project owner decision (2026-08-24, carried over from the source header): the file
+ * stays deliberately empty as a documented future integration point only — the
+ * um_login_redirect_url hook is owned by core/setup.php exclusively (double registration =
+ * a doubled invocation of the same filter with no change in the result). The shortcodes
+ * are consumed from the template (profile.php, Batch 7), not from here.
  * ══════════════════════════════════════════════════════════════
  */
 

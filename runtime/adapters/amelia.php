@@ -1,40 +1,40 @@
 <?php
 /**
- * runtime/adapters/amelia.php (الدفعة 4)
+ * runtime/adapters/amelia.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: كل تكامل Amelia — الـfilters الرسمية الأربعة، allowlist
- * ثابتة لـElite API (قراءة فقط)، والاستثناء SQL المباشر الوحيد
- * المعتمَد فى كل المشروع (3 مواضع داخل هذا الملف: جدول/موظف مرتبط/
- * مواعيد قادمة — SQL #2 (إبطال كاش المواعيد) مملوك لـcore/notifications.php).
+ * Role: the whole Amelia integration — the four official filters, a fixed
+ * allowlist for the Elite API (read only), and the single approved
+ * direct-SQL exception in the whole project (3 places inside this file: table/linked employee/
+ * upcoming appointments — SQL #2 (appointments cache invalidation) is owned by core/notifications.php).
  *
- * المصدر: نقل من legacy mu-plugins/hossam-dashboard/adapters/amelia.php
- * (الدفعة 4 من HAL Frontend Dashboard) — التعديل المصرَّح به وحده:
- *   - hossam_amelia_get_api_key(): تستهلك credential resolver الدفعة 3
- *     المعتمد (قرار المالك §2.4) عبر
+ * Source: ported from legacy mu-plugins/hossam-dashboard/adapters/amelia.php
+ * (Batch 4 of HAL Frontend Dashboard) — the only authorized change:
+ *   - hossam_amelia_get_api_key(): consumes the Batch 3 approved
+ *     credential resolver (owner decision §2.4) through
  *     HAL_Frontend_Dashboard_Integration_Settings_Registry::credential_source():
- *     الثابت الموثق HOSSAM_AMELIA_API_KEY ثم HAL encrypted fallback
- *     (amelia_elite_api_key) — لا env name موثق للـAmelia (قرار
- *     registry الدفعة 3 المغلق)، لذا قناة getenv التاريخية استُبدلت
- *     بالمصدر المعتمد. خارج ترتيب التحميل الطبيعي (طبقة الدفعة 3
- *     غائبة) يبقى الثابت الموثق وحده fallback محميًا.
+ *     the documented constant HOSSAM_AMELIA_API_KEY then the HAL encrypted fallback
+ *     (amelia_elite_api_key) — there is no documented env name for Amelia (the
+ *     closed Batch 3 registry decision), so the historical getenv channel was replaced
+ *     with the approved source. Outside the normal loading order (the Batch 3 layer
+ *     absent) the documented constant alone remains as a guarded fallback.
  *
- * العقد المنقول كما هو:
- *   - api_request: allowlist حرفية (GET /appointments فقط، وسائط
- *     مغلقة dates/page/skipServices/skipProviders/asArray)، HTTPS مفروض
- *     على الـURL المبني، sslverify=true، redirection=0، حد استجابة
- *     64KB، timeout=15، بلا base URL من input، ولkeleton المفتاح في ترويسة Amelia فقط.
- *   - 401/403 → credentials_rejected + إبطال كاش الصحة وقدرات
- *     التكاملات (delete_transient + hossam_invalidate_integration_capabilities
- *     بحارس function_exists).
- *   - health: transient خمس دقائق + إبطال على activated/deactivated/
+ * The contract as carried over:
+ *   - api_request: a literal allowlist (GET /appointments only, closed
+ *     arguments dates/page/skipServices/skipProviders/asArray), HTTPS enforced
+ *     on the built URL, sslverify=true, redirection=0, a response limit
+ *     of 64KB, timeout=15, no base URL from input, and the key in the Amelia header only.
+ *   - 401/403 → credentials_rejected + invalidating the health cache and the
+ *     integration capabilities (delete_transient + hossam_invalidate_integration_capabilities
+ *     behind a function_exists guard).
+ *   - health: a five-minute transient + invalidation on activated/deactivated/
  *     upgrader_process_complete.
- *   - SQL: prepared حصرًا + فحص last_error + fail-safe ([] / null؛
- *     قراءة ربط الموظف وحدها WP_Error عند فشل القراءة — B6-01).
- *     + allowlist أسماء جداول مغلقة بـstatic cache.
- *   - صلاحيات: manage_options حصرًا للـAPI؛ view_amelia_calendar_all
- *     (المسجلة في core/permissions.php) مكافئ in_array الأصلي لفرع
- *     المدير بجانب manage_options؛ ownership: user_id نفسه أو
- *     manage_options لقراءة الموظف المرتبط/المواعيد.
+ *   - SQL: prepared exclusively + a last_error check + fail-safe ([] / null;
+ *     the linked-employee read alone is WP_Error on read failure — B6-01).
+ *     + a closed table-name allowlist with a static cache.
+ *   - Capabilities: manage_options exclusively for the API; view_amelia_calendar_all
+ *     (registered in core/permissions.php) is the equivalent of the original in_array for the
+ *     manager branch alongside manage_options; ownership: the same user_id or
+ *     manage_options to read the linked employee/appointments.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -132,9 +132,9 @@ if ( ! function_exists( 'hossam_amelia_table_exists' ) ) {
 
 if ( ! function_exists( 'hossam_amelia_get_api_key' ) ) {
 	/**
-	 * credential resolver الدفعة 3 المعتمد (قرار المالك §2.4):
-	 * constant (الثابت الموثق) ثم HAL encrypted fallback ثم فراغ.
-	 * القيمة تُستهلك وقت النداء فقط — لا تسجيل ولا عرض.
+	 * The Batch 3 approved credential resolver (owner decision §2.4):
+	 * constant (the documented constant) then the HAL encrypted fallback then empty.
+	 * The value is consumed at call time only — no logging and no display.
 	 */
 	function hossam_amelia_get_api_key(): string {
 		if ( class_exists( 'HAL_Frontend_Dashboard_Integration_Settings_Registry' ) ) {
@@ -149,7 +149,7 @@ if ( ! function_exists( 'hossam_amelia_get_api_key' ) ) {
 			return '';
 		}
 
-		// خارج ترتيب التحميل الطبيعي (طبقة الدفعة 3 غائبة): الثابت الموثق فقط.
+		// Outside the normal loading order (the Batch 3 layer absent): the documented constant only.
 		if ( defined( 'HOSSAM_AMELIA_API_KEY' ) && is_string( HOSSAM_AMELIA_API_KEY ) ) {
 			return trim( HOSSAM_AMELIA_API_KEY );
 		}
@@ -160,13 +160,13 @@ if ( ! function_exists( 'hossam_amelia_get_api_key' ) ) {
 if ( ! function_exists( 'hossam_amelia_api_error' ) ) {
 	function hossam_amelia_api_error( string $code ): WP_Error {
 		$messages = [
-			'plugin_missing'   => __( 'The booking integration is not available.', 'astra-child' ),
-			'key_missing'      => __( 'The booking integration is not configured.', 'astra-child' ),
-			'forbidden'        => __( 'You do not have permission to access booking data.', 'astra-child' ),
-			'route_unavailable' => __( 'The requested booking feature is not available.', 'astra-child' ),
-			'credentials_rejected' => __( 'The booking service credentials were rejected.', 'astra-child' ),
-			'invalid_query'    => __( 'The booking query is invalid.', 'astra-child' ),
-			'remote_failure'   => __( 'The booking service is temporarily unavailable.', 'astra-child' ),
+			'plugin_missing'   => __( 'The booking integration is not available.', 'hal-frontend-dashboard' ),
+			'key_missing'      => __( 'The booking integration is not configured.', 'hal-frontend-dashboard' ),
+			'forbidden'        => __( 'You do not have permission to access booking data.', 'hal-frontend-dashboard' ),
+			'route_unavailable' => __( 'The requested booking feature is not available.', 'hal-frontend-dashboard' ),
+			'credentials_rejected' => __( 'The booking service credentials were rejected.', 'hal-frontend-dashboard' ),
+			'invalid_query'    => __( 'The booking query is invalid.', 'hal-frontend-dashboard' ),
+			'remote_failure'   => __( 'The booking service is temporarily unavailable.', 'hal-frontend-dashboard' ),
 		];
 
 		return new WP_Error(
@@ -368,7 +368,7 @@ if ( ! function_exists( 'hossam_amelia_get_linked_employee_id' ) ) {
 		if ( '' !== $wpdb->last_error ) {
 			hossam_amelia_log_database_failure( 'linked_employee' );
 
-			return new WP_Error( 'hossam_amelia_db_error', __( 'Database query failed.', 'astra-child' ) );
+			return new WP_Error( 'hossam_amelia_db_error', __( 'Database query failed.', 'hal-frontend-dashboard' ) );
 		}
 
 		return $employee_id ? (int) $employee_id : null;
@@ -421,7 +421,7 @@ if ( ! function_exists( 'hossam_amelia_get_upcoming_appointments' ) ) {
 		if ( '' !== $wpdb->last_error ) {
 			hossam_amelia_log_database_failure( 'upcoming_appointments' );
 
-			return new WP_Error( 'hossam_amelia_db_error', __( 'Database query failed.', 'astra-child' ) );
+			return new WP_Error( 'hossam_amelia_db_error', __( 'Database query failed.', 'hal-frontend-dashboard' ) );
 		}
 
 		$appointments = is_array( $appointments ) ? $appointments : [];

@@ -1,38 +1,41 @@
 <?php
 /**
- * runtime/adapters/rankmath.php (الدفعة 4)
+ * runtime/adapters/rankmath.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: لوحة تحكم أمامية لـRank Math (قراءة + كتابة) — عبر
- * get_post_meta()/update_post_meta() القياسيتين فى WordPress Core
- * فقط. لا Hook ولا Function من Rank Math نفسه فى أي مكان.
+ * Role: a front-end control panel for Rank Math (read + write) — through
+ * the standard get_post_meta()/update_post_meta() of WordPress Core
+ * only. No Hook and no Function from Rank Math itself anywhere.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * rankmath.php (الدفعة 4 من HAL Frontend Dashboard) — صفر تعديل في
- * العقود أو الحقول أو الـallowlists.
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/adapters/
+ * rankmath.php (Batch 4 of HAL Frontend Dashboard) — zero changes to
+ * contracts, fields, or the allowlists.
  *
- * العقد المنقول كما هو (ملخَّص من رأس المصدر):
- *   - الحقول المثبَّتة أربعة فقط (rank_math_seo_score/focus_keyword/
- *     description/robots) — لا حقول موسّعة، ولا تُعاد إلا بعد التحقق
- *     الحي الموصوف فى dashboard-unified-execution-reference.md سطر 245
- *     (var_dump(get_post_meta($id)) على مقال حقيقي + مقارنة postmeta
- *     قبل/بعد على staging)، وليس بمجرد تشابه اسم المفتاح.
- *   - v1.0.6 §7: أُضيف rank_math_title (مفتاحه مثبت في المصدر الرسمي
- *     rest/class-sanitize.php:50 ومؤكد حيًّا في probe 2026-10-14)
- *     بالقراءة الراجعة والاستعادة نفسها — البوابة مُنفَّذة في v1.0.6 §8
- *     (كشف تشغيل verified_fields — setup.php:267 — + مفتاح المالك rank_math_seo).
- *   - rank_math_seo_score للقراءة فقط — لا مسار كتابة له عمدًا
- *     (مُحسَّب داخليًا بواسطة Rank Math نفسه).
- *   - robots قائمة مغلقة من hossam_get_allowed_rank_math_robots() —
- *     القيم الغريبة تُهمَل والكتابة تُتخطى كليًا إن لم تبقَ قيمة صالحة
- *     (فشل آمن، لا إتلاف للقيمة القائمة).
- *   - [H6 §5-أ — قفل نهائي v1.1.0] chips robots مقفلة نهائيًا على
- *     القائمة المغلقة الأربعة [index,noindex,follow,nofollow] — التوسعة
- *     (NoArchive/NoSnippet) ليست بندًا في القائمة إطلاقًا؛ مسارها الوحيد
- *     فلتر hossam_rank_math_allowed_robots من PHP موثوق بعد تحقق حي
- *     بإصدار Rank Math الفعلي، مثيره المالك وحده (snippet موقعي عبر
- *     الفلتر الرسمي؛ النجاح = إبقاؤه، الفشل = سحبه) — لا «مشروط بلا موعد».
- *   - hossam_update_rankmath_meta: مقارنة قبل الكتابة (update_post_meta
- *     يعيد false ثنائي المعنى — عدم التغيير ليس فشلًا).
+ * The contract as carried over (summarized from the source header):
+ *   - Only four pinned fields (rank_math_seo_score/focus_keyword/
+ *     description/robots) — no extended fields, and they are returned
+ *     only after the live verification described in
+ *     dashboard-unified-execution-reference.md line 245
+ *     (var_dump(get_post_meta($id)) on a real article + a postmeta
+ *     before/after comparison on staging), not merely on key-name similarity.
+ *   - v1.0.6 §7: rank_math_title was added (its key is pinned in the official
+ *     source rest/class-sanitize.php:50 and confirmed live in probe 2026-10-14)
+ *     with the same read-back and restore — the gate is implemented in v1.0.6 §8
+ *     (detecting verified_fields running — setup.php:267 — + owner key rank_math_seo).
+ *   - rank_math_seo_score is read-only — deliberately has no write path
+ *     (computed internally by Rank Math itself).
+ *   - robots is a closed list from hossam_get_allowed_rank_math_robots() —
+ *     foreign values are ignored and the write is skipped entirely if no valid
+ *     value remains
+ *     (fail-safe, no destruction of the existing value).
+ *   - [H6 §5-a — final lock v1.1.0] the robots chips are finally locked to
+ *     the closed four-item list [index,noindex,follow,nofollow] — the extension
+ *     (NoArchive/NoSnippet) is not an item in the list at all; its only path
+ *     is the hossam_rank_math_allowed_robots filter from trusted PHP after a live
+ *     verification against the actual Rank Math version, triggered by the owner alone
+ *     (a site snippet via the official filter; success = keep it, failure = withdraw it) —
+ *     no «conditional without a deadline».
+ *   - hossam_update_rankmath_meta: compare before writing (update_post_meta
+ *     returns false with a dual meaning — no change is not a failure).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -42,16 +45,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'hossam_get_rankmath_seo_data' ) ) {
 	/**
-	 * القراءة — الأربعة المؤكَّدة أصلًا من الكود الفعلي — بلا تغيير.
+	 * Read — the four originally confirmed from the actual code — unchanged.
 	 *
 	 * @return array
 	 */
 	function hossam_get_rankmath_seo_data( int $post_id ): array {
 		return [
-			// الأربعة المؤكَّدة أصلًا من الكود الفعلي + title (v1.0.6 §7) — بلا تغيير في العقود.
-			'seo_score'     => (int) get_post_meta( $post_id, 'rank_math_seo_score', true ), // قراءة فقط، لا تُكتَب
+			// The four originally confirmed from the actual code + title (v1.0.6 §7) — no contract changes.
+			'seo_score'     => (int) get_post_meta( $post_id, 'rank_math_seo_score', true ), // read-only, never written
 			'title'         => (string) get_post_meta( $post_id, 'rank_math_title', true ), // v1.0.6 §7
-			'focus_keyword' => (string) get_post_meta( $post_id, 'rank_math_focus_keyword', true ), // قد تحتوي كلمات مفصولة بفواصل
+			'focus_keyword' => (string) get_post_meta( $post_id, 'rank_math_focus_keyword', true ), // may contain comma-separated words
 			'description'   => (string) get_post_meta( $post_id, 'rank_math_description', true ),
 			'robots'        => get_post_meta( $post_id, 'rank_math_robots', true ),
 		];
@@ -60,15 +63,16 @@ if ( ! function_exists( 'hossam_get_rankmath_seo_data' ) ) {
 
 if ( ! function_exists( 'hossam_get_allowed_rank_math_robots' ) ) {
 	/**
-	 * Closed allow-list for rank_math_robots values (reference §Rank Math ب.4:
-	 * «robots لا يقبل مصفوفة مفتوحة بل قائمة قيم مسموحة»).
+	 * Closed allow-list for rank_math_robots values (reference §Rank Math b.4:
+	 * «robots accepts no open array, only a list of allowed values»).
 	 *
-	 * [H6 §5-أ — قفل نهائي v1.1.0] القائمة المغلقة الأربعة باقية حاكمة
-	 * وحيدة المصدر للرسم والتحقق: التوسعة (NoArchive/NoSnippet) ليست بندًا
-	 * في القائمة إطلاقًا — مسارها الوحيد فلتر hossam_rank_math_allowed_robots
-	 * من PHP موثوق بعد تحقق حي بإصدار Rank Math الفعلي، مثيره المالك وحده
-	 * (snippet موقعي عبر الفلتر الرسمي؛ النجاح = إبقاؤه، الفشل = سحبه) —
-	 * لا «مشروط بلا موعد».
+	 * [H6 §5-a — final lock v1.1.0] the closed four-item list remains the sole
+	 * governing source for drawing and verification: the extension (NoArchive/NoSnippet)
+	 * is not an item in the list at all — its only path is the
+	 * hossam_rank_math_allowed_robots filter from trusted PHP after a live verification
+	 * against the actual Rank Math version, triggered by the owner alone
+	 * (a site snippet via the official filter; success = keep it, failure = withdraw it) —
+	 * no «conditional without a deadline».
 	 *
 	 * @return string[]
 	 */
@@ -101,7 +105,7 @@ if ( ! function_exists( 'hossam_update_rankmath_meta' ) ) {
 
 if ( ! function_exists( 'hossam_restore_rankmath_meta_snapshot' ) ) {
 	/**
-	 * v1.0.6 §7 — استعادة لقطة سابقة: meta غائبة تُحذف، وموجودة فارغة تُكتب ''.
+	 * v1.0.6 §7 — restore a previous snapshot: absent meta is deleted, and present-but-empty meta is written as ''.
 	 *
 	 * @param array<string,array{exists:bool,value:mixed}> $snapshot
 	 */
@@ -118,15 +122,15 @@ if ( ! function_exists( 'hossam_restore_rankmath_meta_snapshot' ) ) {
 
 if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 	/**
-	 * الكتابة — لا تكتب rank_math_seo_score عمدًا. الحقول المثبتة:
-	 * title/focus_keyword/description/robots (v1.0.6 §7 أضاف title).
-	 * robots صار يقبل القيم المسموحة فقط من hossam_get_allowed_rank_math_robots()
-	 * — القيم الغريبة تُهمَل، والكتابة تُتخطى كليًا إن لم تبقَ قيمة صالحة.
+	 * Write — deliberately does not write rank_math_seo_score. Pinned fields:
+	 * title/focus_keyword/description/robots (v1.0.6 §7 added title).
+	 * robots now accepts only the allowed values from hossam_get_allowed_rank_math_robots()
+	 * — foreign values are ignored, and the write is skipped entirely if no valid value remains.
 	 *
-	 * v1.0.6 §7 (نمط الفشل الجزئي — البوابة مُنفَّذة في v1.0.6 §8): قبل أي كتابة
-	 * تُقرأ القيم السابقة للحقول المستهدفة (وجودًا وقيمة) → كتابة →
-	 * إعادة قراءة ومطابقة لكل حقل → عند أي فشل تُستعاد السابقة كاملة
-	 * قبل return false.
+	 * v1.0.6 §7 (partial-failure pattern — the gate is implemented in v1.0.6 §8): before any write,
+	 * the previous values of the target fields are read (existence and value) → write →
+	 * re-read and match for every field → on any failure the previous state is restored
+	 * in full before return false.
 	 *
 	 * @param int   $post_id
 	 * @param array $data ['title','focus_keyword','description','robots']
@@ -178,7 +182,7 @@ if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 			return false;
 		}
 
-		// اللقطة قبل أي كتابة — للحقول المستهدفة فقط.
+		// Snapshot before any write — target fields only.
 		$targets = $clean_fields;
 		$targets['rank_math_robots'] = $clean_robots;
 		$snapshot = [];
@@ -204,5 +208,5 @@ if ( ! function_exists( 'hossam_save_rankmath_seo_data' ) ) {
 	}
 }
 
-// v1.0.6 §7: أُضيف rank_math_title بالقراءة الراجعة والاستعادة نفسها
-// (البوابة مُنفَّذة في v1.0.6 §8) — لا حقول موسّعة أخرى في هذا الملف.
+// v1.0.6 §7: rank_math_title was added with the same read-back and restore
+// (the gate is implemented in v1.0.6 §8) — no other extended fields in this file.
