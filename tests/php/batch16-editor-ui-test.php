@@ -188,12 +188,19 @@ b16_check(
 b16_check(
 	'B16-D3-meter',
 	false !== strpos( $posts_src, 'hossam-seo-meter' )
-		&& false !== strpos( $posts_src, "'hossam-seo-meter-' . $hossam_seo_meter_cls" )
+		&& false !== strpos( $posts_src, "'hossam-seo-meter-' . " . '$hossam_seo_meter_cls' )
 		&& false !== strpos( $posts_src, 'hossam_seo_meter_cls = $hossam_edit_seo_score >= 80' )
 		&& false !== strpos( $posts_src, '>= 51' )
 		&& false !== strpos( $posts_src, '> 0 ?' ),
 	'the colored score meter exists with the table-identical thresholds (>=80/>=51/>0), level classes travelling whole from PHP (the rm_cls pattern)',
 	'the meter or its threshold chain is missing'
+);
+b16_check(
+	'B16-D3-score-id-target',
+	false !== strpos( $posts_src, '<span class="hossam-seo-meter-value" id="hossam-edit-seo-score">' )
+		&& false !== strpos( $posts_src, '<div class="hossam-seo-meter">' ),
+	'the hossam-edit-seo-score id sits on the meter VALUE span (the posts.js save path writes textContent into it) — never on the meter wrapper (a wrapper id would let the save wipe the whole meter until reload)',
+	'the score id is not on the value span, or the meter wrapper still carries it'
 );
 $kw_pos    = strpos( $posts_src, 'id="hossam-edit-seo-kw"' );
 $title_pos = strpos( $posts_src, 'id="hossam-edit-seo-title"' );

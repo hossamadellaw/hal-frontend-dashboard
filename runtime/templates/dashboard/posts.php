@@ -822,9 +822,9 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     $hossam_seo_title_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_title ) : strlen( $hossam_edit_seo_title );
                     $hossam_seo_desc_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_desc ) : strlen( $hossam_edit_seo_desc );
                     ?>
-                    <div class="hossam-seo-meter" id="hossam-edit-seo-score">
+                    <div class="hossam-seo-meter">
                       <span class="hossam-seo-meter-track"><span class="hossam-seo-meter-fill <?php echo esc_attr( $hossam_seo_fill_cls ); ?>" style="width:<?php echo esc_attr( (string) min( 100, max( 0, $hossam_edit_seo_score ) ) ); ?>%"></span></span>
-                      <span class="hossam-seo-meter-value"><?php echo esc_html( $hossam_edit_seo_score > 0 ? $hossam_edit_seo_score . '%' : '—' ); ?></span>
+                      <span class="hossam-seo-meter-value" id="hossam-edit-seo-score"><?php echo esc_html( $hossam_edit_seo_score > 0 ? $hossam_edit_seo_score . '%' : '—' ); ?></span>
                       <span class="hossam-seo-meter-label <?php echo esc_attr( $hossam_seo_label_cls ); ?>"><?php echo esc_html( $hossam_seo_meter_label ); ?></span>
                     </div>
                     <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Raise the score by completing the fields below — Rank Math calculates it automatically.' ) ); ?></p>
