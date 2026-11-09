@@ -852,7 +852,7 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 			$gate( "current_user_can( 'manage_options' )" )
 			. $gate( "HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'members' )" ) ),
 	);
-	/* v1.1.3 T1 (owner-adopted consensus amendment 1): canonical body stream
+	/* canonical body stream
 	 * for the D compare — comments (T_COMMENT/T_DOC_COMMENT), PHP whitespace
 	 * and HTML comment spans inside T_INLINE_HTML are dropped from BOTH
 	 * sides; every other token and markup byte stays verbatim, so the
@@ -993,7 +993,7 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 		'members'      => array( 'members' ),
 	);
 	foreach ( $panel_files as $file ) {
-		/* v1.1.3 T1 (owner-adopted consensus amendment 2): standing zero-Arabic
+		/* standing zero-Arabic
 		 * gate on the RAW whole file — always runs (root-independent, CI
 		 * included), so no Arabic can return to a pinned panel body in any
 		 * form, comments included. */

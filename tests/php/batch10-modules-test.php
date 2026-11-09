@@ -405,9 +405,8 @@ $mappings = array(
 	'theme/assets/js/modules/translations.js' => 'runtime/assets/js/modules/translations.js',
 );
 
-/* v1.1.3 T1 (owner-adopted WAVE3 tri-council amendments م1-م2): canonical
- * comparator — same literal jsStripComments pattern + LF, whitespace kept
- * (documented negative control). */
+/* v1.1.3: canonical comparator — same literal jsStripComments pattern + LF,
+ * whitespace kept (documented negative control). */
 if ( ! function_exists( 'b10_canonical_source' ) ) {
 	function b10_canonical_source( string $code ): string {
 		$code = str_replace( "\r\n", "\n", $code );

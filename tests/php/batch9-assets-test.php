@@ -381,12 +381,11 @@ $mappings = array(
 	'theme/assets/js/modules/members.js'   => 'runtime/assets/js/modules/members.js',
 );
 
-/* v1.1.3 T1 (owner-adopted WAVE3 tri-council amendments م1-م2): the canonical
- * comparator for the root-present branch — the literal first-party
- * jsStripComments pattern (batch10-modules.test.js:226-230) as PHP + LF
- * normalization only, whitespace deliberately KEPT: the documented negative
- * control proves a whitespace-only change inside an equal-length string is
- * caught by strip-only and missed by a whitespace-dropping variant. */
+/* v1.1.3: canonical comparator for the root-present branch — the literal
+ * first-party jsStripComments pattern (batch10-modules.test.js:226-230) as
+ * PHP + LF normalization only, whitespace deliberately KEPT: the documented
+ * negative control proves a whitespace-only change inside an equal-length
+ * string is caught by strip-only and missed by a whitespace-dropping variant. */
 if ( ! function_exists( 'b9_canonical_source' ) ) {
 	function b9_canonical_source( string $code ): string {
 		$code = str_replace( "\r\n", "\n", $code );

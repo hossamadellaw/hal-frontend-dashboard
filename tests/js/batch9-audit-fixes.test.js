@@ -362,11 +362,10 @@ function testCssCoversFragments(renderedJson) {
   for (const block of [u1Block, u2Block, u3Block]) {
     if (block !== '') { remainder = remainder.replace(block, ''); }
   }
-  // v1.1.3 T1 (owner-adopted WAVE3 tri-council amendments م1-م2 — same
-  // legacy-comparison category): the remainder comparison goes canonical —
+  // v1.1.3: the remainder comparison goes canonical — comments stripped by
   // the first-party jsStripComments pattern (batch10-modules.test.js:226-230)
-  // + LF, whitespace deliberately kept — so the documented comments batch no
-  // longer trips it while any code/token drift still fails.
+  // plus LF normalization, whitespace deliberately kept — so the documented
+  // comments batch no longer trips it while any code/token drift still fails.
   const jsStripCanonical = (s) => String(s)
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
     .replace(/(^|\s)\/\/[^\n]*/g, '$1 ');
