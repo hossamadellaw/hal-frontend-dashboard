@@ -313,7 +313,7 @@ b16_check(
 /* ── REMAINDER: the declared i18n.php:237 item is closed ── */
 b16_check(
 	'B16-R1-stale-anchor-gone',
-	false === strpos( $i18n_src, 'wordpress-posts.php :120/:213' )
+	false === strpos( $i18n_src, 'wordpress-posts.php :120' . '/:213' )
 		&& false === strpos( $i18n_src, 'v1.1.3 T1 (' ),
 	'the stale line-number anchor and the self-attribution header are gone from i18n.php',
 	'the i18n.php comment still carries the stale anchor or self-attribution header'

@@ -1189,7 +1189,7 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 #panel-write .hossam-write-policy-pill{background:var(--gold-pale);color:var(--gold-dim);padding:1px 6px;border-radius:3px;font-weight:600}
 /* (2) Content panel — one attached box: the textarea (the truth-source field)
    and the rich carrier (the toolbar above the canvas) inside a single-priced
-   shell, in flow (the model: pro-toolbar-container + editor-canvas-surface —
+   shell, in flow (the model: hossam-pro-toolbar-container + editor-canvas-surface —
    static with no pinning). Flattening the children's borders/shadows inside
    the shell here only;
    [B9-U3] stays untouched outside the panel. */
@@ -1265,3 +1265,102 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 .hossam-seo-robots{display:flex;flex-direction:column;gap:6px}
 .hossam-seo-robots-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-1)}
 .hossam-robots-raw{font-size:10px;color:var(--txt-3);margin-inline-start:auto}
+
+/* ================================================================
+   v1.1.3 W7 - the professional toolbar (the measured model
+   structure: ten groups + More + History), the responsive layout
+   (<=1024 one scrollable row with the More fold, <=768 off-canvas
+   drawer), the static bottom action bar, and the focus mode.
+   Token-based only; extension in this file, no new asset.
+   ================================================================ */
+#panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 6px 8px; margin-bottom: 8px;
+  position: static;
+}
+.hossam-pt-group { display: flex; align-items: center; gap: 3px; }
+.hossam-pt-select {
+  font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--white); color: var(--txt-1);
+  max-width: 190px;
+}
+.hossam-pt-btn {
+  min-width: 30px; height: 30px; padding: 0 7px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--white);
+  color: var(--txt-1); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; gap: 2px;
+}
+.hossam-pt-btn:hover { border-color: var(--gold); color: var(--gold-dim); }
+.hossam-pt-divider { width: 1px; height: 22px; background: var(--cream); margin: 0 4px; }
+.hossam-pt-dropdown { position: relative; display: inline-flex; }
+.hossam-pt-caret { font-size: 9px; color: var(--txt-3); }
+.hossam-pt-menu {
+  position: absolute; top: 34px; inset-inline-start: 0; z-index: 60;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 10px; min-width: 210px;
+}
+.hossam-pt-menu-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--txt-3); margin-bottom: 6px; }
+.hossam-pt-swatch-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.hossam-pt-swatch { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; padding: 0; }
+.hossam-pt-swatch:hover { outline: 2px solid var(--gold); }
+.hossam-pt-free-row { display: flex; align-items: center; gap: 6px; }
+.hossam-pt-free-row input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--white); }
+.hossam-pt-menu-item {
+  display: block; width: 100%; text-align: start; padding: 6px 8px;
+  font-size: 12px; background: none; border: none; border-radius: 4px;
+  color: var(--txt-1); cursor: pointer;
+}
+.hossam-pt-menu-item:hover { background: var(--bg-2); }
+.hossam-pt-more-toggle { font-size: 12px; font-weight: 600; }
+.hossam-pt-more-toggle .hossam-pt-caret { display: inline; }
+/* The More fold: hossam-pt-extra groups hide until hossam-pt-more-open (tablet/phone). */
+.hossam-pt-more-toggle { display: none; }
+/* Responsive <=1024: one horizontal scrollable row; the extra groups fold
+   behind More (the model: the toolbar becomes one scrollable row). */
+@media (max-width: 1024px) {
+  #panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+  }
+  .hossam-pt-more-toggle { display: inline-flex; }
+  .hossam-pt-group.hossam-pt-extra { display: none; }
+  .hossam-pro-toolbar-container.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }
+}
+/* Responsive <=768: the toolbar becomes an off-canvas drawer (the model:
+   slides from the inline-start edge with the dark backdrop); the bottom
+   action bar docks and stays elevated for thumb reach. */
+@media (max-width: 768px) {
+  #panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+    position: fixed; inset-inline-start: 0; top: 0; bottom: 0; height: auto;
+    width: min(78vw, 320px); margin: 0; z-index: 100040;
+    flex-direction: column; align-items: stretch; gap: 8px;
+    overflow-y: auto; transform: translateX(-110%);
+    transition: transform .25s ease; border-radius: 0; padding: 12px;
+  }
+  [dir="rtl"] #panel-write .hossam-pro-toolbar-container,
+  [dir="rtl"] #panel-edit-article .hossam-pro-toolbar-container { transform: translateX(110%); }
+  .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  [dir="rtl"] .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  .hossam-pro-toolbar-container.hossam-pt-more-open::before {
+    content: ""; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: -1;
+  }
+  .hossam-pt-select { max-width: none; width: 100%; }
+  .hossam-pt-menu { position: static; box-shadow: none; }
+  .hossam-pt-more-toggle { display: inline-flex; margin-bottom: 4px; }
+  .action-bottom-bar {
+    position: sticky; bottom: 0; z-index: 30; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 10px; margin-top: 10px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  }
+  .hossam-bar-left { display: flex; gap: 8px; flex-wrap: wrap; }
+}
+/* Desktop: the bottom bar stays static under the editor (the model shows it
+   docked on tablet/mobile; on desktop the form's own actions govern). */
+.action-bottom-bar { display: none; }
+@media (max-width: 768px) { .action-bottom-bar { display: flex; } }
+/* Focus mode: the side column and the panel header fold away. */
+.hossam-zen-focus .hossam-write-side-stack,
+.hossam-zen-focus .page-hdr { display: none !important; }

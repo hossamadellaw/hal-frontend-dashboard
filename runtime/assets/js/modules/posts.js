@@ -719,6 +719,9 @@ function hossamRichInitEditor(containerId){
         if(live&&(live.phase==='mounting'||live.phase==='ready')) live.blocks=next;
         setBlocks(next);
       }
+        /* [W7] v1.1.3: the toolbar-side handle - reparse (Discard) and
+           keep reuse the existing parse/keep paths only. */
+        if(rec){ rec.api={keep:keep,reparse:function(){ try{ var ta=docRef.getElementById(rec.textareaId); var parsed=blocksPkg.parse(ta?(ta.value||''):'')||[]; keep(parsed); return parsed; }catch(e){ return null; } }}; }
       function handleChange(next){keep(next);}
       function handleInput(next){keep(next);}
       function insertImage(img){
@@ -786,6 +789,10 @@ function hossamRichInitEditor(containerId){
     record.root=root;
     if(root&&typeof root.render==='function') root.render(el.createElement(HossamRichApp,null));
     container.removeAttribute('hidden');
+    /* [W7] v1.1.3: the static professional toolbar above the canvas +
+       the bottom action bar on the write editor (the existing form
+       contract). */
+    hossamToolbarMount(containerId,container);
     /* [B9-09] v1.0.7 REC-4/v1.1 A6-D6: the textarea is not hidden at init —
        it is hidden only on a valid signal: an actually visible iframe with
        ready content (not the mere presence of an iframe element).
@@ -1119,4 +1126,336 @@ if(typeof document!=='undefined'&&document&&typeof document.addEventListener==='
   /* Complete the load baseline for any field missing at init time (still
      loading). */
   document.addEventListener('DOMContentLoaded',function(){try{hossamOebCaptureBaseline();}catch(e){}});
+}
+
+/* ══════════════════════════════════════════════════════════════
+   [W7] v1.1.3: the professional toolbar — the measured model structure
+   (ten groups + More + History), STATIC above the canvas, built here in
+   posts.js (no new module file — the single-file scope). The canvas is the
+   official BlockCanvas iframe (an editable body), so the tools dispatch
+   document.execCommand into it — the model's own mechanism — with a
+   defensive guard per action (a refused command never dead-ends the
+   interface). All labels flow through t() with the i18n channel (every
+   fallback matches its registered literal verbatim). The bottom action bar
+   (Publish Now / Save as Draft / Discard Changes) serves the EXISTING form
+   contract only: it sets the status select of hossam-post-create-form and
+   submits through hossamCreateArticle — no new endpoint, no new field.
+   ══════════════════════════════════════════════════════════════ */
+function hossamToolbarDoc(container){
+  try{
+    var frame=container.querySelector('[data-role="canvas"] iframe, .hossam-rich-root iframe');
+    if(frame&&frame.contentDocument) return frame.contentDocument;
+  }catch(e){}
+  return null;
+}
+function hossamToolbarCmd(container,cmd,arg){
+  try{
+    var doc=hossamToolbarDoc(container);
+    if(!doc||!doc.body) return false;
+    try{doc.execCommand('styleWithCSS',false,true);}catch(e0){}
+    return doc.execCommand(cmd,false,arg||null);
+  }catch(e){return false;}
+}
+function hossamToolbarSelectedText(doc){
+  try{ return doc.getSelection?String(doc.getSelection()):''; }catch(e){ return ''; }
+}
+function hossamToolbarPrompt(label){
+  try{ return window.prompt(label)||''; }catch(e){ return ''; }
+}
+function hossamToolbarBuild(containerId,container,cfg){
+  var doc=document;
+  function el(tag,cls,text,title){
+    var n=doc.createElement(tag);
+    if(cls) n.className=cls;
+    if(text!==undefined&&text!==null) n.textContent=text;
+    if(title) n.title=t(title[0],title[1]);
+    return n;
+  }
+  function btn(sym,title,onClick,cls){
+    var b=el('button','hossam-pt-btn'+(cls?' '+cls:''),sym,title);
+    b.type='button';
+    b.addEventListener('click',function(ev){try{ev.preventDefault();onClick(b);}catch(e){}});
+    return b;
+  }
+  function group(extra){
+    return el('div','hossam-pt-group'+(extra?' hossam-pt-extra':''));
+  }
+  function divider(){ return el('div','hossam-pt-divider'); }
+  function select(title,opts,onPick){
+    var s=el('select','hossam-pt-select',undefined,title);
+    for(var i=0;i<opts.length;i++){
+      var o=doc.createElement('option');
+      o.value=opts[i][0]; o.textContent=t(opts[i][1],opts[i][2]);
+      s.appendChild(o);
+    }
+    s.addEventListener('change',function(){try{onPick(s.value);}catch(e){}});
+    return s;
+  }
+  function menu(triggerSym,triggerTitle,menuTitleKey,menuTitleText,buildBody){
+    var wrap=el('div','hossam-pt-dropdown');
+    var trig=btn(triggerSym,triggerTitle,function(){toggle();});
+    trig.appendChild(el('span','hossam-pt-caret','▾'));
+    var m=el('div','hossam-pt-menu');
+    m.appendChild(el('div','hossam-hossam-pt-menu-title',t(menuTitleKey,menuTitleText)));
+    buildBody(m);
+    m.style.display='none';
+    function toggle(){
+      try{ m.style.display=(m.style.display!=='none')?'none':'block'; }catch(e){}
+    }
+    wrap.appendChild(trig); wrap.appendChild(m);
+    return wrap;
+  }
+  function swatchRow(m,colors,apply){
+    var row=el('div','hossam-hossam-pt-swatch-row');
+    for(var i=0;i<colors.length;i++){
+      var sw=el('button','hossam-pt-swatch',undefined,[colors[i][1],colors[i][1]]);
+      sw.type='button'; sw.style.background=colors[i][0];
+      sw.addEventListener('click',function(c){return function(){try{apply(c);}catch(e){}};}(colors[i][0]));
+      row.appendChild(sw);
+    }
+    m.appendChild(row);
+  }
+  function freeRow(m,pickId,apply){
+    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7FreePicker','Free color picker:')));
+    var row=el('div','hossam-pt-free-row');
+    var pick=el('input'); pick.type='color'; pick.id=pickId;
+    var ap=el('button','btn btn-sm',t('aiApply','Apply'));
+    ap.type='button';
+    ap.addEventListener('click',function(){try{apply(pick.value);}catch(e){}});
+    row.appendChild(pick); row.appendChild(ap);
+    m.appendChild(row);
+  }
+  var root=el('div','hossam-hossam-pro-toolbar-container');
+  root.id='hossam-pro-toolbar';
+  /* G1 — heading level (H1 strictly excluded) */
+  var g1=group();
+  g1.appendChild(select(['w7HeadingLabel','Heading level'],[
+    ['p','w7OptParagraph','Paragraph (Normal Text)'],
+    ['h2','w7OptH2','Section Heading (H2)'],
+    ['h3','w7OptH3','Subsection Heading (H3)'],
+    ['h4','w7OptH4','Minor Detail (H4)']
+  ],function(v){hossamToolbarCmd(container,'formatBlock',v==='p'?'p':v);}));
+  root.appendChild(g1); root.appendChild(divider());
+  /* G2 — font family (the font names travel the channel like every label) */
+  var g2=group(true);
+  g2.appendChild(select(['w7FontLabel','Font family'],[
+    ['Inter, sans-serif','w7FontInter','Modern Sans (Inter)'],
+    ["'Merriweather', serif",'w7FontSerif','Legal Serif (Merriweather)'],
+    ["'Cairo', sans-serif",'w7FontCairo','Arabic Corporate (Cairo)'],
+    ["'Cormorant Garamond', serif",'w7FontCormorant','Classical Serif (Cormorant)']
+  ],function(v){hossamToolbarCmd(container,'fontName',v);}));
+  root.appendChild(g2);
+  /* G3 — font size (execCommand sizes 3-6) */
+  var g3=group(true);
+  g3.appendChild(select(['w7SizeLabel','Font size'],[
+    ['3','w7SizeSmall','13px (Small)'],
+    ['4','w7SizeBody','15px (Body)'],
+    ['5','w7SizeMedium','18px (Medium)'],
+    ['6','w7SizeLarge','22px (Large)']
+  ],function(v){hossamToolbarCmd(container,'fontSize',v);}));
+  root.appendChild(g3);
+  /* G4 — line spacing (inline style on the enclosing block) */
+  var g4=group(true);
+  g4.appendChild(select(['w7LineHeightLabel','Line spacing'],[
+    ['1.4','w7LhCompact','↕ 1.4 (Compact)'],
+    ['1.6','w7LhNormal','↕ 1.6 (Normal)'],
+    ['1.8','w7LhRelaxed','↕ 1.8 (Relaxed)'],
+    ['2.0','w7LhDouble','↕ 2.0 (Double)']
+  ],function(v){
+    try{
+      var d=hossamToolbarDoc(container);
+      var s=d&&d.getSelection&&d.getSelection();
+      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
+      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
+      if(blk) blk.style.lineHeight=v;
+    }catch(e){}
+  }));
+  root.appendChild(g4); root.appendChild(divider());
+  /* G5 — inline formatting */
+  var g5=group();
+  g5.appendChild(btn('B',['w7Bold','Bold (Ctrl+B)'],function(){hossamToolbarCmd(container,'bold');}));
+  g5.appendChild(btn('I',['w7Italic','Italic (Ctrl+I)'],function(){hossamToolbarCmd(container,'italic');}));
+  g5.appendChild(btn('U',['w7Underline','Underline (Ctrl+U)'],function(){hossamToolbarCmd(container,'underline');}));
+  g5.appendChild(btn('S',['w7Strike','Strikethrough'],function(){hossamToolbarCmd(container,'strikeThrough');}));
+  g5.appendChild(btn('X₂',['w7Subscript','Subscript (X₂)'],function(){hossamToolbarCmd(container,'subscript');}));
+  g5.appendChild(btn('X²',['w7Superscript','Superscript (X²)'],function(){hossamToolbarCmd(container,'superscript');}));
+  g5.appendChild(btn('🧹',['w7ClearFormat','Clear formatting'],function(){hossamToolbarCmd(container,'removeFormat');}));
+  root.appendChild(g5); root.appendChild(divider());
+  /* G6 — color, highlight, case, grow/shrink */
+  var g6=group();
+  g6.appendChild(menu('A',['w7TextColor','Text color'],'w7TextColor','Text color',function(m){
+    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
+    swatchRow(m,[['#171825','Navy'],['#C5A028','Gold'],['#C0392B','Red'],['#1A5FAB','Blue'],['#2E7D4F','Green'],['#5C5B6B','Gray'],['#000000','Black']],function(c){hossamToolbarCmd(container,'foreColor',c);});
+    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarCmd(container,'foreColor',c);});
+  }));
+  g6.appendChild(menu('🖍️',['w7Highlight','Highlight'],'w7Highlight','Highlight',function(m){
+    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
+    swatchRow(m,[['#FDF6B2','Yellow'],['#E1EFFE','Blue'],['#EAF5EE','Green'],['#FDECEB','Red'],['#F2E7C0','Gold Pale']],function(c){hossamToolbarCmd(container,'hiliteColor',c);});
+    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarCmd(container,'hiliteColor',c);});
+  }));
+  g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
+    var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
+    for(var i=0;i<items.length;i++){
+      (function(item){
+        var mi=el('button','hossam-hossam-pt-menu-item',t(item[1],item[2]));
+        mi.type='button';
+        mi.addEventListener('click',function(){
+          try{
+            var d=hossamToolbarDoc(container); if(!d) return;
+            var s=d.getSelection&&d.getSelection(); if(!s||s.isCollapsed) return;
+            var txt=hossamToolbarSelectedText(d);
+            var out=txt;
+            if(item[3]==='sentence') out=txt.charAt(0).toUpperCase()+txt.slice(1).toLowerCase();
+            else if(item[3]==='lower') out=txt.toLowerCase();
+            else if(item[3]==='upper') out=txt.toUpperCase();
+            else if(item[3]==='title') out=txt.replace(/\w\S*/g,function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();});
+            hossamToolbarCmd(container,'insertText',out);
+          }catch(e){}
+        });
+        m.appendChild(mi);
+      })(items[i]);
+    }
+  }));
+  g6.appendChild(btn('A^',['w7Grow','Grow font'],function(){hossamToolbarCmd(container,'fontSize',5);}));
+  g6.appendChild(btn('A⌄',['w7Shrink','Shrink font'],function(){hossamToolbarCmd(container,'fontSize',3);}));
+  root.appendChild(g6); root.appendChild(divider());
+  /* G7 — alignment & directionality */
+  var g7=group(true);
+  g7.appendChild(btn('⫷',['w7AlignLeft','Align left'],function(){hossamToolbarCmd(container,'justifyLeft');}));
+  g7.appendChild(btn('≡',['w7AlignCenter','Center align'],function(){hossamToolbarCmd(container,'justifyCenter');}));
+  g7.appendChild(btn('⫸',['w7AlignRight','Align right'],function(){hossamToolbarCmd(container,'justifyRight');}));
+  g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarCmd(container,'justifyFull');}));
+  g7.appendChild(btn('⇄',['w7Direction','Switch paragraph direction'],function(){
+    try{
+      var d=hossamToolbarDoc(container);
+      var s=d&&d.getSelection&&d.getSelection();
+      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
+      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
+      if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
+    }catch(e){}
+  }));
+  root.appendChild(g7); root.appendChild(divider());
+  /* G8 — lists & indent */
+  var g8=group(true);
+  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
+  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){hossamToolbarCmd(container,'insertOrderedList');}));
+  g8.appendChild(btn('⫶≡',['w7Multilevel','Multilevel list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
+  g8.appendChild(btn('☑≡',['w7Checklist','Checklist'],function(){hossamToolbarCmd(container,'insertHTML','☑ ');}));
+  g8.appendChild(btn('⇤',['w7Outdent','Decrease indent'],function(){hossamToolbarCmd(container,'outdent');}));
+  g8.appendChild(btn('⇥',['w7Indent','Increase indent'],function(){hossamToolbarCmd(container,'indent');}));
+  root.appendChild(g8); root.appendChild(divider());
+  /* G9 — legal specialized elements (insert HTML into the editable body) */
+  var g9=group(true);
+  g9.appendChild(btn('❝',['w7LegalQuote','Legal statutory clause'],function(){hossamToolbarCmd(container,'formatBlock','blockquote');}));
+  g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){hossamToolbarCmd(container,'insertHTML','<div style="border-inline-start:3px solid #C5A028;background:#FDF6B2;padding:8px 10px;">⚠️ </div>');}));
+  g9.appendChild(btn('🔖',['w7Footnote','Insert footnote and citation'],function(){
+    var txt=hossamToolbarPrompt(t('w7PromptFootnote','Footnote text:'));
+    if(txt) hossamToolbarCmd(container,'insertHTML','<sup>['+String(txt).replace(/</g,'&lt;')+']</sup>');
+  }));
+  g9.appendChild(btn('⊞',['w7ComparisonTable','Insert legal comparison table'],function(){
+    hossamToolbarCmd(container,'insertHTML','<table border="1" style="width:100%;border-collapse:collapse;"><tr><th style="text-align:start;"></th><th style="text-align:start;"></th></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table><p></p>');
+  }));
+  g9.appendChild(btn('📂',['w7Collapsible','Insert collapsible section'],function(){hossamToolbarCmd(container,'insertHTML','<details><summary></summary><p></p></details><p></p>');}));
+  g9.appendChild(btn('🔗',['w7RefLink','Insert reference link'],function(){
+    var url=hossamToolbarPrompt(t('w7PromptLink','Link URL:'));
+    if(url) hossamToolbarCmd(container,'createLink',url);
+  }));
+  g9.appendChild(btn('📷',['w7Media','Insert image or document'],function(){
+    try{
+      var trigger=container.querySelector('[data-role="inserter"] button');
+      if(trigger) trigger.click();
+      else hossamToolbarCmd(container,'insertHTML','<img alt="" />');
+    }catch(e){}
+  }));
+  g9.appendChild(btn('§',['w7LegalSymbol','Insert legal symbol'],function(){
+    var sym=hossamToolbarPrompt(t('w7PromptSymbol','Legal symbol:'));
+    if(sym) hossamToolbarCmd(container,'insertText',String(sym).slice(0,3));
+  }));
+  g9.appendChild(btn('—',['w7Divider','Divider line'],function(){hossamToolbarCmd(container,'insertHorizontalRule');}));
+  root.appendChild(g9);
+  /* More toggle — folds the hossam-pt-extra groups (tablet/phone) */
+  var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
+  moreBtn.type='button';
+  moreBtn.title=t('w7MoreTitle','More tools');
+  moreBtn.appendChild(el('span',undefined,t('w7More','More')));
+  moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
+  moreBtn.addEventListener('click',function(ev){
+    try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
+  });
+  root.appendChild(moreBtn);
+  root.appendChild(divider());
+  /* G10 — history & focus */
+  var g10=group();
+  g10.appendChild(btn('↶',['w7Undo','Undo (Ctrl+Z)'],function(){hossamToolbarCmd(container,'undo');}));
+  g10.appendChild(btn('↷',['w7Redo','Redo (Ctrl+Y)'],function(){hossamToolbarCmd(container,'redo');}));
+  g10.appendChild(btn('⛶',['w7Zen','Focus mode'],function(){
+    try{
+      var ws=container.closest?container.closest('.hossam-write-workspace, #panel-edit-article'):null;
+      if(ws) ws.classList.toggle('hossam-zen-focus');
+    }catch(e){}
+  }));
+  root.appendChild(g10);
+  return root;
+}
+/* [W7] the static bottom action bar (the model :2337-2349) — the write
+   editor only; every button serves the EXISTING create-form contract. */
+function hossamToolbarBuildActionBar(container){
+  var doc=document;
+  function mk(labelKey,labelText,cls,fn){
+    var b=doc.createElement('button');
+    b.type='button'; b.className=cls; b.textContent=t(labelKey,labelText);
+    b.addEventListener('click',function(){try{fn();}catch(e){}});
+    return b;
+  }
+  var bar=doc.createElement('div');
+  bar.className='action-bottom-bar';
+  bar.setAttribute('data-hossam-bottom-bar','');
+  var left=doc.createElement('div'); left.className='hossam-bar-left';
+  var canPublish=false;
+  try{
+    var st=doc.getElementById('hossam-new-status');
+    canPublish=!!(st&&st.querySelector('option[value="publish"]'));
+  }catch(e){}
+  function submitWith(status){
+    try{
+      var st=doc.getElementById('hossam-new-status');
+      if(st&&status) st.value=status;
+      var f=doc.getElementById('hossam-post-create-form');
+      if(f&&typeof hossamCreateArticle==='function') hossamCreateArticle(f);
+    }catch(e){}
+  }
+  if(canPublish){
+    left.appendChild(mk('w7PublishNow','Publish Now','btn btn-gold',function(){submitWith('publish');}));
+  }
+  left.appendChild(mk('w7SaveDraft','Save as Draft','btn btn-outline',function(){submitWith('draft');}));
+  bar.appendChild(left);
+  bar.appendChild(mk('w7Discard','Discard Changes','btn btn-outline hossam-bar-discard',function(){
+    try{
+      var ta=doc.getElementById('hossam-new-content');
+      var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited['hossam-rich-editor-new']:null;
+      var wp0=(typeof window!=='undefined')?window.wp:null;
+      if(rec&&rec.api&&typeof rec.api.reparse==='function'){
+        rec.api.reparse();
+      }else if(ta&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function'&&rec&&rec.api&&typeof rec.api.keep==='function'){
+        rec.api.keep(wp0.blocks.parse(ta.value||''));
+      }
+    }catch(e){}
+  }));
+  return bar;
+}
+/* [W7] mount point: the pro toolbar prepends into the toolbar role (above
+   the official context toolbar) and the bottom bar appends to the editor
+   container (the write editor only). Called once per successful init. */
+function hossamToolbarMount(containerId,container){
+  try{
+    if(!container||container.querySelector('.hossam-pro-toolbar-container')) return;
+    var cfg=(typeof window!=='undefined'&&window.hossamRichEditor)||{};
+    var bar=hossamToolbarBuild(containerId,container,cfg);
+    var mount=container.querySelector('[data-role="toolbar"]');
+    if(mount&&mount.insertBefore) mount.insertBefore(bar,mount.firstChild);
+    else container.insertBefore(bar,container.firstChild);
+    if(containerId==='hossam-rich-editor-new'){
+      container.appendChild(hossamToolbarBuildActionBar(container));
+    }
+  }catch(e){}
 }
