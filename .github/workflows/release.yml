@@ -75,6 +75,31 @@ jobs:
             echo "release:blocked:update_uri_mismatch ($UPDATE_URI)" >&2
             exit 1
           fi
+          # CR-1: the plugin header is the single source of truth for the
+          # requires values; the manifest is verified against them after the
+          # build (see the Build 8.4 manifest step).
+          REQUIRES_WP="$(grep -m1 -oP '^ \* Requires at least: \K[0-9.]+' hal-frontend-dashboard.php | tr -d '\r')"
+          REQUIRES_PHP="$(grep -m1 -oP '^ \* Requires PHP: \K[0-9.]+' hal-frontend-dashboard.php | tr -d '\r')"
+          if [[ ! "$REQUIRES_WP" =~ ^[0-9]+\.[0-9]+$ || ! "$REQUIRES_PHP" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "release:blocked:requires_mismatch (header requires values invalid: wp=$REQUIRES_WP php=$REQUIRES_PHP)" >&2
+            exit 1
+          fi
+          echo "requires_wp=$REQUIRES_WP" >> "$GITHUB_OUTPUT"
+          echo "requires_php=$REQUIRES_PHP" >> "$GITHUB_OUTPUT"
+          if ! grep -qF "hal-frontend-dashboard-$VERSION.zip" readme.txt; then
+            echo "release:blocked:zip_name_mismatch (readme.txt does not carry hal-frontend-dashboard-$VERSION.zip)" >&2
+            exit 1
+          fi
+          CHANGELOG_OK="$(tr -d '\r' < readme.txt | awk -v v="$VERSION" 'BEGIN{ok="no"} /^== Changelog ==/{s=1;next} s && /^== /{s=0} s && $0 == "= " v " ="{ok="yes"} END{print ok}')"
+          if [[ "$CHANGELOG_OK" != "yes" ]]; then
+            echo "release:blocked:changelog_missing ('= $VERSION =' not found under == Changelog ==)" >&2
+            exit 1
+          fi
+          SEQ_SHAPE="$(tr -d '\r\n ' < build/release-sequence.txt)"
+          if [[ ! "$SEQ_SHAPE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "release:blocked:sequence_shape (build/release-sequence.txt is not a positive integer: '$SEQ_SHAPE')" >&2
+            exit 1
+          fi
           FULL_SHA="$(git rev-list -n 1 "$TAG")"
           if [[ ! "$FULL_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo 'release:blocked:commit_sha_invalid' >&2
@@ -153,6 +178,25 @@ jobs:
           echo 'php -l: all tracked PHP files pass'
           git ls-files '*.js' | while read -r f; do node --check "$f" || exit 1; done
           echo 'node --check: all tracked JS files pass'
+
+      - name: Gate 8.3 — pin PHP 8.3 explicitly
+        shell: bash
+        run: |
+          set -euo pipefail
+          # First-party copy of the ci.yml PHP 8.3 pin: the full local loop
+          # below includes batch12-cutover, which rejects 8.4+ literally.
+          # Pin 8.3 with shell tooling only (first-party, no third-party
+          # actions), mirroring the CI workflow.
+          if ! php -v | grep -q '^PHP 8\.3\.'; then
+            sudo add-apt-repository -y ppa:ondrej/php
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq php8.3-cli php8.3-mbstring php8.3-xml php8.3-zip php8.3-curl php8.3-intl php8.3-gd php8.3-sodium
+            sudo update-alternatives --set php /usr/bin/php8.3
+          fi
+          php -v
+          # Hard gate mirroring tests/php/batch12-cutover-test.php:40-41.
+          php -r 'exit(version_compare(PHP_VERSION, "8.3.0", ">=") && version_compare(PHP_VERSION, "8.4.0", "<") ? 0 : 1);'
+          echo 'PHP 8.3.x pinned'
 
       - name: Gate 8.3 — full local test run
         shell: bash
@@ -271,6 +315,16 @@ jobs:
           VERSION="${{ steps.identity.outputs.version }}"
           FULL_SHA="${{ steps.identity.outputs.full_sha }}"
           SEQ="$(tr -d '\r\n ' < build/release-sequence.txt)"
+          # CR-1: header is the single source of truth for the requires
+          # values — the manifest hard pin below is gone; the written
+          # manifest is re-read and verified against this fresh header read
+          # AND the identity-gate outputs (mismatch = blocked release).
+          REQUIRES_WP="$(grep -m1 -oP '^ \* Requires at least: \K[0-9.]+' hal-frontend-dashboard.php | tr -d '\r')"
+          REQUIRES_PHP="$(grep -m1 -oP '^ \* Requires PHP: \K[0-9.]+' hal-frontend-dashboard.php | tr -d '\r')"
+          if [[ ! "$REQUIRES_WP" =~ ^[0-9]+\.[0-9]+$ || ! "$REQUIRES_PHP" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "release:blocked:requires_mismatch (header requires unreadable at build time: wp='$REQUIRES_WP' php='$REQUIRES_PHP')" >&2
+            exit 1
+          fi
           export TZ=UTC
           EPOCH="$(git log -1 --format=%ct "$FULL_SHA")"
           ( cd "$HAL_RUNTIME" && find . -exec touch -h -d "@$EPOCH" {} + )
@@ -278,7 +332,7 @@ jobs:
           ( cd "$RUNNER_TEMP" && sha256sum "runtime-$VERSION.zip" > "runtime-$VERSION.zip.sha256" )
           ARCHIVE_SHA="$(cut -d' ' -f1 < "$RUNNER_TEMP/runtime-$VERSION.zip.sha256")"
           php -r '
-            [$runtime, $version, $sha, $seq, $fullSha, $out] = array_slice($argv, 1);
+            [$runtime, $version, $sha, $seq, $fullSha, $out, $reqWp, $reqPhp, $idWp, $idPhp] = array_slice($argv, 1);
             $files = [];
             $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($runtime, FilesystemIterator::SKIP_DOTS));
             foreach ($it as $item) {
@@ -290,15 +344,20 @@ jobs:
             $manifest = [
               "schema" => 1, "product" => "hal-frontend-dashboard", "version" => $version,
               "release_sequence" => (int) $seq, "release_id" => "$version+$fullSha", "tag" => "v$version",
-              "commit_sha" => $fullSha, "requires_wp" => "7.0", "requires_php" => "8.3",
+              "commit_sha" => $fullSha, "requires_wp" => $reqWp, "requires_php" => $reqPhp,
               "loader_api_min" => 1, "loader_api_max" => 1, "loader_core_version" => $version,
               "schema_version" => "1", "archive_sha256" => $sha, "files" => $files,
             ];
             $raw = str_replace("\r\n", "\n", json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) . "\n";
             if (str_contains($raw, "\xEF\xBB\xBF") || str_contains($raw, "\r")) { fwrite(STDERR, "manifest encoding invalid\n"); exit(1); }
             file_put_contents($out, $raw);
-            echo "runtime manifest: " . count($files) . " files\n";
-          ' "$HAL_RUNTIME" "$VERSION" "$ARCHIVE_SHA" "$SEQ" "$FULL_SHA" "$RUNNER_TEMP/runtime-manifest.json"
+            $check = json_decode(file_get_contents($out), true, 512, JSON_THROW_ON_ERROR);
+            if (($check["requires_wp"] ?? "") !== $reqWp || ($check["requires_php"] ?? "") !== $reqPhp || $reqWp !== $idWp || $reqPhp !== $idPhp) {
+              fwrite(STDERR, "release:blocked:requires_mismatch (manifest " . ($check["requires_wp"] ?? "?") . "/" . ($check["requires_php"] ?? "?") . " vs header $reqWp/$reqPhp vs identity gate $idWp/$idPhp)\n");
+              exit(1);
+            }
+            echo "runtime manifest: " . count($files) . " files — requires wp=$reqWp php=$reqPhp (header-sourced, identity-gate-verified)\n";
+          ' "$HAL_RUNTIME" "$VERSION" "$ARCHIVE_SHA" "$SEQ" "$FULL_SHA" "$RUNNER_TEMP/runtime-manifest.json" "$REQUIRES_WP" "$REQUIRES_PHP" "${{ steps.identity.outputs.requires_wp }}" "${{ steps.identity.outputs.requires_php }}"
           ( cd "$RUNNER_TEMP" && sha256sum runtime-manifest.json > runtime-manifest.json.sha256 )
 
       - name: Build 8.5 — carrier staging (interim tree), deterministic zip
