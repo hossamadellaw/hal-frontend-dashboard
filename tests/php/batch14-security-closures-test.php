@@ -858,9 +858,9 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التثبيت بالصيغة الكانونية (LF) حصرًا
 // + اتفاق الblob المُودَع — نصف raw كان سياسة checkout لا محتوى (فشل CI 41704072466).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_lf_hash
-		&& '32a9c3caec4bbbf196efdf4bfa8d96ed0a3a85fbd616e0b53499923e473cf321' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized R38 success-card row (H3 §1.5-4)',
+	'f0e37c69e322dc15ae5a9708a96e0fd16336228eca723a86dd8fd471e70366e7' === $posts_js_lf_hash
+		&& 'f0e37c69e322dc15ae5a9708a96e0fd16336228eca723a86dd8fd471e70366e7' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized R38 success-card row (H3 §1.5-4) and the v1.1.3 comments batch with its approved oeb_open fallback text',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════
@@ -904,8 +904,8 @@ b14_check( 'T9-PAYMENT-finance-js-render-safety',
 		&& 0 === substr_count( $finance_js_raw, 'p.id' )
 		&& false !== strpos( $finance_js_raw, 'p.title' )
 		&& false !== strpos( $finance_js_raw, 'p.enabled' )
-		&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === hash( 'sha256', $finance_js_lf ),
-	'finance.js consumes p.title/p.enabled only (zero p.id reads) and is byte-identical to the H3 §6 recorded fingerprint — the member panel renders from the remaining fields',
+		&& '99592bffecb4c1e01277c92afe858cb2a163dacfb4e92a37837d20879e2f32a9' === hash( 'sha256', $finance_js_lf ),
+	'finance.js consumes p.title/p.enabled only (zero p.id reads) and is byte-identical to the H3 §6 recorded fingerprint as renewed for the v1.1.3 comments batch — the member panel renders from the remaining fields',
 	'finance.js render-safety deviated: p_id_regex=' . preg_match_all( '/p\.id\b/', $finance_js_raw )
 		. ' hash=' . hash( 'sha256', $finance_js_lf ) );
 
@@ -913,8 +913,8 @@ b14_check( 'T9-PAYMENT-finance-js-render-safety',
 // ESC-4 — تصويب تثبيت منصعي: التهشير على الصيغة الكانونية (LF) — القيمة unchanged.
 $uploads_js_hash = hash( 'sha256', str_replace( "\r\n", "\n", (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/uploads.js' ) ) );
 b14_check( 'T9-PAYMENT-uploads-js-fingerprint-intact',
-	'dbf20853956ab42196ef12a6b7b59a7a526ef61f6a42af0be29558b5cfa900db' === $uploads_js_hash,
-	'uploads.js is byte-identical to the H3 §6 recorded fingerprint (zero JS drift from the oracle row)',
+	'9e088187cb98d36a15d0887e3d51209327267ad4843f2602d6a09f714ecca0e9' === $uploads_js_hash,
+	'uploads.js is byte-identical to the H3 §6 recorded fingerprint as renewed for the v1.1.3 comments batch (zero code drift from the oracle row)',
 	'uploads.js fingerprint deviated: ' . $uploads_js_hash );
 
 /* ════════════════════════════════════════════════════════════════

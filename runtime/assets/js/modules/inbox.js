@@ -1,32 +1,32 @@
 /**
  * assets/js/modules/inbox.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدوال المنقولة حرفيًا: loadNotifications(), markNotifRead(id, el),
+ * Linked tasks: T-22
+ * Functions moved verbatim: loadNotifications(), markNotifRead(id, el),
  * clearNotifs(), loadInbox(), markInboxRead(id, el), sendInboxMessage()
  *
- * ⚠ loadNotifications() تُستدعى بـpolling كل 60 ثانية من DOMContentLoaded
- * فى dashboard.js (الـshell) — التأكد أن هذا الاستدعاء الدوري ينتقل
- * معها بشكل صحيح أو يبقى فى الـshell مع نداء للدالة المنقولة هنا
- * (الدالة نفسها تنتقل، نقطة استدعاء الـpolling قرار تنفيذي: تبقى فى
- * dashboard.js لأنها جزء من تهيئة الصفحة العامة، لا خاصة ببانل Inbox فقط).
+ * ⚠ loadNotifications() is called via polling every 60 seconds from the
+ * DOMContentLoaded handler in dashboard.js (the shell) — make sure this periodic call moves along
+ * with it correctly, or stays in the shell with a call to the function moved here (the function
+ * itself moves; the polling call site is an executive decision: it stays in dashboard.js because
+ * it is part of general page initialization, not specific to the Inbox panel only).
  *
  * TODO:
- * [x] نقل الست دوال حرفيًا — موجودة فعليًا أدناه.
- * [x] تستدعي: hossam_get_notifications، hossam_mark_read،
- *     hossam_mark_all_read، hossam_send_message، hossam_get_inbox،
- *     hossam_mark_message_read (ajax/inbox.php) — تحققتُ من
- *     ajax/inbox.php الفعلي: كل الست مطابقة حرفيًا (أسماء
- *     الحقول، شكل الاستجابة).
+ * [x] Moving the six functions verbatim — they do actually exist
+ *     below in this file.
+ * [x] They call: hossam_get_notifications, hossam_mark_read,
+ *     hossam_mark_all_read, hossam_send_message, hossam_get_inbox,
+ *     hossam_mark_message_read (ajax/inbox.php) — I verified the
+ *     actual ajax/inbox.php: all six match verbatim (field names,
+ *     response shape).
  *
- * ⚠ خطأ حقيقي مكتشف وأُصلح فى هذه النسخة: حرف + زائد كان موجودًا
- * قبل تعليق NOTIFICATIONS مباشرة، يحوّل async function clearNotifs(){...}
- * من إعلان (hoisted declaration) إلى named function expression — يمنع
- * ربط الاسم clearNotifs بالنطاق الخارجي نهائيًا. تحققتُ منه تجريبيًا
- * عبر Node.js: typeof clearNotifs يعطي "undefined" مع الحرف، "function"
- * بعد حذفه. زر "Mark all read" فى page-dashboard.php
- * (onclick="clearNotifs()"، سطر 557) كان مكسورًا فعلاً لكل مستخدم
- * يفتح اللوحة. حذفتُ الحرف فقط.
+ * ⚠ A real bug discovered and fixed in this version: a stray + character was present immediately before
+ * the NOTIFICATIONS comment, turning async function clearNotifs(){...} from a declaration (hoisted
+ * declaration) into a named function expression — permanently preventing the name clearNotifs from
+ * binding to the outer scope. I verified it experimentally via Node.js: typeof clearNotifs gives
+ * "undefined" with the character, "function" after removing it. The "Mark all read" button
+ * in page-dashboard.php (onclick="clearNotifs()", line 557) was actually broken for every user opening
+ * the dashboard. I removed the character only.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -130,9 +130,10 @@ async function markInboxRead(id, el){
   if(!window.hossamAjax) return;
   try{
     await hossamInboxRequest("hossam_mark_message_read",{message_id:id});
-    /* [B10-01] نجاح التأشير يقلب صفًا واحدًا فقط (الخادم: UPDATE بشرط
-       read_at IS NULL، وغيره 404)؛ ننقص الإجمالي الدقيق المعروض واحدًا
-       بدل انتظار إعادة قد تشتق من قائمة محدودة. */
+    /* [B10-01] A successful mark flips exactly one row (server: UPDATE
+       with condition read_at IS NULL, otherwise 404); we decrement the
+       exact displayed total by one instead of waiting for a refresh that
+       may be derived from a limited list. */
     hossamDecrementInboxBadges();
     el?.querySelector('.act-dot')?.classList.replace('warn','gold');
     el?.querySelector('.pill')?.remove();
@@ -140,9 +141,11 @@ async function markInboxRead(id, el){
   }catch(e){console.warn("markInboxRead:",e);}
 }
 
-/* [B10-01] إنقاص شارتَي Inbox واحدًا بعد قراءة مؤكدة. المعروض دقيق
-   بحكم البناء: إجمالي COUNT(*) خادمي عند الرسم + إنقاصات مؤكدة فقط +
-   كتابات من قوائم مكتملة (<50) فقط؛ فالإنقاص هنا انتقال دقيق. */
+/* [B10-01] Decrement the two Inbox badges by one after a confirmed read.
+   The displayed value is exact by construction: a server-side COUNT(*)
+   total at render time + confirmed decrements only + writes from
+   provably complete lists (<50) only; so this decrement is an exact
+   transition. */
 function hossamDecrementInboxBadges(){
   const badge=document.getElementById("inbox-badge")||document.getElementById("hdr-inbox-badge");
   if(!badge)return;
@@ -164,11 +167,12 @@ async function loadInbox(){
       hossamSetInboxBadges(0);
       return;
     }
-    /* [B10-01] القائمة الخادمية محدودة بأحدث 50 رسالة (LIMIT 50) بلا
-       إجمالي؛ الشارتان تعرضان إجمالي COUNT(*) الدقيق الذي رسمه الـshell
-       خادميًا. الكتابة من القائمة مسموحة فقط عند اكتمالها المؤكد
-       (أقل من 50) — وإلا يبقى آخر إجمالي دقيق بدل انكماش 51→50 أو
-       إخفاء مقروءٍ قديم خارج الأحداث. */
+    /* [B10-01] The server-side list is limited to the latest 50 messages
+       (LIMIT 50) with no total; the two badges display the exact COUNT(*)
+       total the shell rendered server-side. Writing from the list is
+       allowed only at its certain completeness (fewer than 50) —
+       otherwise the last exact total stays instead of a 51→50 shrink or
+       hiding an old read outside the events. */
     if(data.length < 50){
       const unread=data.filter(m=>!m.read_at).length;
       hossamSetInboxBadges(unread);

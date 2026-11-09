@@ -1,14 +1,14 @@
 /**
  * assets/js/modules/members.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدالة المنقولة حرفيًا: loadMembers()
+ * Related task: T-22
+ * The function carried verbatim: loadMembers()
  *
  * TODO:
- * [x] نقل الدالة حرفيًا — تستدعي hossam_get_members (ajax/members.php)
- *     — مؤكَّد 2026-08-24: loadMembers معرَّفة أدناه (:17) والـendpoint
- *     مُكتمَل بالنقل الحرفى (batch-tracking-log.md صف SECTION 14)
- * [x] مسجَّلة فى TAB_LOADERS تحت 'all' — dashboard.js:134
+ * [x] Moved the function verbatim — it calls hossam_get_members (ajax/members.php)
+ *     — confirmed 2026-08-24: loadMembers is defined below (:17) and the
+ *     endpoint was completed by the verbatim move (batch-tracking-log.md row SECTION 14)
+ * [x] Registered in TAB_LOADERS under 'all' — dashboard.js:134
  * ══════════════════════════════════════════════════════════════
  */
 

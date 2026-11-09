@@ -1,7 +1,8 @@
 /**
- * runtime/assets/css/admin-settings.css — واجهة Backend (الدفعة 3).
- * معزولة تحت محدد الجذر .hal-fd-admin (screen id الخاص بالمشروع عبر
- * hook_suffix) — لا تأثير في wp-admin العام.
+ * runtime/assets/css/admin-settings.css — the backend interface (batch 3).
+ * Isolated under the .hal-fd-admin root selector (the project's own screen id
+ * via
+ * hook_suffix) — no effect on the wider wp-admin.
  */
 
 .hal-fd-admin .hal-fd-tabs {

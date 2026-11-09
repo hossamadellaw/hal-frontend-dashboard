@@ -1,19 +1,23 @@
 /**
  * assets/js/modules/translations.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * ⚠ لا يوجد دالة تحميل AJAX مخصَّصة لبانل الترجمة أصلًا (محتواه
- * مُرندَر بالكامل من PHP مباشرة، بلا Lazy-load). هذا الملف قد يبقى
- * فارغًا فعليًا بعد النقل، أو يستقبل مستقبلًا منطق سويتشر WPML
- * المخصَّص (T-29) إن احتاج جزءًا من جانب العميل (تفاعل إضافي غير
- * موجود حاليًا فى النسخة الأصلية).
+ * Linked tasks: T-22
+ * ⚠ There is no dedicated AJAX loader function for the translation panel
+ * at all (its content is rendered entirely directly from PHP, without
+ * Lazy-load). This file may remain effectively empty after the move, or
+ * may in the future receive the custom WPML switcher logic (T-29) should
+ * any client-side part be needed (an extra interaction that does not
+ * exist in the original version).
  *
  * TODO:
- * [x] تأكيد عدم وجود أي دالة تحميل يفوتها النقل من dashboard.js الأصلي
- *     تخص هذا البانل تحديدًا (بخلاف IIFE فتح/إغلاق قائمة اللغة فى
- *     الـHeader، التى تبقى فى الـshell لأنها ليست خاصة بالبانل نفسه)
- *     — مؤكَّد 2026-08-24 بفحص الأصل: لا loader للبانل؛ الدالة الوحيدة
- *     ذات الصلة translateArticle() (:808 بالأصل) نُقلت إلى modules/posts.js
- *     حرفيًا مع مستمعها، وقائمة اللغة بقيت فى dashboard.js كما هو موصوف
+ * [x] Confirming that no loader function missed by the move from the
+ *     original dashboard.js pertains to this panel specifically (apart
+ *     from the IIFE that opens/closes the language list in the Header,
+ *     which stays in the shell because it is not specific to the panel
+ *     itself) — confirmed 2026-08-24 by inspecting the original: no
+ *     loader for the panel; the only related function translateArticle()
+ *     (:808 in the original) was moved to modules/posts.js verbatim with
+ *     its listener, and the language list stayed in dashboard.js as
+ *     described
  * ══════════════════════════════════════════════════════════════
  */

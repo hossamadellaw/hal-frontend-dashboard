@@ -24,7 +24,7 @@
  *             i18n state (13 keys: 8 ai keys + forbidden +
  *             integrationUnavailable + the batch-9 triple) — equivalence,
  *             not silent drift.
- *   BYTES     — each of the six shipped files is byte-identical to its
+ *   BYTES     — each of the six shipped files matches its current-state
  *             exclusive legacy source and to its
  *             build/source-inventory-batch-10.json entry; the recorded
  *             snapshot_id recomputes from the files array.
@@ -405,6 +405,17 @@ $mappings = array(
 	'theme/assets/js/modules/translations.js' => 'runtime/assets/js/modules/translations.js',
 );
 
+/* v1.1.3 T1 (owner-adopted WAVE3 tri-council amendments م1-م2): canonical
+ * comparator — same literal jsStripComments pattern + LF, whitespace kept
+ * (documented negative control). */
+if ( ! function_exists( 'b10_canonical_source' ) ) {
+	function b10_canonical_source( string $code ): string {
+		$code = str_replace( "\r\n", "\n", $code );
+		$code = preg_replace( '/\/\*[\s\S]*?\*\/', ' ', $code );
+		$code = preg_replace( '/(^|\s)\/\/[^\n]*/', '$1', $code );
+		return $code;
+	}
+}
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير والأطوال على الصيغة
 	// الكانونية (LF = blobs الجرد/HEAD) — raw كان سياسة checkout لا محتوى.
@@ -426,9 +437,16 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	$dst_hash = hash( 'sha256', str_replace( "\r\n", "\n", $dst_content ) );
 	$dst_bytes = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
+	$v113_history = array(
+		'theme/assets/js/modules/bookings.js'     => '89784d5a096322adf0b3d410421faf5bdc000763906dc5023210320d799756fc',
+		'theme/assets/js/modules/store.js'        => '13637f919fd6bc8a744f406fba365276e7189b0d31549e1bccc39c5eb8ff5993',
+		'theme/assets/js/modules/translations.js' => '0ffadab617716a156463e74da7e4eefcf49c782ba0554c69ce173a9020e03dcb',
+	);
 	b10_check( 'B10-B1-byte-identity-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
-		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
+		null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes']
+			&& b10_canonical_source( $src_content ) === b10_canonical_source( $dst_content )
+			&& $v113_history[ $legacy_rel ] === $src_hash,
+		"{$runtime_rel} matches the current-state inventory and is canonical-identical to the exclusive source (comments stripped, LF, whitespace kept) with the historical source hash pinned — v1.1.3 comments batch",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
 
@@ -449,18 +467,18 @@ $finance_dst_hash    = hash( 'sha256', str_replace( "\r\n", "\n", (string) file_
 if ( ! $B10_LEGACY ) {
 	b10_check( 'B10-B1b-runtime-matches-inventory-finance.js',
 		null !== $finance_inv
-			&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === $finance_dst_hash,
-		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision (owner delegation #1) — live-legacy byte comparison skipped: root absent",
-		"{$finance_runtime_rel}: dest={$finance_dst_hash} expected=ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2" );
+			&& '99592bffecb4c1e01277c92afe858cb2a163dacfb4e92a37837d20879e2f32a9' === $finance_dst_hash,
+		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision (owner delegation #1) as renewed for the v1.1.3 comments batch — live-legacy byte comparison skipped: root absent",
+		"{$finance_runtime_rel}: dest={$finance_dst_hash} expected=99592bffecb4c1e01277c92afe858cb2a163dacfb4e92a37837d20879e2f32a9" );
 	b10_skip( 'B10-B1-byte-identity-finance.js', 'exclusive legacy root absent — live-legacy byte identity deferred to runs with the reference tree' );
 } else {
 	b10_check( 'B10-B1-byte-identity-finance.js',
 		null !== $finance_inv
-			&& 'ac0dca88584d5532492018a96c614ac0d193add0bfdb238788f6daf699b622d2' === $finance_dst_hash
-			&& $finance_src_hash === $finance_inv['sha256']
-			&& (int) strlen( str_replace( "\r\n", "\n", (string) file_get_contents( $source_root . '/' . $finance_legacy_rel ) ) ) === (int) $finance_inv['bytes']
+			&& '99592bffecb4c1e01277c92afe858cb2a163dacfb4e92a37837d20879e2f32a9' === $finance_dst_hash
+			&& $finance_dst_hash === $finance_inv['sha256']
+			&& '3392e72c3b5ccda3c1ea333a652aad2767c9ab766c94d6f35f9f9e33d10341bc' === $finance_src_hash
 			&& $finance_src_hash !== $finance_dst_hash,
-		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision ac0dca88… (owner delegation #1; pre-R20 3392e72c… stays the legacy source + inventory provenance) and the divergence is real",
+		"{$finance_runtime_rel} is pinned byte-for-byte to the authorized R20 esc->escAttr revision renewed for the v1.1.3 comments batch (owner delegation #1); pre-R20 3392e72c… stays the pinned historical legacy source and the divergence is real",
 		"{$finance_runtime_rel}: source={$finance_src_hash} dest={$finance_dst_hash} inventory=" . ( $finance_inv['sha256'] ?? 'missing' ) );
 }
 
@@ -489,12 +507,18 @@ foreach ( $audit_deltas as $legacy_rel => $pair ) {
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B10_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	$leg_src  = (string) file_get_contents( $source_root . '/' . $legacy_rel );
+	$dst_bytes  = strlen( str_replace( "\r\n", "\n", $dst_src ) );
+	$v113_history = array(
+		'theme/assets/js/modules/inbox.js' => '10943d3cf597108e30278c14d4c676231b3e5e1edf0579cf8292d1cb07ed1b59',
+		'theme/assets/js/modules/ai.js'    => '371b99a4eb92876dccade1d35f7ba162af53325c779c97cdaa66feff341c53da',
+	);
 	b10_check( 'B10-B1-audit-delta-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $inv['sha256'] && (int) filesize( $source_root . '/' . $legacy_rel ) === (int) $inv['bytes']
+		null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes']
 			&& $src_hash !== $dst_hash
+			&& $v113_history[ $legacy_rel ] === $src_hash
 			&& false !== strpos( $dst_src, '[' . $marker . ']' )
 			&& false === strpos( $leg_src, '[' . $marker . ']' ),
-		"{$runtime_rel} keeps source-side inventory provenance and carries exactly the documented audit marker [{$marker}]",
+		"{$runtime_rel} matches the current-state inventory and carries exactly the documented audit marker [{$marker}] against the pinned historical source (v1.1.3 comments batch)",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
 
@@ -587,7 +611,10 @@ b10_check( 'B10-S1-ai-no-strategy-or-secret-surface',
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
-echo "B10 RESULT: {$GLOBALS['B10_PASS']} pass, {$GLOBALS['B10_SKIP']} skipped (legacy root absent — inventory-proxy only, never passed), {$GLOBALS['B10_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+$b10_label = $B10_LEGACY
+	? 'full suite executed (canonical comparison)'
+	: 'legacy root absent — inventory-proxy only, never passed';
+echo "B10 RESULT: {$GLOBALS['B10_PASS']} pass, {$GLOBALS['B10_SKIP']} skipped ({$b10_label}), {$GLOBALS['B10_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
 if ( $GLOBALS['B10_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B10_FAILS'] ) . "\n";
 	exit( 1 );

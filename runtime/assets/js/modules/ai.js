@@ -1,43 +1,48 @@
 /**
  * assets/js/modules/ai.js
  * ══════════════════════════════════════════════════════════════
- * الدور: جانب العميل لنظام Job Queue غير المتزامن — إرسال المهمة،
- * استطلاع حالتها كل ~2 ثانية، عرض النتيجة أو الخطأ.
+ * Role: the client side of the asynchronous Job Queue system — sending
+ * the job, polling its status every ~2 seconds, showing the result or
+ * the error.
  *
- * القرار المعماري: dashboard-architecture-map.php، قسم 9.1 (قرار 11)
- * المهام المرتبطة: T-49
+ * Architectural decision: dashboard-architecture-map.php, section 9.1
+ * (decision 11)
+ * Linked tasks: T-49
  *
- * يعتمد على dashboard.js (dependency فى wp_enqueue_script):
- *   t()، esc()، showToast() — يجب أن تكون معرَّفة مسبقًا.
+ * Depends on dashboard.js (dependency in wp_enqueue_script):
+ *   t(), esc(), showToast() — these must be defined beforehand.
  *
- * الاستخدام من template-parts/dashboard/posts.php (الدفعة الثالثة —
- * أزرار مشروطة بإثبات خادمي لقدرة استراتيجية صالحة وصلاحية المستخدم):
+ * Usage from template-parts/dashboard/posts.php (third batch — buttons
+ * conditional on server-side proof of a valid strategy capability and
+ * the user's permission):
  *   <button class="js-ai-run" data-job-type="grammar"
  *           data-source="hossam-edit-content"
  *           data-result="ai-suggestion-result-edit">
- * لا ترى هذه الوحدة strategy_id ولا اسم مزود ولا أي سر — تُرسل job_type
- * والمحتوى وتستقبل job_id والحالة والنتيجة الآمنة فقط.
+ * This module never sees strategy_id, nor a provider name, nor any
+ * secret — it sends job_type and the content, and receives job_id, the
+ * status and the safe result only.
  * ══════════════════════════════════════════════════════════════
  */
 'use strict';
 
 const HOSSAM_AI_POLL_INTERVAL_MS = 2000;
-const HOSSAM_AI_MAX_POLL_ATTEMPTS = 60; // ~120 ثانية سقف أعلى — يمنع استطلاعًا أبديًا لو تعطَّلت مهمة
+const HOSSAM_AI_MAX_POLL_ATTEMPTS = 60; // ~120 seconds upper cap — prevents endless polling if a job stalls
 
 /**
- * نقطة الدخول الوحيدة المطلوبة من واجهة posts.php — تتولى الإرسال
- * والاستطلاع والعرض بالكامل داخليًا.
+ * The single entry point required from the posts.php UI — it handles
+ * submission, polling and display entirely internally.
  *
  * @param {string} jobType 'grammar'|'translation'|'seo'|'improvement'
  * @param {object} data    { content, title?, target_lang?, post_id? }
- * @param {string} resultElId معرِّف عنصر HTML لعرض النتيجة/الخطأ فيه
+ * @param {string} resultElId id of the HTML element in which the
+ *                            result/error is displayed
  */
 function hossamAiRun(jobType, data, resultElId) {
   const resultEl = document.getElementById(resultElId);
   if (!resultEl || !window.hossamAjax) return Promise.resolve();
 
-  // امتلاك العنصر يبدأ قبل submit: حتى لو عاد رد إرسال قديم بترتيب معكوس
-  // لا يستطيع بدء polling أو تغيير عرض المحاولة الأحدث.
+  // Ownership of the element begins before submit: even if an old submit reply returns
+  // out of order, it cannot start polling or alter the display of the newer attempt.
   const previous = resultEl._hossamAiSupersede;
   const epoch = (resultEl._hossamAiEpoch = (resultEl._hossamAiEpoch || 0) + 1);
   let finished = false;
@@ -91,12 +96,14 @@ function hossamAiRun(jobType, data, resultElId) {
 }
 
 /**
- * استطلاع دوري لحالة مهمة حتى completed/failed أو بلوغ الحد الأقصى للمحاولات.
+ * Periodic polling of a job's status until completed/failed or the
+ * maximum attempt count is reached.
  */
 function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
   let attempts = 0;
-  /* [B10-02] settled يمنع الرد المتأخر بعد حالة نهائية؛ inFlight يمنع
-     تداخل طلبات polling؛ ملكية المحاولة تُحسم عند دخول hossamAiRun. */
+  /* [B10-02] settled blocks a late reply after a final state; inFlight
+     prevents polling requests from interleaving; attempt ownership is
+     settled at entry into hossamAiRun. */
   let settled = false;
   let inFlight = false;
   const isCurrent = () => !settled && isRunCurrent();
@@ -117,7 +124,7 @@ function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
       settleQuiet();
     };
     timerRef.id = setInterval(async () => {
-      if (!isCurrent()) { done(null); return; } // محاولة مستبدَلة تخرج بصمت دون رسم
+      if (!isCurrent()) { done(null); return; } // superseded attempt exits silently without drawing
       attempts++;
 
       if (attempts > HOSSAM_AI_MAX_POLL_ATTEMPTS) {
@@ -125,7 +132,7 @@ function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
         return;
       }
 
-      if (inFlight) return; // tick متداخل يُتخطى؛ attempts يُحتسب ليبقى timeout زمنيًا
+      if (inFlight) return; // overlapping tick is skipped; attempts is still counted so the timeout stays time-based
       inFlight = true;
       try {
         const fd = new FormData();
@@ -136,8 +143,8 @@ function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
         const r = await fetch(hossamAjax.ajaxurl, { method: 'POST', body: fd });
         const d = await r.json();
 
-        if (!isCurrent()) return; // رد متأخر بعد حالة نهائية أو استبدال: يُتجاهل
-        if (!d.success || !d.data) return; // تجاهل فشل استطلاع عابر واحد، حاول مجددًا
+        if (!isCurrent()) return; // late reply after a final state or supersession: ignored
+        if (!d.success || !d.data) return; // ignore a single transient poll failure, retry
 
         if (d.data.status === 'completed') {
           done(null);
@@ -145,9 +152,9 @@ function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
         } else if (d.data.status === 'failed') {
           done(`<div class="ph-notice" style="color:var(--danger)">${esc(d.data.error || t('aiFailed', 'AI request failed.'))}</div>`);
         }
-        // pending/processing: استمر فى الاستطلاع بصمت
+        // pending/processing: keep polling silently
       } catch (e) {
-        // خطأ شبكة عابر أثناء الاستطلاع — لا نوقف الحلقة، المحاولة التالية قد تنجح
+        // transient network error while polling — do not stop the loop, the next attempt may succeed
       } finally {
         inFlight = false;
       }
@@ -156,8 +163,9 @@ function hossamAiPoll(jobId, resultEl, isRunCurrent, registerCancel) {
 }
 
 /**
- * عرض النتيجة النهائية + زرَّا تطبيق/تجاهل. "تطبيق" يُترَك لمنطق مخصَّص
- * فى posts.php (لأنه يعتمد على أي حقل فى الفورم يجب إدراج النتيجة فيه).
+ * Renders the final result + the Apply/Dismiss buttons. "Apply" is left
+ * to dedicated logic in posts.php (because it depends on which form field
+ * the result must be inserted into).
  */
 function hossamAiRenderResult(resultEl, result) {
   if (!result || !result.text) {
@@ -177,9 +185,11 @@ function hossamAiRenderResult(resultEl, result) {
 }
 
 /**
- * موصِّل أزرار .js-ai-run (الدفعة الثالثة، القسم 7.4) — يقرأ سمات data
- * من الزر ويستدعي hossamAiRun. لا يقرر أي صلاحية محليًا: الأزرار نفسها
- * تُعرض خادميًا بعد إثبات القدرة والصلاحية، والـendpoint يعيد التحقق.
+ * Delegated wiring for the .js-ai-run buttons (third batch, section 7.4)
+ * — reads the data attributes from the button and calls hossamAiRun. It
+ * decides no permission locally: the buttons themselves are rendered
+ * server-side after the capability and permission are proven, and the
+ * endpoint re-verifies.
  */
 document.addEventListener('click', function (e) {
   const btn = e.target.closest('.js-ai-run');

@@ -1,23 +1,23 @@
 /**
  * assets/js/modules/finance.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدوال المنقولة حرفيًا: loadFinance(page), loadFinanceSummary(),
+ * Related tasks: T-22
+ * Functions moved verbatim: loadFinance(page), loadFinanceSummary(),
  * loadPaymentMethods(), loadSavedTokens()
- * + متغيّرا الحالة: currentFinancePage, currentFinanceStatus
+ * + state variables: currentFinancePage, currentFinanceStatus
  *
- * ⚠ loadFinance() تُستخدَم أيضًا من بانل Store (تبويب Orders) —
- * راجع ملاحظة template-parts/dashboard/store.php لترتيب الاعتماديات
- * الصحيح فى wp_enqueue_script (finance.js يجب أن يُحمَّل قبل أي سياق
- * يعتمد عليه فى Store).
+ * ⚠ loadFinance() is also used from the Store panel (Orders tab) — see the note in
+ * template-parts/dashboard/store.php for the correct dependency order in
+ * wp_enqueue_script (finance.js must load before any context that depends on it in Store).
  *
  * TODO:
- * [x] نقل الأربع دوال + متغيّرَي الحالة حرفيًا — مؤكَّد 2026-08-24:
+ * [x] Moved the four functions + the two state variables verbatim —
+ *     confirmed 2026-08-24:
  *     loadFinance(:30) loadFinanceSummary(:116) loadPaymentMethods(:149)
- *     loadSavedTokens(:179) مع currentFinanceStatus/currentFinanceMonth
- * [x] تستدعي: hossam_get_orders، hossam_finance_summary،
- *     hossam_get_payment_methods، hossam_get_saved_tokens (ajax/finance.php)
- * [x] مسجَّلة فى TAB_LOADERS تحت 'orders'، 'payment-methods'، 'saved-cards'
+ *     loadSavedTokens(:179) with currentFinanceStatus/currentFinanceMonth
+ * [x] They call: hossam_get_orders, hossam_finance_summary,
+ *     hossam_get_payment_methods, hossam_get_saved_tokens (ajax/finance.php)
+ * [x] Registered in TAB_LOADERS under 'orders', 'payment-methods', 'saved-cards'
  *     — dashboard.js:130-132
  * ══════════════════════════════════════════════════════════════
  */
