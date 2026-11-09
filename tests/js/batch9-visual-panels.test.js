@@ -271,6 +271,11 @@ const ORPHAN_ALLOWLIST = new Set([
   'hossam-translations-panel', // v1.0.6 §14
   'js-oeb-open', 'js-oeb-close', // v1.1.0 OEB (R23)
   'hossam-write-content-group', 'hossam-write-content-input', 'hossam-write-primary', 'hossam-write-title-group', // v1.1.1 C1
+  // v1.1.3 W6 (T10 pattern): the display-holder card wrapper inside the
+  // side column stack — deliberately ruleless; the stack's flex gap spaces
+  // it and every visual hook lives on the inner rows (same pattern as the
+  // v1.1.1 C1 wrappers).
+  'hossam-write-aside-holder',
 ]);
 
 const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance', 'inbox', 'files', 'members', 'store', 'profile', 'admin'];
@@ -302,11 +307,32 @@ const PANELS = ['overview', 'posts', 'bookings', 'seo', 'translations', 'finance
  * المساواة التامة للفحص نفسه بلا تغيير — أي انحراف آخر يفشل كما كان.
  */
 const V106_POSTS_DELTA = {
-  classesGained: ['flex', 'form-hint', 'gap-8', 'hossam-oeb-actions', 'hossam-oeb-btn', 'hossam-oeb-dialog', 'hossam-oeb-dialog-head', 'hossam-oeb-status', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar', 'js-oeb-close', 'js-oeb-open',
+  classesGained: ['form-hint', 'hossam-oeb-actions', 'hossam-oeb-btn', 'hossam-oeb-dialog', 'hossam-oeb-dialog-head', 'hossam-oeb-status', 'hossam-rich-editor', 'hossam-rich-editor-canvas', 'hossam-rich-editor-inserter', 'hossam-rich-editor-toolbar', 'js-oeb-close', 'js-oeb-open',
     // v1.1.1 C1 — إعادة تغليب لوحة write وفق النموذج المعتمد (v1.0.9-article-editor-v2)؛ ترسمها كتلة [#panel-write] في assets/css/dashboard.css:
     'hossam-write-ai-actions', 'hossam-write-ai-card', 'hossam-write-card', 'hossam-write-card-desc', 'hossam-write-card-head', 'hossam-write-card-ico', 'hossam-write-card-tag', 'hossam-write-card-title', 'hossam-write-content-group', 'hossam-write-content-input', 'hossam-write-editor-surface', 'hossam-write-h1-badge', 'hossam-write-has-aside', 'hossam-write-policy-pill', 'hossam-write-primary', 'hossam-write-title-group', 'hossam-write-title-hint', 'hossam-write-title-input', 'hossam-write-title-shell',
     // v1.1.1 E1 — تمييز OEB بصريًا (كتلة مستقلة ملاصقة لـ[OEB-U1]):
-    'hossam-oeb-gate-chip', 'hossam-oeb-gate-note'],
+    'hossam-oeb-gate-chip', 'hossam-oeb-gate-note',
+    // v1.1.3 W6 (value update, not strictness — the T10 pattern): the
+    // side-column display holders (Publishing / Metadata / Tags) and their
+    // stack, the Languages & Translation card hooks, and the simplified SEO
+    // group hooks — styled by the W6 token-based block appended to
+    // dashboard.css. The former robots wrapper classes (flex/gap-8) and its
+    // two inline styles leave the migrated markup for the styled
+    // .hossam-seo-robots structure, so they drop out of the gained diff
+    // entirely; the language-row base class sits on a PHP-concatenated
+    // attribute token (never extracted), the meter level classes travel
+    // whole from PHP (the rm_cls pattern), and the meter width style
+    // carries PHP — none of them appear here. Two more hooks become
+    // extractable only now: hossam-write-workspace (the workspace class
+    // was PHP-concatenated before and is a plain static token in the W6
+    // permanent-aside markup) and pill-draft (the Publishing holder's
+    // initial-status pill — the first literal pill-draft in this panel).
+    'hossam-write-workspace', 'pill-draft',
+    'hossam-write-side-stack', 'hossam-write-aside-holder',
+    'hossam-aside-row', 'hossam-aside-muted', 'hossam-aside-chips', 'hossam-aside-empty',
+    'hossam-lang-rows', 'is-original', 'hossam-lang-code', 'hossam-lang-name', 'hossam-lang-action',
+    'hossam-seo-meter', 'hossam-seo-meter-track', 'hossam-seo-meter-fill', 'hossam-seo-meter-value', 'hossam-seo-meter-label',
+    'hossam-seo-field-head', 'hossam-seo-counter', 'hossam-seo-robots', 'hossam-seo-robots-row', 'hossam-robots-raw'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -317,15 +343,15 @@ const V106_POSTS_DELTA = {
     'hossam-new-thumbnail-preview', 'hossam-new-thumbnail-remove',
     'hossam-oeb-dialog', 'hossam-oeb-dialog-link', 'hossam-oeb-dialog-status',
     'hossam-rich-editor-edit', 'hossam-rich-editor-new',
+    // v1.1.3 W6: the three side-column holder ids + the languages card.
+    'hossam-publishing-holder', 'hossam-metadata-holder', 'hossam-tags-holder', 'hossam-languages-card',
   ],
   idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
   dataGained: ['oeb-post', 'role', 'textarea'],
   dataLost: [],
   stylesGained: [
     "display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;",
-    'display:inline-flex;align-items:center;gap:4px',
     'display:none;max-width:120px;height:auto;',
-    'flex-wrap:wrap',
     'max-height:180px;overflow:auto;',
   ],
   stylesLost: [],

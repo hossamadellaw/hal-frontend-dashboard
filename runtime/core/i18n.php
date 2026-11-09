@@ -234,9 +234,36 @@ add_action( 'init', function(): void {
         // hossam_t() sources — same hash-gated mechanism as the batches above.
         'Optional',
         'Optional assistant for proofreading, translation and SEO — results appear inside this panel.',
-        // v1.1.3 T1 (wordpress-posts.php :120/:213): the H1 rejection source
-        // moves to the unified domain and registers here in the same batch.
+        // v1.1.3: the H1 rejection source moves to the unified domain and
+        // registers here in the same batch.
         'The H1 tag is not allowed in the article content — use a level-2 heading instead.',
+        // v1.1.3 W6 (the editor build): the side-column display holders, the
+        // Languages & Translation card, and the simplified SEO group —
+        // English sources registered through the same hash-gated mechanism.
+        'Publishing',
+        'The permalink is set after the first save.',
+        'Metadata',
+        'No cover selected yet.',
+        'Write a short excerpt in the form — it feeds archives and search results.',
+        'Tags',
+        'No tags yet.',
+        'Tags power related-article linking — keep them short and specific.',
+        'Languages & Translation',
+        'Translation creates a linked draft in the target language — edit it and publish it like any article.',
+        'Open translation',
+        'SEO Title',
+        'Good',
+        'Average',
+        'Weak',
+        'Not calculated yet.',
+        'Raise the score by completing the fields below — Rank Math calculates it automatically.',
+        'The keyword your client searches for — e.g. corporate lawyer in Cairo.',
+        'The title shown in search results — it may differ from the article title.',
+        'The summary line shown under the title in search results.',
+        'Do not show this page in search results',
+        'Do not follow links on this page',
+        'Do not store a cached copy of this page',
+        'Do not show images from this page in image search',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;

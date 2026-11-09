@@ -4,14 +4,14 @@
     "purpose": "Batch-9 (base assets and content modules §20) per-file verification inputs: paths, byte sizes and SHA-256 of the five legacy theme sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
     "generated_utc": "2026-09-17T17:04:19Z",
     "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
-    "snapshot_id": "020d814784b7fbf160fa5c6c9ccef38ff83f009fd81200b3f22d9f998ffcf019",
+    "snapshot_id": "1611f40f5bb351bd3ea287a190cdead91f8b7b3674ec349bb997ff0af30b9957",
     "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
     "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 5 of 5 sources match the batch-0 baseline byte-for-byte (dashboard.css 52372 bytes e566f258ab54d8ee4d8b2caf75d067b11cb36b3db3ca883b76ba740b705df722; dashboard.js 22725 bytes 8dd5a568c159818602ba2114f93ead2d363f8b89e75e54756b0f5ab47e886f1c; posts.js 8534 bytes 13882c91dd5079dc57b5596d64b795f4b8cdac9bf90641392281a43ea6c93ef0; uploads.js 8993 bytes 89e1840cc63694e53f19f9ea246c692ea03dcb566272b26d58698f42ee9c0da0; members.js 3674 bytes b64d13c95870033cf306fd80a5990414e1dff12905bf7eb05f51bbdfffb6d36c). No drift.",
     "files": [
         {
             "path": "theme/assets/css/dashboard.css",
-            "bytes": 68534,
-            "sha256": "fc43acc7ed0d87dfe3c5a8a78a7d26b80827977cdd826d934b90645d4d27f1f9"
+            "bytes": 72199,
+            "sha256": "7494ae56c58f22e0942ea7dfc74f18c57398fb07269998c3dd533591c08fdabc"
         },
         {
             "path": "theme/assets/js/dashboard.js",
@@ -34,5 +34,5 @@
             "sha256": "ea498649032aff195fb07f8c509d5ce93e802cd90df62d916ca3f998feaee058"
         }
     ],
-    "v113_note": "Entries regenerated for v1.1.3 (comments batch): the five/six migrated sources were comment-translated to English in this release, so these current-state evidence values were re-measured from the runtime files (canonical LF) per contract rows d-7/d-8 — update-value-not-strictness. Paths unchanged."
+    "v113_note": "Entries regenerated for v1.1.3 (comments batch): the five/six migrated sources were comment-translated to English in this release, so these current-state evidence values were re-measured from the runtime files (canonical LF) per contract rows d-7/d-8 — update-value-not-strictness. Paths unchanged. W6 extension: the dashboard.css entry re-measured again after the wave-6 editor-build CSS append (the side-column holders, the Languages & Translation card and the simplified SEO meter — token-based, no new asset)."
 }

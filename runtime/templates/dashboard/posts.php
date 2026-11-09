@@ -125,7 +125,10 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
            shell only: no editing engine and no direct edit field — the
            existing BlockCanvas is the only surface, and the toolbar is manual
            from posts.js. -->
-      <div class="hossam-write-workspace<?php echo $hossam_write_ai_on ? ' hossam-write-has-aside' : ''; ?>">
+      <!-- v1.1.3 W6: the side column is permanent (the three display holders
+           below keep it present regardless of the AI card) — the writing
+           column stays the single form (never split). -->
+      <div class="hossam-write-workspace hossam-write-has-aside">
         <!-- Core-first (second batch): the primary path hossam_create_article —
              the author is assigned from the server session, and no AI here
              (item 3 constraint). -->
@@ -243,6 +246,19 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
           </div>
           </div><!-- /hossam-write-card -->
         </form>
+        <?php
+        // v1.1.3 W6: the side column stack — the AI card plus the three
+        // display holders (Publishing / Metadata / Tags) in one column so the
+        // workspace grid keeps exactly two children (the single form column
+        // and the side stack); the holders are display-only — the form fields
+        // above remain the only inputs, and the holders mirror their initial
+        // state (the empty-state wireframes land with the editor-cards wave).
+        // Role label computed internally from the shell's existing flags.
+        $hossam_write_role_label = $is_admin
+            ? hossam_t( 'Administrator' )
+            : ( $is_editor ? hossam_t( 'Editor' ) : ( $is_author ? hossam_t( 'Author' ) : hossam_t( 'Contributor' ) ) );
+        ?>
+        <div class="hossam-write-side-stack">
         <?php if ( $hossam_write_ai_on ) : ?>
         <!-- Third batch (7.4): AI buttons render only when a valid strategic
              capability is proven plus the user permission — hiding is a
@@ -269,6 +285,43 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
           <div id="ai-suggestion-result-write" class="hidden"></div>
         </div>
         <?php endif; ?>
+        <div class="card hossam-write-aside-holder" id="hossam-publishing-holder">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">📌</span><?php echo esc_html( hossam_t( 'Publishing' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( $hossam_write_role_label ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Status' ) ); ?></span>
+            <span class="pill pill-draft"><?php echo esc_html( hossam_t( 'Draft' ) ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Permalink' ) ); ?></span>
+            <span class="hossam-aside-muted">—</span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'The permalink is set after the first save.' ) ); ?></p>
+        </div>
+        <div class="card hossam-write-aside-holder" id="hossam-metadata-holder">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
+            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'No cover selected yet.' ) ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></span>
+            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Write a short excerpt in the form — it feeds archives and search results.' ) ); ?></span>
+          </div>
+        </div>
+        <div class="card hossam-write-aside-holder" id="hossam-tags-holder">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
+          </div>
+          <div class="hossam-aside-chips" aria-hidden="true"></div>
+          <p class="form-hint hossam-aside-empty"><?php echo esc_html( hossam_t( 'No tags yet.' ) ); ?></p>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'Tags power related-article linking — keep them short and specific.' ) ); ?></p>
+        </div>
+        </div><!-- /hossam-write-side-stack -->
       </div><!-- /hossam-write-workspace -->
       <!-- Scoped fallback: [frontend_admin] hidden by default; opened only on
            a technical failure (network/5xx/unparseable response) from
@@ -638,6 +691,89 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     </div>
                   </form>
                   <?php
+                  // v1.1.3 W6 (D2): the Languages & Translation card per the
+                  // adopted translation design — always visible in the edit
+                  // panel (the write panel reveals it after the first save
+                  // with the saved-state wave). One row per active language
+                  // from the official WPML reads; one action per row at most
+                  // (the design's single-action rule): View for a published
+                  // translation, open-in-editor for a linked draft (edit_post
+                  // on the target governs), and the existing translate action
+                  // whose button attributes match the table's existing
+                  // delegation (js-translate-article) — no new endpoint, no
+                  // JS touch. Direction tags are not derivable from the
+                  // active-languages contract, so each row carries its
+                  // language code chip instead (a marked delta from the
+                  // design sketch, verified against the adapter's reads).
+                  $hossam_lang_card_ready = HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'wpml_translations' )
+                      && 'unavailable' !== $posts_wpml['status']
+                      && ! empty( $posts_wpml['capabilities']['languages'] )
+                      && function_exists( 'hossam_wpml_get_active_languages' )
+                      && function_exists( 'hossam_wpml_get_post_language' )
+                      && function_exists( 'hossam_wpml_get_translation_id' );
+                  $hossam_lang_rows = [];
+                  if ( $hossam_lang_card_ready ) {
+                      $hossam_post_lang = hossam_wpml_get_post_language( (int) $the_post->ID );
+                      foreach ( (array) hossam_wpml_get_active_languages() as $hossam_lang_code => $hossam_lang_info ) {
+                          $hossam_lang_code = (string) $hossam_lang_code;
+                          $hossam_is_original = ( '' !== $hossam_post_lang && $hossam_lang_code === $hossam_post_lang );
+                          $hossam_tid = hossam_wpml_get_translation_id( (int) $the_post->ID, $hossam_lang_code );
+                          $hossam_row_published = false;
+                          if ( $hossam_is_original ) {
+                              $hossam_row_status = hossam_t( 'Original' );
+                              $hossam_row_cls = 'hossam-lang-original';
+                          } elseif ( $hossam_tid > 0 ) {
+                              $hossam_tstatus = function_exists( 'get_post_status' ) ? (string) get_post_status( $hossam_tid ) : '';
+                              $hossam_row_published = ( 'publish' === $hossam_tstatus );
+                              $hossam_row_status = $hossam_row_published ? hossam_t( 'Published' ) : hossam_t( 'Draft' );
+                              $hossam_row_cls = $hossam_row_published ? 'pill-pub' : 'pill-draft';
+                          } else {
+                              $hossam_row_status = hossam_t( 'Not translated' );
+                              $hossam_row_cls = 'hossam-lang-none';
+                          }
+                          $hossam_row_action = '';
+                          if ( $hossam_is_original ) {
+                              $hossam_row_action = ''; // the open article IS this language row
+                          } elseif ( $hossam_row_published && function_exists( 'get_permalink' ) ) {
+                              $hossam_row_action = '<a class="btn btn-sm btn-ghost" target="_blank" rel="noopener" href="' . esc_url( get_permalink( $hossam_tid ) ) . '">' . esc_html( hossam_t( 'View' ) ) . '</a>';
+                          } elseif ( $hossam_tid > 0 && current_user_can( 'edit_post', $hossam_tid ) ) {
+                              $hossam_row_action = '<a class="btn btn-sm" href="' . esc_url( add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $hossam_tid ], $_dash_base ) ) . '">' . esc_html( hossam_t( 'Open translation' ) ) . '</a>';
+                          } elseif ( $hossam_tid < 1 ) {
+                              $hossam_row_action = '<a href="#" class="btn btn-sm btn-gold js-translate-article" data-post="' . esc_attr( $the_post->ID ) . '" data-lang="' . esc_attr( $hossam_lang_code ) . '">' . esc_html( sprintf( hossam_t( 'Translate to %s' ), strtoupper( $hossam_lang_code ) ) ) . '</a>';
+                          }
+                          $hossam_lang_rows[] = [
+                              'code'     => $hossam_lang_code,
+                              'name'     => ( isset( $hossam_lang_info['translated_name'] ) && is_string( $hossam_lang_info['translated_name'] ) && '' !== $hossam_lang_info['translated_name'] )
+                                  ? $hossam_lang_info['translated_name']
+                                  : strtoupper( $hossam_lang_code ),
+                              'status'   => $hossam_row_status,
+                              'cls'      => $hossam_row_cls,
+                              'action'   => $hossam_row_action,
+                              'original' => $hossam_is_original,
+                          ];
+                      }
+                  }
+                  ?>
+                  <?php if ( $hossam_lang_card_ready && ! empty( $hossam_lang_rows ) ) : ?>
+                  <div class="card mt-12" id="hossam-languages-card">
+                    <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'Languages & Translation' ) ); ?></div>
+                    <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Translation creates a linked draft in the target language — edit it and publish it like any article.' ) ); ?></p>
+                    <div class="hossam-lang-rows">
+                      <?php foreach ( $hossam_lang_rows as $hossam_lang_row ) : ?>
+                      <div class="hossam-lang-row<?php echo $hossam_lang_row['original'] ? ' is-original' : ''; ?>">
+                        <span class="hossam-lang-code"><?php echo esc_html( strtoupper( $hossam_lang_row['code'] ) ); ?></span>
+                        <span class="hossam-lang-name"><?php echo esc_html( $hossam_lang_row['name'] ); ?></span>
+                        <span class="pill <?php echo esc_attr( $hossam_lang_row['cls'] ); ?>"><?php echo esc_html( $hossam_lang_row['status'] ); ?></span>
+                        <span class="hossam-lang-action"><?php echo $hossam_lang_row['action']; // built above from escaped parts only ?></span>
+                      </div>
+                      <?php endforeach; ?>
+                    </div>
+                    <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                    <p class="form-hint mt-8"><a href="<?php echo esc_url( admin_url( 'admin.php?page=sitepress-multilingual-cms' ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( hossam_t( 'Language Manager' ) ); ?></a></p>
+                    <?php endif; ?>
+                  </div>
+                  <?php endif; ?>
+                  <?php
                   // v1.0.6 §8.5: the SEO group in the edit panel only — behind
                   // both gates: the owner key rank_math_seo + can_write from
                   // the registry (the same seo.php contract: available gate +
@@ -660,31 +796,69 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                   ?>
                   <div class="card mt-12" id="hossam-edit-seo-group">
                     <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'SEO' ) ); ?></div>
-                    <div class="form-group mb-8">
-                      <span class="form-label"><?php echo esc_html( hossam_t( 'SEO Score' ) ); ?></span>
-                      <span id="hossam-edit-seo-score" class="td-muted"><?php echo esc_html( $hossam_edit_seo_score > 0 ? $hossam_edit_seo_score . '%' : '—' ); ?></span>
+                    <?php
+                    // v1.1.3 W6 (D3): the simplified SEO group per the adopted
+                    // design — a colored read-only meter whose thresholds are
+                    // identical to the articles-table SEO column (>=80 good /
+                    // >=51 average / <=50 weak / none), one explanation line
+                    // per field, guidance-only character counters (the live
+                    // update is later JS; the initial value is server-computed),
+                    // and robots labels carrying a plain description with the
+                    // raw value beside it (the raw values remain the save
+                    // contract). Rank Math stays the only score source — no
+                    // client-side calculation anywhere.
+                    $hossam_seo_meter_cls = $hossam_edit_seo_score >= 80 ? 'good' : ( $hossam_edit_seo_score >= 51 ? 'avg' : ( $hossam_edit_seo_score > 0 ? 'weak' : 'none' ) );
+                    $hossam_seo_meter_label = $hossam_edit_seo_score >= 80 ? hossam_t( 'Good' ) : ( $hossam_edit_seo_score >= 51 ? hossam_t( 'Average' ) : ( $hossam_edit_seo_score > 0 ? hossam_t( 'Weak' ) : hossam_t( 'Not calculated yet.' ) ) );
+                    // The level classes travel whole from PHP (the rm_cls
+                    // pattern) — no static class prefix inside the attribute.
+                    $hossam_seo_fill_cls = 'hossam-seo-meter-' . $hossam_seo_meter_cls;
+                    $hossam_seo_label_cls = 'hossam-seo-meter-label-' . $hossam_seo_meter_cls;
+                    $hossam_seo_robots_labels = [
+                        'noindex'      => hossam_t( 'Do not show this page in search results' ),
+                        'nofollow'     => hossam_t( 'Do not follow links on this page' ),
+                        'noarchive'    => hossam_t( 'Do not store a cached copy of this page' ),
+                        'noimageindex' => hossam_t( 'Do not show images from this page in image search' ),
+                    ];
+                    $hossam_seo_title_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_title ) : strlen( $hossam_edit_seo_title );
+                    $hossam_seo_desc_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_desc ) : strlen( $hossam_edit_seo_desc );
+                    ?>
+                    <div class="hossam-seo-meter" id="hossam-edit-seo-score">
+                      <span class="hossam-seo-meter-track"><span class="hossam-seo-meter-fill <?php echo esc_attr( $hossam_seo_fill_cls ); ?>" style="width:<?php echo esc_attr( (string) min( 100, max( 0, $hossam_edit_seo_score ) ) ); ?>%"></span></span>
+                      <span class="hossam-seo-meter-value"><?php echo esc_html( $hossam_edit_seo_score > 0 ? $hossam_edit_seo_score . '%' : '—' ); ?></span>
+                      <span class="hossam-seo-meter-label <?php echo esc_attr( $hossam_seo_label_cls ); ?>"><?php echo esc_html( $hossam_seo_meter_label ); ?></span>
                     </div>
+                    <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Raise the score by completing the fields below — Rank Math calculates it automatically.' ) ); ?></p>
                     <form id="hossam-edit-seo-form" onsubmit="event.preventDefault(); hossamSaveSeo(this); return false;">
                       <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
                       <div class="form-group mb-8">
-                        <label class="form-label" for="hossam-edit-seo-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
-                        <input type="text" class="form-input" id="hossam-edit-seo-title" name="title" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_title ); ?>" />
-                      </div>
-                      <div class="form-group mb-8">
                         <label class="form-label" for="hossam-edit-seo-kw"><?php echo esc_html( hossam_t( 'Focus Keyword' ) ); ?></label>
                         <input type="text" class="form-input" id="hossam-edit-seo-kw" name="focus_keyword" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_kw ); ?>" />
+                        <p class="form-hint"><?php echo esc_html( hossam_t( 'The keyword your client searches for — e.g. corporate lawyer in Cairo.' ) ); ?></p>
                       </div>
                       <div class="form-group mb-8">
-                        <label class="form-label" for="hossam-edit-seo-desc"><?php echo esc_html( hossam_t( 'Meta Description' ) ); ?></label>
+                        <div class="hossam-seo-field-head">
+                          <label class="form-label" for="hossam-edit-seo-title"><?php echo esc_html( hossam_t( 'SEO Title' ) ); ?></label>
+                          <span class="hossam-seo-counter"><?php echo esc_html( $hossam_seo_title_len . ' / 60' ); ?></span>
+                        </div>
+                        <input type="text" class="form-input" id="hossam-edit-seo-title" name="title" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_title ); ?>" />
+                        <p class="form-hint"><?php echo esc_html( hossam_t( 'The title shown in search results — it may differ from the article title.' ) ); ?></p>
+                      </div>
+                      <div class="form-group mb-8">
+                        <div class="hossam-seo-field-head">
+                          <label class="form-label" for="hossam-edit-seo-desc"><?php echo esc_html( hossam_t( 'Meta Description' ) ); ?></label>
+                          <span class="hossam-seo-counter"><?php echo esc_html( $hossam_seo_desc_len . ' / 160' ); ?></span>
+                        </div>
                         <textarea class="form-input" id="hossam-edit-seo-desc" name="description" rows="3"><?php echo esc_textarea( $hossam_edit_seo_desc ); ?></textarea>
+                        <p class="form-hint"><?php echo esc_html( hossam_t( 'The summary line shown under the title in search results.' ) ); ?></p>
                       </div>
                       <div class="form-group mb-8">
                         <span class="form-label"><?php echo esc_html( hossam_t( 'Robots' ) ); ?></span>
-                        <div class="flex gap-8" style="flex-wrap:wrap">
+                        <div class="hossam-seo-robots">
                           <?php foreach ( $hossam_edit_seo_options as $hossam_edit_seo_option ) : ?>
-                          <label style="display:inline-flex;align-items:center;gap:4px">
+                          <label class="hossam-seo-robots-row">
                             <input type="checkbox" name="robots[]" value="<?php echo esc_attr( $hossam_edit_seo_option ); ?>"<?php echo ( is_array( $hossam_edit_seo_robots ) ? in_array( $hossam_edit_seo_option, $hossam_edit_seo_robots, true ) : str_contains( (string) $hossam_edit_seo_robots, $hossam_edit_seo_option ) ) ? ' checked' : ''; ?> />
-                            <?php echo esc_html( $hossam_edit_seo_option ); ?>
+                            <span><?php echo esc_html( $hossam_seo_robots_labels[ $hossam_edit_seo_option ] ?? $hossam_edit_seo_option ); ?></span>
+                            <span class="hossam-robots-raw"><?php echo esc_html( $hossam_edit_seo_option ); ?></span>
                           </label>
                           <?php endforeach; ?>
                         </div>
