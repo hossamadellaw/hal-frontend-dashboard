@@ -526,7 +526,8 @@ function hossamRichFrameReady(frame){
 /* [W8] v1.1.3 (Wireframes-a, the correction): the editor surface state
    rides a data attribute in DOM only - the one helper, four call sites
    (ready=empty, input=writing, the two save-failure branches=error,
-   the success card=saved); DOM APIs only, no innerHTML anywhere. */
+   the success card=saved); DOM APIs only - setAttribute, never raw-HTML
+   injection. */
 function hossamSetEditorState(container,state){
   try{if(container&&container.setAttribute)container.setAttribute('data-hossam-editor-state',state);}catch(e){}
 }
