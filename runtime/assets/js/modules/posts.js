@@ -1196,7 +1196,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     var trig=btn(triggerSym,triggerTitle,function(){toggle();});
     trig.appendChild(el('span','hossam-pt-caret','▾'));
     var m=el('div','hossam-pt-menu');
-    m.appendChild(el('div','hossam-hossam-pt-menu-title',t(menuTitleKey,menuTitleText)));
+    m.appendChild(el('div','hossam-pt-menu-title',t(menuTitleKey,menuTitleText)));
     buildBody(m);
     m.style.display='none';
     function toggle(){
@@ -1206,9 +1206,9 @@ function hossamToolbarBuild(containerId,container,cfg){
     return wrap;
   }
   function swatchRow(m,colors,apply){
-    var row=el('div','hossam-hossam-pt-swatch-row');
+    var row=el('div','hossam-pt-swatch-row');
     for(var i=0;i<colors.length;i++){
-      var sw=el('button','hossam-pt-swatch',undefined,[colors[i][1],colors[i][1]]);
+      var sw=el('button','hossam-pt-swatch',undefined,[colors[i][1],colors[i][2]]);
       sw.type='button'; sw.style.background=colors[i][0];
       sw.addEventListener('click',function(c){return function(){try{apply(c);}catch(e){}};}(colors[i][0]));
       row.appendChild(sw);
@@ -1216,7 +1216,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     m.appendChild(row);
   }
   function freeRow(m,pickId,apply){
-    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7FreePicker','Free color picker:')));
+    m.appendChild(el('div','hossam-pt-menu-title',t('w7FreePicker','Free color picker:')));
     var row=el('div','hossam-pt-free-row');
     var pick=el('input'); pick.type='color'; pick.id=pickId;
     var ap=el('button','btn btn-sm',t('aiApply','Apply'));
@@ -1225,7 +1225,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     row.appendChild(pick); row.appendChild(ap);
     m.appendChild(row);
   }
-  var root=el('div','hossam-hossam-pro-toolbar-container');
+  var root=el('div','hossam-pro-toolbar-container');
   root.id='hossam-pro-toolbar';
   /* G1 — heading level (H1 strictly excluded) */
   var g1=group();
@@ -1284,20 +1284,20 @@ function hossamToolbarBuild(containerId,container,cfg){
   /* G6 — color, highlight, case, grow/shrink */
   var g6=group();
   g6.appendChild(menu('A',['w7TextColor','Text color'],'w7TextColor','Text color',function(m){
-    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#171825','Navy'],['#C5A028','Gold'],['#C0392B','Red'],['#1A5FAB','Blue'],['#2E7D4F','Green'],['#5C5B6B','Gray'],['#000000','Black']],function(c){hossamToolbarCmd(container,'foreColor',c);});
+    m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
+    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){hossamToolbarCmd(container,'foreColor',c);});
     freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarCmd(container,'foreColor',c);});
   }));
   g6.appendChild(menu('🖍️',['w7Highlight','Highlight'],'w7Highlight','Highlight',function(m){
-    m.appendChild(el('div','hossam-hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#FDF6B2','Yellow'],['#E1EFFE','Blue'],['#EAF5EE','Green'],['#FDECEB','Red'],['#F2E7C0','Gold Pale']],function(c){hossamToolbarCmd(container,'hiliteColor',c);});
+    m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
+    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){hossamToolbarCmd(container,'hiliteColor',c);});
     freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarCmd(container,'hiliteColor',c);});
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
     for(var i=0;i<items.length;i++){
       (function(item){
-        var mi=el('button','hossam-hossam-pt-menu-item',t(item[1],item[2]));
+        var mi=el('button','hossam-pt-menu-item',t(item[1],item[2]));
         mi.type='button';
         mi.addEventListener('click',function(){
           try{
@@ -1390,7 +1390,7 @@ function hossamToolbarBuild(containerId,container,cfg){
   g10.appendChild(btn('↷',['w7Redo','Redo (Ctrl+Y)'],function(){hossamToolbarCmd(container,'redo');}));
   g10.appendChild(btn('⛶',['w7Zen','Focus mode'],function(){
     try{
-      var ws=container.closest?container.closest('.hossam-write-workspace, #panel-edit-article'):null;
+      var ws=container.closest?container.closest('#panel-write, #panel-edit-article'):null;
       if(ws) ws.classList.toggle('hossam-zen-focus');
     }catch(e){}
   }));

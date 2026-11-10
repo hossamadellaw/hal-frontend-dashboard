@@ -190,6 +190,51 @@ b16t_check(
 	'mismatches: ' . implode( ' | ', array_slice( $b16t_bad, 0, 8 ) )
 );
 
+/* ─ INTERSECTION: every W7 class token used anywhere in the posts.js
+   block (word-boundary extraction, composed strings included) carries a
+   dashboard.css selector - the gate-verdict guard: the doubled-prefix
+   corruption was invisible to the separate CSS/JS needles. */
+preg_match_all( "/hossam-(?:pt-[a-z-]+|pro-toolbar-container)/", $block, $b16t_cls );
+$b16t_tokens = array_values( array_unique( $b16t_cls[0] ) );
+$b16t_css = (string) file_get_contents( B16T_PROJECT . '/runtime/assets/css/dashboard.css' );
+$b16t_css = str_replace( "
+", "
+", $b16t_css );
+$b16t_missing_sel = [];
+foreach ( $b16t_tokens as $tok ) {
+    if ( false === strpos( $b16t_css, '.' . $tok ) ) { $b16t_missing_sel[] = $tok; }
+}
+b16t_check(
+	'B16T-I1-css-js-intersection',
+	[] !== $b16t_tokens && 16 === count( $b16t_tokens ) && [] === $b16t_missing_sel,
+	'every W7 class token used in posts.js carries a dashboard.css selector (16 tokens: the toolbar family plus the container, composed strings included)',
+	'tokens=' . count( $b16t_tokens ) . ' without a selector: ' . implode( ' | ', $b16t_missing_sel )
+);
+
+/* ─ EXTENDED PAIRS: every w7-key fallback pair in the block (select
+   titles, option triples, case items, swatch names) cross-checked against
+   the i18n ledger - the textual t() regex cannot see array-shaped pairs. */
+preg_match_all( "/,'(w7[A-Za-z0-9]*)','((?:[^'\\\\]|\\\\.)*)'[,\\]]/", $block, $b16t_arr, PREG_SET_ORDER );
+$b16t_arr_bad = [];
+$b16t_arr_seen = 0;
+foreach ( $b16t_arr as $pair ) {
+	$key = $pair[1];
+	$fallback = stripcslashes( $pair[2] );
+	$b16t_arr_seen++;
+	if ( ! isset( $b16t_map[ $key ] ) ) {
+		$b16t_arr_bad[] = $key . ' (unregistered)';
+	} elseif ( $b16t_map[ $key ] !== $fallback ) {
+		$b16t_arr_bad[] = $key . ' (map mismatch)';
+	}
+}
+b16t_check(
+	'B16T-C2-extended-array-pairs',
+	[] === $b16t_arr_bad && $b16t_arr_seen >= 30,
+	'every w7-key fallback pair in the W7 block matches its registered map value verbatim (' . $b16t_arr_seen . ' pairs: select titles plus option triples plus case items plus swatch names)',
+	'seen=' . $b16t_arr_seen . ' mismatches: ' . implode( ' | ', array_slice( $b16t_arr_bad, 0, 8 ) )
+);
+
+
 /* ── zero-Arabic hygiene ── */
 foreach ( [ 'posts.js' => $js_src, 'i18n.php' => $i18n_src ] as $name => $src ) {
 	b16t_check(

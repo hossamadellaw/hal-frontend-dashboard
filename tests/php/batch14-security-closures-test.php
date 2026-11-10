@@ -858,9 +858,9 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التثبيت بالصيغة الكانونية (LF) حصرًا
 // + اتفاق الblob المُودَع — نصف raw كان سياسة checkout لا محتوى (فشل CI 41704072466).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'164409354ffa9c676a71ad6b4543c9d0ce80789527d25adb46dcbd6dbbaaa4b4' === $posts_js_lf_hash
-		&& '164409354ffa9c676a71ad6b4543c9d0ce80789527d25adb46dcbd6dbbaaa4b4' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, and the W7 professional-toolbar build',
+	'fbb16b13d64671d41d34ca64da8adb3f6dcc236b7c3d7c76105ca1a8c8867b66' === $posts_js_lf_hash
+		&& 'fbb16b13d64671d41d34ca64da8adb3f6dcc236b7c3d7c76105ca1a8c8867b66' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, and the W7-A1 correction (prefixes, zen target, swatch-name keys)',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════

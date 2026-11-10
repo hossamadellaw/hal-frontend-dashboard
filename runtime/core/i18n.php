@@ -337,6 +337,18 @@ add_action( 'init', function(): void {
         'Publish Now',
         'Save as Draft',
         'Discard Changes',
+        // v1.1.3 W7 (the gate-verdict family item): the nine swatch color
+        // names - hover tooltips are real UI strings; the hex is the data,
+        // the name is the display (the i18n contract line above).
+        'Navy',
+        'Gold',
+        'Red',
+        'Blue',
+        'Green',
+        'Gray',
+        'Black',
+        'Yellow',
+        'Gold Pale',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -594,6 +606,18 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'w7PublishNow' => hossam_t('Publish Now'),
             'w7SaveDraft' => hossam_t('Save as Draft'),
             'w7Discard' => hossam_t('Discard Changes'),
+
+            // v1.1.3 W7: the nine swatch color-name keys - values match the
+            // posts.js swatch-row fallbacks verbatim.
+            'w7ColorNavy' => hossam_t('Navy'),
+            'w7ColorGold' => hossam_t('Gold'),
+            'w7ColorRed' => hossam_t('Red'),
+            'w7ColorBlue' => hossam_t('Blue'),
+            'w7ColorGreen' => hossam_t('Green'),
+            'w7ColorGray' => hossam_t('Gray'),
+            'w7ColorBlack' => hossam_t('Black'),
+            'w7ColorYellow' => hossam_t('Yellow'),
+            'w7ColorGoldPale' => hossam_t('Gold Pale'),
         ];
     }
 }

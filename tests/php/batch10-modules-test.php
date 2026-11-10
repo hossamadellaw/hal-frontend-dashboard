@@ -410,7 +410,7 @@ $mappings = array(
 if ( ! function_exists( 'b10_canonical_source' ) ) {
 	function b10_canonical_source( string $code ): string {
 		$code = str_replace( "\r\n", "\n", $code );
-		$code = preg_replace( '/\/\*[\s\S]*?\*\/', ' ', $code );
+		$code = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $code );
 		$code = preg_replace( '/(^|\s)\/\/[^\n]*/', '$1', $code );
 		return $code;
 	}
