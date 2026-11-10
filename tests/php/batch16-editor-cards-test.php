@@ -157,11 +157,14 @@ b16c_check(
 );
 
 /* ── Wireframes-أ: the DOM-state carrier ── */
+$wf_sites = substr_count( $posts_js, "hossamSetEditorState(" );
 b16c_check(
 	'B16C-WF-data-state',
-	false !== strpos( $posts_js, 'data-hossam-editor-state' ) || true,
-	'the wireframe states ride data attributes in DOM only (the security clause)',
-	'-'
+	false !== strpos( $posts_js, 'function hossamSetEditorState(' )
+		&& false !== strpos( $posts_js, "setAttribute('data-hossam-editor-state'" )
+		&& 6 === $wf_sites,
+	'the wireframe states ride one helper (hossamSetEditorState, setAttribute only — DOM APIs, no innerHTML in the wiring) across its call sites: ready=empty, input=writing, the two save-failure branches=error, the success card=saved (6 occurrences: the definition plus five calls)',
+	'sites=' . $wf_sites . ' (expected 6) or the helper/attribute is missing'
 );
 
 /* ── hygiene: zero Arabic in the touched files ── */

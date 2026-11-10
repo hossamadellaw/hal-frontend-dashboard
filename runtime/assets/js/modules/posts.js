@@ -95,7 +95,7 @@ async function hossamCreateArticle(form){
     return true;
   }
   showToast((d&&d.data&&d.data.message)||t('networkError','Network error'),'error');
-  if(hossamIsTechnicalFailure(netError,resp,d)){hossamRevealFallback('fa-fallback-write');}
+  if(hossamIsTechnicalFailure(netError,resp,d)){hossamSetEditorState(document.getElementById('hossam-rich-editor-new'),'error');hossamRevealFallback('fa-fallback-write');}
   return false;
 }
 
@@ -151,7 +151,7 @@ async function hossamUpdateArticle(form){
     return true;
   }
   showToast((d&&d.data&&d.data.message)||t('networkError','Network error'),'error');
-  if(hossamIsTechnicalFailure(netError,resp,d)){hossamRevealFallback('fa-fallback-edit');}
+  if(hossamIsTechnicalFailure(netError,resp,d)){hossamSetEditorState(document.getElementById('hossam-rich-editor-edit'),'error');hossamRevealFallback('fa-fallback-edit');}
   return false;
 }
 
@@ -282,6 +282,7 @@ function hossamSeoPanelUrl(d){
 }
 function hossamShowPostSuccessCard(form,d,message){
   if(!form||!form.querySelector) return;
+  try{hossamSetEditorState(document.getElementById(form.id==='hossam-post-edit-form'?'hossam-rich-editor-edit':'hossam-rich-editor-new'),'saved');}catch(eS){}
   const old=form.querySelector('.hossam-post-success-card');
   if(old) old.remove();
   const card=document.createElement('div');
@@ -522,6 +523,13 @@ function hossamRichFrameReady(frame){
     try{return !!scope.querySelector('[class*="block-editor"],[data-type],.block-editor-block-list__layout');}catch(e){return false;}
   }catch(e){return false;}
 }
+/* [W8] v1.1.3 (Wireframes-a, the correction): the editor surface state
+   rides a data attribute in DOM only - the one helper, four call sites
+   (ready=empty, input=writing, the two save-failure branches=error,
+   the success card=saved); DOM APIs only, no innerHTML anywhere. */
+function hossamSetEditorState(container,state){
+  try{if(container&&container.setAttribute)container.setAttribute('data-hossam-editor-state',state);}catch(e){}
+}
 function hossamRichNotice(){
   try{showToast(t('richEditorUnavailable','Rich editor unavailable — using the plain text field.'),'error');}catch(e){}
 }
@@ -718,6 +726,7 @@ function hossamRichInitEditor(containerId){
     }
     /* paste handler on the official container (the container's own events). */
     try{container.addEventListener('paste',markPaste,true);}catch(pe0){}
+    try{container.addEventListener('input',function(){hossamSetEditorState(container,'writing');},true);}catch(pe1){}
     /* Content styles are passed to the iframe through the official BlockCanvas
        interface (styles) — with RTL from the HAL settings. */
     var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}';
@@ -808,6 +817,7 @@ function hossamRichInitEditor(containerId){
     record.root=root;
     if(root&&typeof root.render==='function') root.render(el.createElement(HossamRichApp,null));
     container.removeAttribute('hidden');
+    hossamSetEditorState(container,'empty');
     /* [W7] v1.1.3: the static professional toolbar above the canvas +
        the bottom action bar on the write editor (the existing form
        contract). */
