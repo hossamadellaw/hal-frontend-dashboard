@@ -166,10 +166,10 @@ b16_check(
 b16_check(
 	'B16-D2-delegation-attrs',
 	1 === substr_count( $posts_src, 'btn-gold js-translate-article' )
-		&& 1 === substr_count( $posts_src, 'btn-ghost js-translate-article' )
+		&& 0 === substr_count( $posts_src, 'btn-ghost js-translate-article' )
 		&& false !== strpos( $posts_src, 'btn-gold js-translate-article" data-post="' )
 		&& false !== strpos( $posts_src, 'data-lang="' ),
-	'the card translate button (btn-gold) carries the same attributes the table delegation consumes; the table button (btn-ghost) stays untouched',
+	'the card translate button (btn-gold) carries the delegation attributes; the table buttons left with T-09 (v1.1.3 W8 - value update, not strictness)',
 	'the card translate button attributes do not match the existing delegation contract'
 );
 $card_region_start = strpos( $posts_src, 'id="hossam-languages-card"' );

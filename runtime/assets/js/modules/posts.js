@@ -139,6 +139,15 @@ async function hossamUpdateArticle(form){
     /* [B9-06] P1: the update shows the success card with its links instead of
        an instant reload — the links stay usable with no automatic redirect. */
     hossamShowPostSuccessCard(form,d,t('updated','Updated'));
+    /* [W8] v1.1.3 (OP-7): the single save point - the article update chains
+       the SEO save when the edit panel carries the SEO form (both server
+       contracts verbatim: hossam_update_article already returned success,
+       then hossam_save_seo runs with its own nonce and rate limit;
+       hossamSaveSeo remains independently callable). */
+    try{
+      var seoForm=document.getElementById('hossam-edit-seo-form');
+      if(seoForm&&typeof hossamSaveSeo==='function'){ await hossamSaveSeo(seoForm); }
+    }catch(e7){}
     return true;
   }
   showToast((d&&d.data&&d.data.message)||t('networkError','Network error'),'error');
@@ -650,6 +659,16 @@ function hossamRichInitEditor(containerId){
       }
     }catch(btErr){allowedTypes=null;}
     if(!allowedTypes||!allowedTypes.length) allowedTypes=true;
+    /* [W8] v1.1.3 (OP-2): the extended-block gate - administrators (the
+       server-side adminExtend flag) keep the full core set; every other
+       role writes within the eight-block set (TS-01/TS-04: paragraph,
+       heading, image, list, quote, table, details, separator - display
+       restriction only; existing content with hidden blocks renders and
+       edits in place untouched (TS-06/OP-3), and the server-side kses
+       valve governs every save regardless). */
+    if(true===allowedTypes&&!(cfg&&cfg.adminExtend)){
+      allowedTypes=['core/paragraph','core/heading','core/image','core/list','core/quote','core/table','core/details','core/separator'];
+    }
     var settings={
       canUpload:canUpload,
       mediaUpload:function(o){hossamRichMediaUpload(wp0,cfg,o);},

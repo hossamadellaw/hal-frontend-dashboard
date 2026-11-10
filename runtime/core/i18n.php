@@ -349,6 +349,14 @@ add_action( 'init', function(): void {
         'Black',
         'Yellow',
         'Gold Pale',
+        // v1.1.3 W8 (OP-8): the RankMath suggestions checklist - server-derived
+        // from the existing five reads, display guidance never a score.
+        'Set a focus keyword so the score has a target.',
+        'Write the SEO title — it is the headline search results show.',
+        'Keep the SEO title between 50 and 60 characters.',
+        'Write the meta description — it is the summary line under the title.',
+        'Keep the meta description between 120 and 160 characters.',
+        'This page is set to noindex — it will not appear in search results.',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -618,6 +626,15 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'w7ColorBlack' => hossam_t('Black'),
             'w7ColorYellow' => hossam_t('Yellow'),
             'w7ColorGoldPale' => hossam_t('Gold Pale'),
+
+            // v1.1.3 W8: the OP-8 suggestion keys - values match the
+            // posts.php esc_html outputs verbatim.
+            'w8SugKeyword' => hossam_t('Set a focus keyword so the score has a target.'),
+            'w8SugTitleEmpty' => hossam_t('Write the SEO title — it is the headline search results show.'),
+            'w8SugTitleLen' => hossam_t('Keep the SEO title between 50 and 60 characters.'),
+            'w8SugDescEmpty' => hossam_t('Write the meta description — it is the summary line under the title.'),
+            'w8SugDescLen' => hossam_t('Keep the meta description between 120 and 160 characters.'),
+            'w8SugNoindex' => hossam_t('This page is set to noindex — it will not appear in search results.'),
         ];
     }
 }

@@ -332,7 +332,13 @@ const V106_POSTS_DELTA = {
     'hossam-aside-row', 'hossam-aside-muted', 'hossam-aside-chips', 'hossam-aside-empty',
     'hossam-lang-rows', 'is-original', 'hossam-lang-code', 'hossam-lang-name', 'hossam-lang-action',
     'hossam-seo-meter', 'hossam-seo-meter-track', 'hossam-seo-meter-fill', 'hossam-seo-meter-value', 'hossam-seo-meter-label',
-    'hossam-seo-field-head', 'hossam-seo-counter', 'hossam-seo-robots', 'hossam-seo-robots-row', 'hossam-robots-raw'],
+    'hossam-seo-field-head', 'hossam-seo-counter', 'hossam-seo-robots', 'hossam-seo-robots-row', 'hossam-robots-raw',
+    // v1.1.3 W8 (T-09 chips column + OP-8 suggestions): the chips column
+    // and the suggestions list - styled by the W8 token-based block; the
+    // bare lang-text inline style left with the text cell (documented in
+    // stylesLost below). The four chip-state classes travel whole from PHP
+    // (the rm_cls pattern, like the meter levels) so they do not appear here.
+    'hossam-lang-chips', 'hossam-lang-chip', 'hossam-seo-suggestions'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -354,7 +360,9 @@ const V106_POSTS_DELTA = {
     'display:none;max-width:120px;height:auto;',
     'max-height:180px;overflow:auto;',
   ],
-  stylesLost: [],
+  // v1.1.3 W8 T-09: the bare lang-text cell (and its inline style) left the
+  // markup for the chips column.
+  stylesLost: ['font-size:11px;font-weight:600;color:var(--txt-2)'],
 };
 
 /* ── v1.0.6 §14 documented markup delta, panel-translations ONLY ──

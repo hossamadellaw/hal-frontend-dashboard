@@ -728,6 +728,11 @@ add_action( 'wp_enqueue_scripts', function(): void {
         'mode'      => $hossam_editor_mode,
         'isRtl'     => function_exists( 'hossam_wpml_is_rtl' ) ? hossam_wpml_is_rtl() : is_rtl(),
         'reason'    => $hossam_rich_reason,
+        // [W8] v1.1.3 (OP-2): the admin-only extended-block gate - a display
+        // capability flag computed server-side (the :107-110 pattern);
+        // the endpoint re-verifies server-side on every save (the standing
+        // rule: display gates never authorize).
+        'adminExtend' => $hossam_rich_enabled && current_user_can( 'manage_options' ),
     ] );
 
     wp_enqueue_script(

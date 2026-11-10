@@ -420,21 +420,55 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                   $edit_url   = add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $post_id ], $_dash_base );
                   $del_url    = add_query_arg( [ 'panel' => 'delete-article', 'post_id' => $post_id ], $_dash_base );
 
-                  // Language via WPML
-                  if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'wpml_translations' )
-                      || 'unavailable' === $posts_wpml['status']
-                      || empty( $posts_wpml['capabilities']['languages'] )
-                      || ! function_exists( 'hossam_wpml_get_post_language' ) ) {
-                      $lang_name = '—';
-                  } else {
-                      $post_language = hossam_wpml_get_post_language( $post_id );
-                      $lang_name = '' !== $post_language ? strtoupper( $post_language ) : '—';
+                  // Language via WPML — [W8] v1.1.3 (T-09/AC-R5): the compact
+                  // chips column (status per language; one click opens the
+                  // editor where the card's single action lives). Derived inside
+                  // the existing official WPML reads — no N+1 (the design's
+                  // performance clause).
+                  $hossam_row_langs_ready = HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'wpml_translations' )
+                      && 'unavailable' !== $posts_wpml['status']
+                      && ! empty( $posts_wpml['capabilities']['languages'] )
+                      && function_exists( 'hossam_wpml_get_active_languages' )
+                      && function_exists( 'hossam_wpml_get_post_language' )
+                      && function_exists( 'hossam_wpml_get_translation_id' );
+                  $hossam_row_lang_chips = [];
+                  if ( $hossam_row_langs_ready ) {
+                      $hossam_row_src = hossam_wpml_get_post_language( $post_id );
+                      foreach ( (array) hossam_wpml_get_active_languages() as $hossam_row_lcode => $hossam_row_linfo ) {
+                          $hossam_row_lcode = (string) $hossam_row_lcode;
+                          $hossam_row_is_src = ( '' !== $hossam_row_src && $hossam_row_lcode === $hossam_row_src );
+                          $hossam_row_tid = hossam_wpml_get_translation_id( $post_id, $hossam_row_lcode );
+                          if ( $hossam_row_is_src ) {
+                              $hossam_row_lcls = 'hossam-chip-src';
+                              $hossam_row_ltxt = hossam_t( 'Original' );
+                          } elseif ( $hossam_row_tid > 0 && 'publish' === ( function_exists( 'get_post_status' ) ? (string) get_post_status( $hossam_row_tid ) : '' ) ) {
+                              $hossam_row_lcls = 'hossam-chip-pub';
+                              $hossam_row_ltxt = hossam_t( 'Published' );
+                          } elseif ( $hossam_row_tid > 0 ) {
+                              $hossam_row_lcls = 'hossam-chip-draft';
+                              $hossam_row_ltxt = hossam_t( 'Draft' );
+                          } else {
+                              $hossam_row_lcls = 'hossam-chip-none';
+                              $hossam_row_ltxt = hossam_t( 'Not translated' );
+                          }
+                          $hossam_row_lang_chips[] = [ strtoupper( $hossam_row_lcode ), $hossam_row_lcls, $hossam_row_ltxt ];
+                      }
                   }
                 ?>
                 <tr>
                   <td><span class="td-title" title="<?php the_title_attribute(); ?>"><?php echo esc_html(get_the_title()); ?></span></td>
                   <td><span class="td-muted"><?php echo esc_html($cat_str); ?></span></td>
-                  <td><span style="font-size:11px;font-weight:600;color:var(--txt-2)"><?php echo esc_html($lang_name); ?></span></td>
+                  <td>
+                    <?php if ( ! empty( $hossam_row_lang_chips ) ) : ?>
+                    <div class="hossam-lang-chips">
+                      <?php foreach ( $hossam_row_lang_chips as $hossam_row_chip ) : ?>
+                      <span class="hossam-lang-chip <?php echo esc_attr( $hossam_row_chip[1] ); ?>" title="<?php echo esc_attr( $hossam_row_chip[2] ); ?>"><?php echo esc_html( $hossam_row_chip[0] ); ?></span>
+                      <?php endforeach; ?>
+                    </div>
+                    <?php else : ?>
+                    <span class="td-muted">—</span>
+                    <?php endif; ?>
+                  </td>
                   <td><span class="pill <?php echo esc_attr($pill_cls); ?>"><?php echo esc_html($pill_txt); ?></span></td>
                   <td><span class="td-muted"><?php echo esc_html($modified); ?></span></td>
                   <td title="<?php echo $focus_kw ? esc_attr( 'KW: ' . $focus_kw ) : esc_attr( hossam_t( 'No keyword set' ) ); ?>">
@@ -458,26 +492,6 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <a href="<?php echo esc_url($del_url); ?>" class="btn btn-sm btn-danger"><?php echo esc_html( hossam_t( 'Delete' ) ); ?></a>
                       <?php endif; ?>
                       <a href="<?php echo esc_url(get_permalink($post_id)); ?>" target="_blank" class="btn btn-sm btn-ghost"><?php echo esc_html( hossam_t( 'View' ) ); ?></a>
-                      <?php if ( $can_edit
-                          && HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'wpml_translations' )
-                          && 'unavailable' !== $posts_wpml['status']
-                          && ! empty( $posts_wpml['capabilities']['languages'] )
-                          && function_exists( 'hossam_wpml_get_active_languages' ) ) :
-                          $_row_langs    = hossam_wpml_get_active_languages();
-                          $_row_cur_lang = hossam_wpml_get_current_language();
-                          foreach ( (array) $_row_langs as $_row_lang_code => $_row_lang_info ) :
-                              if ( $_row_lang_code === $_row_cur_lang ) {
-                                  continue;
-                              }
-                              $_row_translated_id = hossam_wpml_get_translation_id( $post_id, (string) $_row_lang_code );
-                              ?>
-                              <?php if ( $_row_translated_id && current_user_can( 'edit_post', $_row_translated_id ) ) : ?>
-                              <a href="<?php echo esc_url( add_query_arg( [ 'panel' => 'edit-article', 'post_id' => $_row_translated_id ], $_dash_base ) ); ?>" class="btn btn-sm btn-ghost"><?php echo esc_html( sprintf( hossam_t( 'Edit %s' ), strtoupper( $_row_lang_code ) ) ); ?></a>
-                              <?php elseif ( ! $_row_translated_id ) : ?>
-                              <a href="#" class="btn btn-sm btn-ghost js-translate-article" data-post="<?php echo esc_attr( $post_id ); ?>" data-lang="<?php echo esc_attr( $_row_lang_code ); ?>"><?php echo esc_html( sprintf( hossam_t( 'Translate to %s' ), strtoupper( $_row_lang_code ) ) ); ?></a>
-                              <?php endif; ?>
-                          <?php endforeach; ?>
-                      <?php endif; ?>
                       <?php if ( current_user_can( 'manage_options' ) && 'official' === $hossam_editor_mode ) : ?>
                       <!-- v1.1.0 OEB (H1 §7-1 — merge R23): the official editor
                            open button — administrators only × official from
@@ -821,6 +835,28 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     ];
                     $hossam_seo_title_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_title ) : strlen( $hossam_edit_seo_title );
                     $hossam_seo_desc_len = function_exists( 'mb_strlen' ) ? mb_strlen( $hossam_edit_seo_desc ) : strlen( $hossam_edit_seo_desc );
+                    // [W8] v1.1.3 (OP-8): the RankMath suggestions checklist -
+                    // derived server-side from the EXISTING five reads only
+                    // (display guidance, never a score: Rank Math stays the
+                    // only score source). Each suggestion names the field it
+                    // guides; an empty list renders nothing.
+                    $hossam_seo_suggestions = [];
+                    if ( '' === trim( $hossam_edit_seo_kw ) ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'Set a focus keyword so the score has a target.' );
+                    }
+                    if ( '' === trim( $hossam_edit_seo_title ) ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'Write the SEO title — it is the headline search results show.' );
+                    } elseif ( $hossam_seo_title_len < 50 || $hossam_seo_title_len > 60 ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'Keep the SEO title between 50 and 60 characters.' );
+                    }
+                    if ( '' === trim( $hossam_edit_seo_desc ) ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'Write the meta description — it is the summary line under the title.' );
+                    } elseif ( $hossam_seo_desc_len < 120 || $hossam_seo_desc_len > 160 ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'Keep the meta description between 120 and 160 characters.' );
+                    }
+                    if ( is_array( $hossam_edit_seo_robots ) && in_array( 'noindex', $hossam_edit_seo_robots, true ) ) {
+                        $hossam_seo_suggestions[] = hossam_t( 'This page is set to noindex — it will not appear in search results.' );
+                    }
                     ?>
                     <div class="hossam-seo-meter">
                       <span class="hossam-seo-meter-track"><span class="hossam-seo-meter-fill <?php echo esc_attr( $hossam_seo_fill_cls ); ?>" style="width:<?php echo esc_attr( (string) min( 100, max( 0, $hossam_edit_seo_score ) ) ); ?>%"></span></span>
@@ -828,6 +864,13 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <span class="hossam-seo-meter-label <?php echo esc_attr( $hossam_seo_label_cls ); ?>"><?php echo esc_html( $hossam_seo_meter_label ); ?></span>
                     </div>
                     <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Raise the score by completing the fields below — Rank Math calculates it automatically.' ) ); ?></p>
+                    <?php if ( ! empty( $hossam_seo_suggestions ) ) : ?>
+                    <ul class="hossam-seo-suggestions mb-8">
+                      <?php foreach ( $hossam_seo_suggestions as $hossam_seo_suggestion ) : ?>
+                      <li><?php echo esc_html( $hossam_seo_suggestion ); ?></li>
+                      <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
                     <form id="hossam-edit-seo-form" onsubmit="event.preventDefault(); hossamSaveSeo(this); return false;">
                       <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
                       <div class="form-group mb-8">
