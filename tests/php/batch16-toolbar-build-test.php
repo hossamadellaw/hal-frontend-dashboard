@@ -56,8 +56,6 @@ $setup_src  = (string) file_get_contents( B16T_PROJECT . '/runtime/core/setup.ph
 
 $block_start = strpos( $js_src, '[W7] v1.1.3: the professional toolbar' );
 $block       = ( false !== $block_start ) ? substr( $js_src, $block_start ) : '';
-fwrite(STDERR, "DBG start=".var_export($block_start,true)." len=".strlen($block)." preg=".preg_match("/\['h1'/", $block)." h2=".var_export(strpos($block,'\x27w7OptH2\x27'),true)." h4=".var_export(strpos($block,'\x27w7OptH4\x27'),true)."
-");
 
 /* ── STRUCTURE ── */
 b16t_check(
