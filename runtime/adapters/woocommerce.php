@@ -1,24 +1,24 @@
 <?php
 /**
- * runtime/adapters/woocommerce.php (الدفعة 4)
+ * runtime/adapters/woocommerce.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: عزل كامل لكل استدعاء WooCommerce الرسمي — لا SQL مباشر
- * إطلاقًا فى هذا الملف.
+ * Role: complete isolation of every official WooCommerce call — no direct SQL
+ * anywhere in this file.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * woocommerce.php (الدفعة 4 من HAL Frontend Dashboard) — صفر تعديل
- * في العقود.
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/adapters/
+ * woocommerce.php (Batch 4 of HAL Frontend Dashboard) — zero changes
+ * to contracts.
  *
- * العقد المنقول كما هو (ملخَّص من رأس المصدر):
- *   - كل نداء WC رسمى فى المشروع يمر من هنا فقط (finance/store AJAX
- *     تستدعي دوال هذا الملف — الدفعتان 5/6).
- *   - hook woocommerce_order_status_changed لا يُسجَّل هنا عمدًا:
- *     مسجَّل ومملوك لـcore/notifications.php (استدعاء
- *     hossam_wc_get_order_status_name منه مباشرة، محميًا
- *     بـfunction_exists) — تسجيله هنا يُنتج إشعارًا مكررًا.
- *   - hossam_wc_get_available_payment_gateways: قائمة dashboard-آمنة —
- *     get_available_payment_gateways() الرسمية تتطلب سياق
- *     checkout/session ويمنع استدعاؤها من admin-ajax عام.
+ * The contract as carried over (summarized from the source header):
+ *   - Every official WC call in the project goes through here only (the finance/store AJAX
+ *     handlers call this file's functions — Batches 5/6).
+ *   - The woocommerce_order_status_changed hook is deliberately not registered here:
+ *     it is registered and owned by core/notifications.php (which calls
+ *     hossam_wc_get_order_status_name directly, guarded
+ *     by function_exists) — registering it here would produce a duplicate notification.
+ *   - hossam_wc_get_available_payment_gateways: a dashboard-safe list —
+ *     the official get_available_payment_gateways() requires a
+ *     checkout/session context and must not be called from a generic admin-ajax request.
  * ══════════════════════════════════════════════════════════════
  */
 

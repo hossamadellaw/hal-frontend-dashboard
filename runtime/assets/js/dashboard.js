@@ -181,9 +181,10 @@ function switchTab(el){
 
 /* ── BUG FIX: initNav() — both branches were identical in prototype ── */
 function initNav(){
-  /* [B9-02] hash مشوّه (مثل '#%') يجعل decodeURIComponent يرمي URIError
-     فيقطع callback التهيئة قبل loadNotifications. السقوط الآمن إلى
-     'overview' يحافظ على اكتمال DOMContentLoaded. */
+  /* [B9-02] a malformed hash (like '#%') makes decodeURIComponent throw a
+     URIError, breaking the init callback before loadNotifications. The safe
+     fall back to
+     'overview' preserves a complete DOMContentLoaded. */
   let hash = 'overview';
   try {
     hash = decodeURIComponent(location.hash.replace('#','')) || 'overview';
@@ -372,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(function () {
     if (document.visibilityState === "visible") loadNotifications();
   }, 60000);
-  // loadFinance تُستدعى عند فتح البانل فقط
+  // loadFinance is called on panel open only
 });
 
 /* ══ Language Dropdown — Toggle + Close ═══════════════════ */

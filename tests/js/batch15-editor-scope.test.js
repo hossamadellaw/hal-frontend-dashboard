@@ -210,10 +210,10 @@ for (const f of runtimeFiles) {
   methodA += (raw.match(/execCommand/g) || []).length;
   methodB += (raw.replace(/\r\n/g, '\n').match(/\bexecCommand\b/g) || []).length;
 }
-check('B15S-6-execcommand-zero-two-methods',
-  0 === methodA && 0 === methodB,
-  `zero execCommand across all of runtime/ (${runtimeFiles.length} files) by both recorded methods: (a) literal substring scan = 0, (b) word-boundary regex over CRLF-normalized sources = 0 (no alternate editing engine anywhere)`,
-  `execCommand counters deviated: methodA(literal)=${methodA} methodB(regex)=${methodB}`);
+check('B15S-6-execcommand-funnel-two-methods',
+  4 === methodA && 4 === methodB,
+  `v1.1.3 W7 (value update, not strictness): the professional toolbar funnels every canvas dispatch through hossamToolbarCmd - the runtime/ counter is exactly 4 by both methods: (a) literal substring scan = 4, (b) word-boundary regex over CRLF-normalized sources = 4 (the block comment word, the styleWithCSS setup, the single funnel call, and the G3 comment) - the editing surface stays the official BlockCanvas, no alternate engine`,
+  `execCommand counters deviated: methodA(literal)=${methodA} methodB(regex)=${methodB} (expected 4/4)`);
 
 /* ── SCOPE — new-article-only editor scope unchanged ─────────────── */
 
@@ -229,10 +229,10 @@ const editHolderIdx = postsPhp.indexOf('id="hossam-rich-editor-edit"');
 const holderCount = (postsPhp.match(/class="hossam-rich-editor"/g) || []).length;
 
 check('B15S-7-scope-two-holders-write-only',
-  4 === mountIds.length && 0 === otherMounts && holderCount === 2 && mountListOk
+  10 === mountIds.length && 0 === otherMounts && holderCount === 2 && mountListOk
     && writeIdx !== -1 && newHolderIdx > writeIdx && newHolderIdx < editPanelIdx
     && editPanelIdx !== -1 && editHolderIdx > editPanelIdx,
-  'the editor scope stays new-article-only: posts.js references exactly the documented pair and nothing else (init list mounts hossam-rich-editor-new then -edit; each id also mapped in the sync guard), two holder divs in posts.php — the new holder sits inside panel-write (:95→:120) and the edit holder inside panel-edit-article (:417→:458), no third mount anywhere',
+  'the editor scope stays new-article-only: posts.js mounts exactly the documented pair (init list mounts hossam-rich-editor-new then -edit; each id also mapped in the sync guard), two holder divs in posts.php, no third mount anywhere; v1.1.3 W7-A1 moved the literal-reference counter 4 -> 6 and W8 (Wireframes-a correction) moves 6 -> 10 for exactly four added references that mount nothing (the two save-failure error markings getElementById(hossam-rich-editor-new/edit) and the success-card ternary over the same pair) - otherMounts=0 and holderCount=2 stay enforced',
   `editor scope deviated: mountIds=${JSON.stringify(mountIds)} otherMounts=${otherMounts} holderCount=${holderCount} mountListOk=${mountListOk} anchors write=${writeIdx} new=${newHolderIdx} editPanel=${editPanelIdx} editHolder=${editHolderIdx}`);
 
 /* ── SIDEBAR — no sidebar surface in the editor scope ────────────── */
@@ -279,8 +279,8 @@ const floatingFormActions = formActionRules.filter((r) => /position\s*:\s*(fixed
 const floatCounter = (css.match(/position\s*:\s*(?:fixed|sticky)\b/g) || []).length;
 
 check('B15S-8-no-sidebar-in-editor-scope',
-  0 === sidebarInPosts && 4 === floatCounter && formActionRules.length > 0 && 0 === floatingFormActions.length,
-  `no sidebar surface in the editor scope: zero 'sidebar' occurrences in posts.js, the stylesheet fixed|sticky counter stays exactly 4 and all ${formActionRules.length} panel-write/panel-edit .form-actions rules stay free of fixed|sticky — the batch14 patterns are not displaced by C2`,
+  0 === sidebarInPosts && 7 === floatCounter && formActionRules.length > 0 && 0 === floatingFormActions.length,
+  `no sidebar surface in the editor scope: zero 'sidebar' occurrences in posts.js, all ${formActionRules.length} panel-write/panel-edit .form-actions rules stay free of fixed|sticky; v1.1.3 W7 (value update, not strictness): the fixed|sticky counter moves 4 -> 7 for exactly the three adopted reference-model additions (the <=768 off-canvas toolbar drawer, its dark backdrop, the docked bottom action bar) - the toolbar itself stays static (never sticky), the batch14 patterns are not displaced`,
   `sidebar patterns deviated: sidebarInPosts=${sidebarInPosts} fixedSticky=${floatCounter} floatingFormActions=${JSON.stringify(floatingFormActions.map((r) => r.selector))}`);
 
 /* ── ESCATTR — the five attribute contexts re-measured (inheritance) ── */

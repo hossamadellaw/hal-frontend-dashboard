@@ -1,16 +1,16 @@
 /**
  * assets/js/modules/store.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدالة المنقولة حرفيًا: loadProducts()
- * (تبويب Orders فى نفس البانل يُعاد استخدام loadFinance() من
- * modules/finance.js — لا دالة منفصلة له هنا، راجع ملاحظة
+ * Related task: T-22
+ * The function carried verbatim: loadProducts()
+ * (the Orders tab in the same panel reuses loadFinance() from
+ * modules/finance.js — no separate function for it here, see the note in
  * template-parts/dashboard/store.php)
  *
  * TODO:
- * [x] نقل loadProducts() حرفيًا — تستدعي hossam_get_products (ajax/store.php)
- *     — مؤكَّد 2026-08-24: الدالة معرَّفة أدناه (:20)
- * [x] مسجَّلة فى TAB_LOADERS تحت 'products' — dashboard.js:133
+ * [x] Moved loadProducts() verbatim — it calls hossam_get_products (ajax/store.php)
+ *     — confirmed 2026-08-24: the function is defined below (:20)
+ * [x] Registered in TAB_LOADERS under 'products' — dashboard.js:133
  * ══════════════════════════════════════════════════════════════
  */
 

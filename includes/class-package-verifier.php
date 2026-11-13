@@ -301,8 +301,8 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 		}
 		if ( array_key_exists( 'next_key', $manifest ) ) {
 			$next = $manifest['next_key'];
-			// B1-06: schema يشترط object — null أو أي قيمة غير مصفوفة
-			// ترفض هنا كما ترفضها بوابة schema تمامًا.
+			// B1-06: the schema requires an object — null or any non-array
+			// value is rejected here exactly as the schema gate rejects it.
 			if ( ! is_array( $next ) ) {
 				self::fail( 'HAL_RUNTIME_MANIFEST_NEXT_KEY_INVALID' );
 			}
@@ -332,8 +332,9 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 		}
 		$this->validate_file_map( $manifest['files'], 'carrier' );
 
-		// B1-04 / A §6.2: Carrier الكامل يفرض ملفات بعينها بأسمائها
-		// الدقيقة، لا اكتفاءً بتطابق prefixes — أي ملف إلزامي غائب يرفض.
+		// B1-04 / A §6.2: the full Carrier demands specific files under their
+		// exact names, not mere prefix matching — any missing mandatory file
+		// is rejected.
 		$required_exact = array(
 			'hal-frontend-dashboard.php',
 			'readme.txt',
@@ -349,8 +350,9 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 				self::fail( 'HAL_CARRIER_MANIFEST_INCOMPLETE' );
 			}
 		}
-		// includes/ وpayload/ مجلدان إلزاميان بمحتوى فعلي، ويجب وجود
-		// أرشيف runtime واحد على الأقل بأسماء الحمولة المعتمدة.
+		// includes/ and payload/ are mandatory directories with actual
+		// content, and at least one runtime archive under the approved payload
+		// names must exist.
 		$required_prefixed = array( 'includes/' );
 		foreach ( $required_prefixed as $prefix ) {
 			$present = (bool) array_filter(
@@ -479,8 +481,9 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 	}
 
 	private function verify_tree_inventory( string $root, array $expected_files, array $ignored_files = array(), string $kind = 'runtime' ): void {
-		// B1-03: فحص الروابط على المسار الأصلي قبل realpath — realpath
-		// يحل الوجهة فلا يكشف أبدًا جذرًا مرتبطًا؛ الأصل هو المرجع.
+		// B1-03: link check on the original path before realpath — realpath
+		// resolves the target so it never reveals a linked root; the original
+		// path is the reference.
 		if ( is_link( $root ) ) {
 			self::fail( 'HAL_PACKAGE_TREE_ROOT_INVALID' );
 		}
@@ -488,8 +491,9 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 		if ( false === $root_real || ! is_dir( $root_real ) ) {
 			self::fail( 'HAL_PACKAGE_TREE_ROOT_INVALID' );
 		}
-		// Windows junction/reparse: is_link لا يكشفه؛ نفس مقارنة
-		// lexical/canonical المستخدمة في cleanup ترفض الجذر المتحوّل.
+		// Windows junction/reparse: is_link does not detect it; the same
+		// lexical/canonical comparison used in cleanup rejects the remapped
+		// root.
 		if ( 'Windows' === PHP_OS_FAMILY ) {
 			$lexical = strtolower( str_replace( '/', '\\', rtrim( $root, '/\\' ) ) );
 			$canonical = strtolower( str_replace( '/', '\\', rtrim( $root_real, '/\\' ) ) );
@@ -510,9 +514,9 @@ final class HAL_Frontend_Dashboard_Package_Verifier {
 			$relative = str_replace( '\\', '/', substr( $item->getPathname(), strlen( $root_real ) + 1 ) );
 			$relative = $this->normalize_relative_path( $relative );
 			if ( $item->isDir() ) {
-				// B1-05: سياسة المسارات الممنوعة تُطبق على المجلدات أيضًا —
-				// مجلد Docs/ أو root vendor/ فارغ لا يُقبل في فحص الشجرة
-				// أكثر مما يُقبل في فحص ZIP.
+				// B1-05: the forbidden-paths policy applies to directories too —
+				// a Docs/ directory or an empty root vendor/ is no more
+				// acceptable in the tree check than in the ZIP check.
 				$this->assert_distributable_path( rtrim( $relative, '/' ), $kind );
 				continue;
 			}

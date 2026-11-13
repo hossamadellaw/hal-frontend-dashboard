@@ -1,21 +1,22 @@
 <?php
 /**
- * runtime/templates/dashboard/finance.php — بانل المالية والمدفوعات (الدفعة 8)
+ * runtime/templates/dashboard/finance.php — Finance & Payments panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/finance.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/finance.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): بوابة
- * المالك is_feature_enabled('finance') بعد حارس المصدر
- * is_user_logged_in() — return مبكر؛ فشل آمن بلا إخراج. تبويبات
- * Overview/Orders/Invoices/Payment Methods/Saved Cards وحاوياتها
- * الفارغة (تملأ عبر finance.js) وregistry states باقية كما هي —
- * manager/customer visibility يقررها الخادم في AJAX (عقد §17)
- * والقالب لا يفوض بالعرض ولا يكتب شيئًا (عقد §19).
+ * The sole authorized delta (owner decision B3-08 — option a): the owner
+ * gate is_feature_enabled('finance') after the source guard
+ * is_user_logged_in() — early return; fail-safe with no output. The
+ * Overview/Orders/Invoices/Payment Methods/Saved Cards tabs and their
+ * empty containers (filled via finance.js) and the registry states remain
+ * as-is — manager/customer visibility is decided by the server in AJAX
+ * (contract §17) and the template neither renders on its own authority
+ * nor writes anything (contract §19).
  *
- * args صريحة: البانل بلا متغيرات من الـshell — كل قراره من
- * is_user_logged_in والـregistry؛ يُستدعى من render_part بقائمة
- * args الموثقة.
+ * Explicit args: the panel has no variables from the shell — all of its
+ * decisions come from is_user_logged_in and the registry; it is called
+ * from render_part with the documented args list.
  *
  */
 

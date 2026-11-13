@@ -2,42 +2,43 @@
 /**
  * runtime/core/notifications.php
  * ══════════════════════════════════════════════════════════════
- * الدور: دالة موحَّدة واحدة للإشعارات الإدارية تحل محل تكرار المنطق
- * المُثبَت 3 مرات حرفيًا فى الكود الأصلي، مع إبطال كاش KPI المالي.
+ * Role: a single unified function for admin notifications that replaces the logic
+ * duplication literally installed 3 times in the original code, along with invalidating
+ * the financial KPI cache.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/core/
- * notifications.php (الدفعة 2 من HAL Frontend Dashboard).
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/core/
+ * notifications.php (batch 2 of HAL Frontend Dashboard).
  *
- * العقد المنقول كما هو:
- *   - hossam_notify_admins(): حلقة get_users(['role'=>'administrator',
- *     'fields'=>'ID']) + $wpdb->insert() بصيغة الأعمدة
- *     ['%d','%s','%s','%d','%s']، ورسالة JSON {key,args,url}.
- *   - الثلاثة hooks: transition_post_status / amelia_after_booking_added /
+ * Contract carried over as-is:
+ *   - hossam_notify_admins(): a get_users(['role'=>'administrator',
+ *     'fields'=>'ID']) loop + $wpdb->insert() with the column format
+ *     ['%d','%s','%s','%d','%s'], and a JSON message {key,args,url}.
+ *   - The three hooks: transition_post_status / amelia_after_booking_added /
  *     woocommerce_order_status_changed.
- *   - hossam_bump_fin_cache_epoch(): تدوير epoch داخل مفتاح الـtransient
- *     المستخدم فى ajax/finance.php (خارج هذه الدفعة) — إبطال كاش KPI
- *     عند تغيُّر حالة الطلب.
- *   - حارس $wpdb->last_error على استعلام employees فى
+ *   - hossam_bump_fin_cache_epoch(): rotating the epoch inside the transient key
+ *     used by ajax/finance.php (outside this batch) — KPI cache invalidation
+ *     when the order status changes.
+ *   - A $wpdb->last_error guard on the employees query in
  *     amelia_after_booking_added.
- *   - استدعاءات hossam_dashboard_url() (adapters/wpml.php، الدفعة 4)
- *     داخل callbacks تُنفَّذ وقت الطلب — أي بعد اكتمال تحميل adapters
- *     فيترتيب الإقلاع الإلزامي.
+ *   - hossam_dashboard_url() calls (adapters/wpml.php, batch 4)
+ *     inside callbacks executed at request time — i.e. after the adapters finish
+ *     loading, hence the mandatory boot ordering.
  *
- * ملاحظة invalidation على release switch (حسم B2-U3 بدليل المفاتيح
- * والمستهلكين — غياب حدث switch لا يكفي لنفي الحاجة):
- *   - hossam_integration_capabilities_v1_* (setup.php): تم الحسم
- *     بقيود المفتاح على معرّف الـrelease في هذه الدفعة — تبديل
- *     الـrelease يتيمة القيمة القديمة تلقائيًا حتى انقضاء TTL.
- *   - hossam_i18n_v (i18n.php): لا حاجة — الـmd5 hash على محتوى
- *     السلاسل ذاتي التحقق، أي تغير لاحق يعيد التسجيل دون ربط
- *     بالإصدار.
- *   - hossam_fin_cache_ver (epoch) وhossam_fin_summary_* و
- *     hossam_appts_{id}_emp/_mgr: مفتاح الـappts يُكتب ويُحذف من
- *     طرفين — المُنشئ في ajax/appointments.php (الدفعة 6 غير المنقولة
- *     بعد) والحاذف هنا (154-155). تغيير طرف واحد فقط الآن يكسر زوج
- *     الإبطال، فالقرار الملزم: قيد هذه المفاتيح بمعرّف الـrelease في
- *     الدفعة 6 مع المُنشئ وحذفها هنا في نفس الدفعة (بند مسجل في
- *     خريطة الترحيل)، وتبقى قيمها محدودة بـTTL في هذه الأثناء.
+ * Invalidation note on release switch (B2-U3 resolved with the evidence of the keys
+ * and consumers — the absence of a switch event is not enough to deny the need):
+ *   - hossam_integration_capabilities_v1_* (setup.php): resolved
+ *     by constraining the key with the release id in this batch — switching
+ *     the release orphans the old value automatically until TTL expiry.
+ *   - hossam_i18n_v (i18n.php): no need — the md5 hash over the content of
+ *     the strings is self-verifying; any later change re-registers without binding
+ *     to the version.
+ *   - hossam_fin_cache_ver (epoch) and hossam_fin_summary_* and
+ *     hossam_appts_{id}_emp/_mgr: the appts key is written and deleted from
+ *     two sides — the creator in ajax/appointments.php (batch 6, not yet ported)
+ *     and the deleter here (154-155). Changing only one side now breaks the
+ *     invalidation pair, so the binding decision: constrain these keys with the release id in
+ *     batch 6 along with the creator, and delete them here in the same batch (an item recorded in
+ *     the migration map), and their values remain TTL-bounded in the meantime.
  * ══════════════════════════════════════════════════════════════
  */
 

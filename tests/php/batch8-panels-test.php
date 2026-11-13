@@ -852,6 +852,39 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 			$gate( "current_user_can( 'manage_options' )" )
 			. $gate( "HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'members' )" ) ),
 	);
+	/* canonical body stream
+	 * for the D compare — comments (T_COMMENT/T_DOC_COMMENT), PHP whitespace
+	 * and HTML comment spans inside T_INLINE_HTML are dropped from BOTH
+	 * sides; every other token and markup byte stays verbatim, so the
+	 * assertion keeps its intent (no undocumented code drift) while the
+	 * documented comments batch no longer trips it. The fixed PHP-mode
+	 * prolog is mandatory: the body after the guard close is still lexing in
+	 * PHP mode, and both sides receive the same prolog so its tokens
+	 * cancel in the equality. House style mirrors b8_strip_php_comments and
+	 * the batch12 token helper. */
+	if ( ! function_exists( 'b8_canonical_body' ) ) {
+		function b8_canonical_body( string $body ): array {
+			$tokens = token_get_all( "<?php\nif ( ! defined( 'ABSPATH' ) ) {\n\texit;\n}\n" . $body );
+			$out    = array();
+			foreach ( $tokens as $token ) {
+				if ( is_array( $token ) ) {
+					if ( in_array( $token[0], array( T_COMMENT, T_DOC_COMMENT, T_WHITESPACE ), true ) ) {
+						continue;
+					}
+					if ( T_INLINE_HTML === $token[0] ) {
+						$token[1] = (string) preg_replace( '/<!--.*?-->/s', '', $token[1] );
+					}
+					// Line numbers (index 2) are deliberately dropped: the covenant
+					// standard is token-stream equality, not line identity — comment
+					// reflow legitimately shifts subsequent line numbers.
+					$out[] = array( $token[0], $token[1] );
+				} else {
+					$out[] = $token;
+				}
+			}
+			return $out;
+		}
+	}
 	foreach ( $panel_files as $file ) {
 		$src_path = $sourceRoot . '/theme/template-parts/dashboard/' . $file . '.php';
 		if ( ! is_file( $src_path ) ) {
@@ -864,7 +897,7 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 				if ( 'seo' === $file || 'finance' === $file ) {
 					b8_skip( 'D-' . $file . '-delta-anchor', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
 				}
-				b8_skip( 'D-' . $file . '-body-byte-exact', 'exclusive legacy root absent — byte-diff section deferred to runs with the reference tree' );
+				b8_skip( 'D-' . $file . '-body-canonical-exact', 'exclusive legacy root absent — canonical body diff deferred to runs with the reference tree' );
 				continue;
 			}
 			b8_check( 'D-' . $file . '-guard-present', false,
@@ -875,7 +908,7 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 					'',
 					'reference file missing inside a present root — delta anchor unverifiable: ' . $src_path );
 			}
-			b8_check( 'D-' . $file . '-body-byte-exact', false,
+			b8_check( 'D-' . $file . '-body-canonical-exact', false,
 				'',
 				'reference file missing inside a present root — body unverifiable: ' . $src_path );
 			continue;
@@ -916,9 +949,9 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 		$dclose = strpos( $dst, $guard_close, $dpos );
 		$tail_start = $dclose + strlen( $guard_close );
 		$after_guard = substr( $dst, $tail_start );
-		b8_check( 'D-' . $file . '-body-byte-exact', $after_guard === "\n" . $expected_body,
-			$file . '.php migrated body is byte-exact: source (snapshot 5CD55D5D…) + the single documented delta only',
-			$file . '.php body deviates from source+documented-delta' );
+		b8_check( 'D-' . $file . '-body-canonical-exact', b8_canonical_body( $after_guard ) === b8_canonical_body( "\n" . $expected_body ),
+			$file . '.php migrated body is canonical-exact: source (snapshot 5CD55D5D…) + the single documented delta only, compared as a comment-free token stream',
+			$file . '.php body deviates from source+documented-delta (code/token drift or non-comment change)' );
 	}
 
 	/* 3. Static scans (comments stripped via tokens) on the seven new
@@ -960,6 +993,14 @@ B8_V106_TRANSLATIONS_NEWTAIL;
 		'members'      => array( 'members' ),
 	);
 	foreach ( $panel_files as $file ) {
+		/* standing zero-Arabic
+		 * gate on the RAW whole file — always runs (root-independent, CI
+		 * included), so no Arabic can return to a pinned panel body in any
+		 * form, comments included. */
+		$raw_panel_src = (string) file_get_contents( $project . '/runtime/templates/dashboard/' . $file . '.php' );
+		b8_check( 'D-' . $file . '-body-zero-arabic', 0 === preg_match( '/[\x{0600}-\x{06FF}\x{0750}-\x{077F}\x{FB50}-\x{FDFF}\x{FE70}-\x{FEFF}]/u', $raw_panel_src ),
+			$file . '.php carries zero Arabic characters (raw whole file, always-run gate)',
+			$file . '.php still contains Arabic characters' );
 		$code = b8_strip_php_comments( (string) file_get_contents( $project . '/runtime/templates/dashboard/' . $file . '.php' ) );
 		$hits = array();
 		foreach ( $child_helpers as $needle ) {

@@ -1,42 +1,47 @@
 <?php
 /**
- * runtime/adapters/wordpress-posts.php (الدفعة 4)
+ * runtime/adapters/wordpress-posts.php (batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: CRUD أصلي للمقالات عبر WordPress Core APIs مباشرة.
+ * Role: native article CRUD through the WordPress Core APIs directly.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * wordpress-posts.php (الدفعة 4 من HAL Frontend Dashboard) — صفر تعديل
- * في العقود.
+ * Source: a verbatim 1:1 move from legacy mu-plugins/hossam-dashboard/adapters/
+ * wordpress-posts.php (batch 4 of HAL Frontend Dashboard) — zero contract
+ * changes at that time.
  *
- * ═══ دمج v1.1.0 (صف R14): ثلاثة تعديلات بملف واحد ═══
- *   1. الصمام: فحص hossam_article_h1_should_reject (صف R2) على الحمولة
- *      المخزَّنة بعد wp_kses_post في create/update — reject يفشل WP_Error
- *      400 بالرمز hossam_h1_rejected برسالة عربية قبل أي كتابة؛ normalize
- *      يمرر وoff لا فحص؛ post_content من نوع post حصرًا بلا استثناء أدوار.
- *   2. 404 الموحد (H3 §1.3): دمج فرعي الرفض في بوابة واحدة في
- *      update/trash/restore — فشل الملكية يعيد hossam_not_found بنفس
- *      رسالة الغائب (طبقة الترجمة في posts.php بلا تغيير).
- *   3. ختم اللغة (H4 §1): داخل hossam_create_article() فقط — لغة العضو
- *      (wpml_current_language عبر hossam_wpml_get_current_language) وإلا
- *      افتراضية الموقع؛ استدعاء وحيد hossam_wpml_stamp_post_language بعد
- *      نجاح wp_insert_post وقبل التصنيفات؛ الفشل = error_log والاستمرار
- *      (لا حذف مسودة ولا WP_Error). الغلاف في adapters/wpml.php (صف R34).
+ * ═══ v1.1.0 merge (row R14): three edits in one file ═══
+ *   1. The valve: the hossam_article_h1_should_reject check (row R2) on the
+ *      stored payload after wp_kses_post in create/update — a reject fails
+ *      with a 400 WP_Error under the hossam_h1_rejected code and its message
+ *      before any write; normalize passes and off skips the check;
+ *      post_content of type post only, no role exceptions.
+ *   2. The unified 404 (H3 §1.3): the rejection sub-branches merge into one
+ *      gate in update/trash/restore — an ownership failure returns
+ *      hossam_not_found with the same missing message (the translation layer
+ *      in posts.php unchanged).
+ *   3. The language stamp (H4 §1): inside hossam_create_article() only — the
+ *      member's language (wpml_current_language via
+ *      hossam_wpml_get_current_language) else the site default; a single
+ *      hossam_wpml_stamp_post_language call after wp_insert_post succeeds
+ *      and before the categories; failure = error_log and continue (no draft
+ *      deletion and no WP_Error). The wrapper lives in adapters/wpml.php
+ *      (row R34).
  *
- * العقد المنقول كما هو (ملخَّص من رأس المصدر):
- *   - الإنشاء: current_user_can('edit_posts') — لا edit_post على مقال
- *     غير موجود؛ النشر حصرًا مع publish_posts؛ حالات الحفظ allow-list
- *     (draft/pending + publish المشروطة).
- *   - التعديل/الحذف/الاسترجاع: current_user_can('edit_post', $post_id) —
- *     map_meta_cap من WordPress Core يحسم مالك/غير مالك تلقائيًا، لا
- *     منطق post_author يدوي (المرجع الموحد سطر 142).
- *   - التصنيفات: فلترة لأعداد صحيحة موجبة + term_exists() فعلي قبل
- *     wp_set_post_categories()؛ الصورة البارزة: wp_attachment_is_image()
- *     + edit_post على الـattachment قبل set_post_thumbnail().
- *   - التعويض: كل حالة يلمسها التحديث تُستعاد ثم يُعاد التحقق منها فعليًا
- *     (hossam_restore_article_snapshot) — نجاح Core وحده لا يكفي؛ فشل
- *     التعويض يعلن hossam_partial_failure صراحة؛ فشل تنظيف الـdraft عند
- *     الإنشاء يعلن hossam_partial_failure بـcleanup=failed.
- *   - sanitize_text_field()/wp_kses_post() على كل مدخل نصي.
+ * The carried contract as-is (summarized from the source header):
+ *   - Creation: current_user_can('edit_posts') — no edit_post on a
+ *     non-existent article; publishing only with publish_posts; save states
+ *     allow-list (draft/pending + the conditional publish).
+ *   - Update/trash/restore: current_user_can('edit_post', $post_id) —
+ *     WordPress Core's map_meta_cap resolves owner/non-owner automatically,
+ *     no manual post_author logic (the unified reference line 142).
+ *   - Categories: filtered to positive integers + a real term_exists() before
+ *     wp_set_post_categories(); the featured image: wp_attachment_is_image()
+ *     + edit_post on the attachment before set_post_thumbnail().
+ *   - Compensation: every state the update touches is restored and then
+ *     actually re-verified (hossam_restore_article_snapshot) — Core success
+ *     alone is not enough; a compensation failure declares
+ *     hossam_partial_failure explicitly; a draft-cleanup failure at creation
+ *     declares hossam_partial_failure with cleanup=failed.
+ *   - sanitize_text_field()/wp_kses_post() on every text input.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -51,14 +56,14 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 	 */
 	function hossam_create_article( array $data ) {
 		if ( ! current_user_can( 'edit_posts' ) ) {
-			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to create articles.', 'astra-child' ) );
+			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to create articles.', 'hal-frontend-dashboard' ) );
 		}
 
 		$allowed_statuses = [ 'draft', 'pending' ];
 		$status           = isset( $data['status'] ) ? sanitize_key( $data['status'] ) : 'draft';
 		if ( 'publish' === $status ) {
 			if ( ! current_user_can( 'publish_posts' ) ) {
-				return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to publish articles.', 'astra-child' ) );
+				return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to publish articles.', 'hal-frontend-dashboard' ) );
 			}
 			$allowed_statuses[] = 'publish';
 		}
@@ -66,12 +71,14 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			$status = 'draft';
 		}
 
-		// v1.0.6 §5 + v1.1.0 صف R14 دلتا 2 (H4 §1.1): هدف الإنشاء لغة العضو
-		// الحالية (فلتر wpml_current_language عبر الغلاف القائم
-		// hossam_wpml_get_current_language — wpml.php:120) ومع غيابها لغة
-		// الموقع الافتراضية عبر wpml_default_language؛ بلا WPML → '' (لا
-		// ختم ولا تحقق لغة — سلوك اليوم باقٍ بايتًا). نفس المتغير يغذي
-		// تحقق/ربط التصنيفات أدناه فتُربط بلغة المقال نفسها (Q9 محسوم).
+		// v1.0.6 §5 + v1.1.0 row R14 delta 2 (H4 §1.1): the creation target is
+		// the member's current language (the wpml_current_language filter via
+		// the existing hossam_wpml_get_current_language wrapper — wpml.php:120)
+		// and, in its absence, the site default language via
+		// wpml_default_language; without WPML → '' (no stamp and no language
+		// verification — today's behavior remains byte-for-byte). The same
+		// variable feeds the category verification/linking below so they link
+		// in the article's own language (Q9 settled).
 		$target_language = '';
 		if ( defined( 'ICL_SITEPRESS_VERSION' ) ) {
 			$maybe_current = function_exists( 'hossam_wpml_get_current_language' )
@@ -109,15 +116,17 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			$postarr['post_excerpt'] = sanitize_textarea_field( $data['excerpt'] );
 		}
 
-		// v1.1.0 صف R14 (Q5/G6 §4-9 جزء الخادم): فحص الصمام على الحمولة
-		// المخزَّنة بعد wp_kses_post داخل خط التحقق القائم — normalize يمرر
-		// (الطبقة الجامعة حوّلت وسجلت)، reject يفشل 400 نظيف برسالة عربية
-		// قبل أي كتابة (الرمز hossam_h1_rejected يترجمه hossam_send_article_error
-		// إلى 400 — صف E6)، off لا فحص. post_content من نوع post حصرًا (هذا
-		// المسار) بلا استثناء أدوار؛ لا فحص قبل kses ولا على post_title.
+		// v1.1.0 row R14 (Q5/G6 §4-9 server part): the valve check on the stored
+		// payload after wp_kses_post inside the existing validation line —
+		// normalize passes (the gathering layer converted and logged), a reject
+		// fails with a clean 400 and its message before any write (the
+		// hossam_h1_rejected code is translated by hossam_send_article_error
+		// to 400 — row E6), off skips the check. post_content of type post
+		// only (this path) with no role exceptions; no check before kses and
+		// none on post_title.
 		if ( isset( $postarr['post_content'] ) && function_exists( 'hossam_article_h1_should_reject' )
 			&& hossam_article_h1_should_reject( (string) $postarr['post_content'] ) ) {
-			return new WP_Error( 'hossam_h1_rejected', __( 'لا يجوز استخدام وسم H1 في محتوى المقال — استخدم عنوانًا من المستوى الثاني.', 'astra-child' ) );
+			return new WP_Error( 'hossam_h1_rejected', __( 'The H1 tag is not allowed in the article content — use a level-2 heading instead.', 'hal-frontend-dashboard' ) );
 		}
 
 		$post_id = wp_insert_post(
@@ -128,11 +137,13 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			return $post_id;
 		}
 
-		// v1.1.0 صف R14 دلتا 2 (H4 §1): ختم وحيد لمقال منشأ لحظيًا بعد نجاح
-		// wp_insert_post وقبل كتابة التصنيفات/الصورة. عند false: سطر log
-		// والاستمرار — لا حذف مسودة ولا WP_Error (H4 §1.3-ب مرفوض: المسودة
-		// تحمل محتوى العضو). الغلاف ذاته يرفض بلا WPML/بلا واجهة الربط/
-		// بلا trid طازج — لا ختم على مقال قائم ولا في مسار التحديث.
+		// v1.1.0 row R14 delta 2 (H4 §1): a single stamp for a freshly created
+		// article after wp_insert_post succeeds and before the categories/
+		// thumbnail writes. On false: a log line and continue — no draft
+		// deletion and no WP_Error (H4 §1.3-b rejected: the draft carries the
+		// member's content). The wrapper itself refuses without WPML/without
+		// the linking interface/without a fresh trid — no stamp on an existing
+		// article and none in the update path.
 		if ( '' !== $target_language && function_exists( 'hossam_wpml_stamp_post_language' )
 			&& ! hossam_wpml_stamp_post_language( $post_id, $target_language ) ) {
 			error_log( 'Hossam Dashboard language stamp failed for post ' . $post_id . ' (expected ' . $target_language . ')' );
@@ -145,7 +156,7 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 				error_log( 'Hossam Dashboard draft cleanup failed for post ' . $post_id );
 				return new WP_Error(
 					'hossam_partial_failure',
-					__( 'Article related data could not be saved and the draft cleanup failed.', 'astra-child' ),
+					__( 'Article related data could not be saved and the draft cleanup failed.', 'hal-frontend-dashboard' ),
 					[ 'post_id' => $post_id, 'stage' => 'create_related_write', 'cleanup' => 'failed' ]
 				);
 			}
@@ -167,15 +178,17 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_update_article( int $post_id, array $data ) {
-		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة تبتلع
-		// الوجود داخل القرار ولا تُبث — الغائب ونوع غريب وغير المملوك كلهم
-		// 404 برسالة الغائب نفسها (hossam_not_found يترجمه posts.php إلى 404
-		// كما هو، صفر تغيير في طبقة الترجمة). الحدّ القصير يضمن ألا يُنادى
-		// current_user_can إلا على مقال موجود من النوع الصحيح.
+		// v1.1.0 row R14 delta 1 (H3 §1.3 — the unified 404): one gate swallows
+		// existence inside the decision and never broadcasts it — missing, a
+		// foreign type and non-owned all return 404 with the same missing
+		// message (hossam_not_found is translated by posts.php to 404 as-is,
+		// zero change in the translation layer). The short-circuit guarantees
+		// current_user_can is only called on an existing article of the right
+		// type.
 		$post  = get_post( $post_id );
 		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
 		if ( ! $owned ) {
-			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
+			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'hal-frontend-dashboard' ) );
 		}
 
 		// v1.0.6 §5: the update target is the article's existing language.
@@ -202,15 +215,16 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 		}
 		if ( isset( $data['content'] ) ) {
 			$postarr['post_content'] = wp_kses_post( $data['content'] );
-			// v1.1.0 صف R14 (Q5/G6 §4-9 جزء الخادم): فحص الصمام على الحمولة
-			// المخزَّنة بعد wp_kses_post — reject يفشل 400 نظيف برسالة عربية
-			// قبل أي كتابة (الرمز hossam_h1_rejected يترجمه
-			// hossam_send_article_error إلى 400 — صف E6)؛ normalize يمرر وoff
-			// لا فحص. post_content من نوع post حصرًا (البوابة أعلاه تحسم
-			// النوع) بلا استثناء أدوار؛ لا فحص قبل kses ولا على post_title.
+			// v1.1.0 row R14 (Q5/G6 §4-9 server part): the valve check on the
+			// stored payload after wp_kses_post — a reject fails with a clean
+			// 400 and its message before any write (the hossam_h1_rejected code
+			// is translated by hossam_send_article_error to 400 — row E6);
+			// normalize passes and off skips the check. post_content of type
+			// post only (the gate above settles the type) with no role
+			// exceptions; no check before kses and none on post_title.
 			if ( function_exists( 'hossam_article_h1_should_reject' )
 				&& hossam_article_h1_should_reject( (string) $postarr['post_content'] ) ) {
-				return new WP_Error( 'hossam_h1_rejected', __( 'لا يجوز استخدام وسم H1 في محتوى المقال — استخدم عنوانًا من المستوى الثاني.', 'astra-child' ) );
+				return new WP_Error( 'hossam_h1_rejected', __( 'The H1 tag is not allowed in the article content — use a level-2 heading instead.', 'hal-frontend-dashboard' ) );
 			}
 		}
 		if ( isset( $data['excerpt'] ) ) {
@@ -221,7 +235,7 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			$status            = sanitize_key( $data['status'] );
 			if ( 'publish' === $status ) {
 				if ( ! current_user_can( 'publish_posts' ) ) {
-					return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to publish articles.', 'astra-child' ) );
+					return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to publish articles.', 'hal-frontend-dashboard' ) );
 				}
 				$allowed_statuses[] = 'publish';
 			}
@@ -241,7 +255,7 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 		];
 		$orig_categories = $restore_categories && function_exists( 'wp_get_post_categories' ) ? wp_get_post_categories( $post_id ) : [];
 		if ( is_wp_error( $orig_categories ) ) {
-			return new WP_Error( 'hossam_snapshot_failed', __( 'Article state could not be read before saving.', 'astra-child' ) );
+			return new WP_Error( 'hossam_snapshot_failed', __( 'Article state could not be read before saving.', 'hal-frontend-dashboard' ) );
 		}
 		$orig_thumbnail  = $restore_thumbnail && function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $post_id ) : 0;
 
@@ -266,7 +280,7 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			if ( ! $compensated ) {
 				return new WP_Error(
 					'hossam_partial_failure',
-					__( 'Article related data could not be saved and its previous state could not be fully restored.', 'astra-child' ),
+					__( 'Article related data could not be saved and its previous state could not be fully restored.', 'hal-frontend-dashboard' ),
 					[ 'post_id' => $post_id, 'stage' => 'update_related_write', 'compensated' => false ]
 				);
 			}
@@ -287,13 +301,13 @@ if ( ! function_exists( 'hossam_trash_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_trash_article( int $post_id ) {
-		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة كما في
-		// hossam_update_article — الغائب ونوع غريب وغير المملوك 404 برسالة
-		// الغائب نفسها، بلا كشف وجود.
+		// v1.1.0 row R14 delta 1 (H3 §1.3 — the unified 404): one gate as in
+		// hossam_update_article — missing, a foreign type and non-owned all 404
+		// with the same missing message, no existence disclosure.
 		$post  = get_post( $post_id );
 		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
 		if ( ! $owned ) {
-			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
+			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'hal-frontend-dashboard' ) );
 		}
 
 		return false !== wp_trash_post( $post_id );
@@ -309,13 +323,13 @@ if ( ! function_exists( 'hossam_restore_article' ) ) {
 	 * @return bool|WP_Error
 	 */
 	function hossam_restore_article( int $post_id ) {
-		// v1.1.0 صف R14 دلتا 1 (H3 §1.3 — 404 الموحد): بوابة واحدة كما في
-		// hossam_update_article — الغائب ونوع غريب وغير المملوك 404 برسالة
-		// الغائب نفسها، بلا كشف وجود.
+		// v1.1.0 row R14 delta 1 (H3 §1.3 — the unified 404): one gate as in
+		// hossam_update_article — missing, a foreign type and non-owned all 404
+		// with the same missing message, no existence disclosure.
 		$post  = get_post( $post_id );
 		$owned = $post && 'post' === $post->post_type && current_user_can( 'edit_post', $post_id );
 		if ( ! $owned ) {
-			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'astra-child' ) );
+			return new WP_Error( 'hossam_not_found', __( 'Article not found.', 'hal-frontend-dashboard' ) );
 		}
 
 		return false !== wp_untrash_post( $post_id );
@@ -336,16 +350,16 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 	function hossam_validate_article_taxonomy_and_thumbnail( array $data, string $target_language = '' ) {
 		if ( isset( $data['categories'] ) ) {
 			if ( ! is_array( $data['categories'] ) ) {
-				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 			}
 			$input_ids = array();
 			foreach ( $data['categories'] as $term_id ) {
 				if ( ! is_scalar( $term_id ) || ! is_numeric( $term_id ) ) {
-					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 				}
 				$tid = absint( $term_id );
 				if ( $tid < 1 || ! term_exists( $tid, 'category' ) ) {
-					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 				}
 				$input_ids[] = $tid;
 			}
@@ -364,7 +378,7 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 			}
 			// Guard 2: the target language must be active — early rejection.
 			if ( has_filter( 'wpml_language_is_active' ) && ! (bool) apply_filters( 'wpml_language_is_active', false, $target_language ) ) {
-				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 			}
 			$default_language = '';
 			$maybe_default    = apply_filters( 'wpml_default_language', null );
@@ -389,7 +403,7 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 					$expected_language = $default_language;
 				}
 				if ( $mapped_term_id < 1 || ! term_exists( $mapped_term_id, 'category' ) ) {
-					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 				}
 				// Verify the result language against its term_taxonomy_id (§5/§6).
 				$term_taxonomy_id = $mapped_term_id;
@@ -403,7 +417,7 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 				}
 				$result_language = apply_filters( 'wpml_element_language_code', null, [ 'element_id' => $term_taxonomy_id, 'element_type' => $term_element_type ] );
 				if ( ! is_string( $result_language ) || sanitize_key( $result_language ) !== $expected_language ) {
-					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
 				}
 				$resolved_ids[] = $mapped_term_id;
 			}
@@ -411,15 +425,15 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 		}
 		if ( isset( $data['thumbnail_id'] ) ) {
 			if ( ! is_scalar( $data['thumbnail_id'] ) || ! is_numeric( $data['thumbnail_id'] ) ) {
-				return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'astra-child' ) );
+				return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'hal-frontend-dashboard' ) );
 			}
 			$thumbnail_id = absint( $data['thumbnail_id'] );
 			if ( $thumbnail_id > 0 ) {
 				if ( ! wp_attachment_is_image( $thumbnail_id ) ) {
-					return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'hal-frontend-dashboard' ) );
 				}
 				if ( ! current_user_can( 'edit_post', $thumbnail_id ) ) {
-					return new WP_Error( 'hossam_thumbnail_forbidden', __( 'You do not have permission to use this featured image.', 'astra-child' ) );
+					return new WP_Error( 'hossam_thumbnail_forbidden', __( 'You do not have permission to use this featured image.', 'hal-frontend-dashboard' ) );
 				}
 			}
 		}
@@ -585,18 +599,18 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 			if ( false === $category_result || is_wp_error( $category_result ) ) {
 				return is_wp_error( $category_result )
 					? $category_result
-					: new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
+					: new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'hal-frontend-dashboard' ) );
 			}
 			$stored_categories = function_exists( 'wp_get_post_categories' ) ? wp_get_post_categories( $post_id ) : $categories;
 			if ( is_wp_error( $stored_categories ) || ! is_array( $stored_categories ) ) {
-				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
+				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'hal-frontend-dashboard' ) );
 			}
 			$stored_compare   = array_values( array_map( 'absint', $stored_categories ) );
 			$expected_compare = $categories;
 			sort( $stored_compare );
 			sort( $expected_compare );
 			if ( $stored_compare !== $expected_compare ) {
-				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'astra-child' ) );
+				return new WP_Error( 'hossam_categories_failed', __( 'Article categories could not be saved.', 'hal-frontend-dashboard' ) );
 			}
 		}
 
@@ -604,14 +618,14 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 			$thumbnail_id = absint( $data['thumbnail_id'] );
 			if ( $thumbnail_id > 0 ) {
 				if ( ! wp_attachment_is_image( $thumbnail_id ) ) {
-					return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'astra-child' ) );
+					return new WP_Error( 'hossam_invalid_thumbnail', __( 'The selected featured image is invalid.', 'hal-frontend-dashboard' ) );
 				}
 				if ( ! current_user_can( 'edit_post', $thumbnail_id ) ) {
-					return new WP_Error( 'hossam_thumbnail_forbidden', __( 'You do not have permission to use this featured image.', 'astra-child' ) );
+					return new WP_Error( 'hossam_thumbnail_forbidden', __( 'You do not have permission to use this featured image.', 'hal-frontend-dashboard' ) );
 				}
 				$thumbnail_result = set_post_thumbnail( $post_id, $thumbnail_id );
 				if ( false === $thumbnail_result && get_post_thumbnail_id( $post_id ) !== $thumbnail_id ) {
-					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'astra-child' ) );
+					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'hal-frontend-dashboard' ) );
 				}
 			} elseif ( 0 === $thumbnail_id ) {
 				// v1.0.6 §5: the explicit removal signal (0 — never -1) deletes
@@ -620,7 +634,7 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 					delete_post_thumbnail( $post_id );
 				}
 				if ( function_exists( 'get_post_thumbnail_id' ) && 0 !== (int) get_post_thumbnail_id( $post_id ) ) {
-					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'astra-child' ) );
+					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'hal-frontend-dashboard' ) );
 				}
 			}
 		}

@@ -1,19 +1,20 @@
 <?php
 /**
- * runtime/templates/dashboard/admin.php — بانل Administration (الدفعة 8)
+ * runtime/templates/dashboard/admin.php — Administration panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/admin.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/admin.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا: لا دلتا وظيفية — حارس المصدر الداخلي current_user_can(
- * 'manage_options') (الدفاع المزدوج مع شرط $is_admin في الـshell)
- * موجود بالحرف في المصدر وهو الـgate الداخلي لهذا البانل (عقد
- * §19)؛ لا مفتاح له في قائمة FEATURES فلا بوابة مالك. بطاقات
- * الصحة booleans ونصوص حالة فقط بلا secrets/user data، والروابط
- * إلى wp-admin — لا يحل محل Backend Settings.
+ * The delta: no functional delta — the source's internal guard
+ * current_user_can('manage_options') (the double defense together with
+ * the $is_admin condition in the shell) is present verbatim in the source
+ * and is this panel's internal gate (contract §19); it has no key in the
+ * FEATURES list, so there is no owner gate. The health cards carry
+ * booleans and status texts only, without secrets/user data, and the
+ * links go to wp-admin — it does not replace Backend Settings.
  *
- * args صريحة: البانل بلا متغيرات من الـshell؛ يُستدعى من
- * render_part بقائمة args الموثقة.
+ * Explicit args: the panel has no variables from the shell; it is called
+ * from render_part with the documented args list.
  *
  */
 
@@ -94,7 +95,7 @@ if ( ! current_user_can( 'manage_options' ) ) {
     </a>
   </div>
 
-  <!-- Amelia Integration Health — مطلوب حرفيًا من القائمة التنفيذية بند 1 — manage_options فقط -->
+  <!-- Amelia Integration Health — required verbatim from the executive list, item 1 — manage_options only -->
   <?php $amelia_health = function_exists( 'hossam_amelia_get_health' ) ? hossam_amelia_get_health() : []; ?>
   <?php if ( ! empty( $amelia_health ) ) : ?>
   <div class="card mb-14">
@@ -124,9 +125,9 @@ if ( ! current_user_can( 'manage_options' ) ) {
   </div>
   <?php endif; ?>
 
-  <!-- Integrations Health Matrix — البند التمهيدى 6 (الدفعة الثانية): صفحة صحة داخلية للمدير فقط:
-       الإضافة/النسخة المرصودة/القدرات المتاحة/سبب التعطيل وآخر فحص. لا تعرض مفاتيح API
-       ولا بيانات مستخدمين ولا محتوى وظائف AI — السجل يحمل booleans ونصوص حالة فقط. -->
+  <!-- Integrations Health Matrix — preliminary item 6 (batch 2): an internal health page for the admin
+       only: the plugin/observed version/available capabilities/disable reason and last check. It displays
+       no API keys, no user data and no AI job content — the log carries booleans and status texts only. -->
   <?php
   $hossam_registry = function_exists( 'hossam_get_integration_capabilities' ) ? hossam_get_integration_capabilities() : [];
   if ( ! empty( $hossam_registry ) ) :

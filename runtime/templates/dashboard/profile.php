@@ -1,21 +1,23 @@
 <?php
 /**
- * runtime/templates/dashboard/profile.php — بانل الملف الشخصي (الدفعة 7)
+ * runtime/templates/dashboard/profile.php — My Profile panel (batch 7)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/profile.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 7 — snapshot 67044A2F…).
+ * Source: legacy theme/template-parts/dashboard/profile.php (byte-level
+ * source fingerprint pinned in the batch 7 inventory — snapshot 67044A2F…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): بوابة
- * المالك is_feature_enabled('ultimate_member_profile') بعد حارس ABSPATH
- * — return مبكر بنمط المصدر نفسه (bookings.php)؛ فشل آمن بلا إخراج.
- * الدلتا الثانية (CR-2026-09-25-PROFILE-LINKS): قسم «روابط إضافية»
- * عبر فلتر hal_frontend_dashboard_profile_links (profile-links.php) —
- * روابط مقبولة فقط، ولا قسم فارغًا.
- * حالات الـregistry/shortcode الثلاثة (profile_ui/account/password)
- * والفشل الآمن ونصوص الحالة باقية كما هي.
+ * The sole authorized delta (owner decision B3-08 — option a): the owner
+ * gate is_feature_enabled('ultimate_member_profile') after the ABSPATH guard
+ * — early return in the same pattern as the source (bookings.php); fail-safe
+ * with no output.
+ * The second delta (CR-2026-09-25-PROFILE-LINKS): an «Additional Links»
+ * section via the hal_frontend_dashboard_profile_links filter
+ * (profile-links.php) — accepted links only, and no empty section.
+ * The three registry/shortcode states (profile_ui/account/password), the
+ * fail-safe behavior and the status texts remain as they are.
  *
- * args صريحة: البانل يكتفي بالـregistry وقدرات المستخدم (بلا متغيرات من
- * الـshell) — يُستدعى من render_part بقائمة args الموثقة.
+ * Explicit args: the panel relies only on the registry and user capabilities
+ * (no variables from the shell) — it is called from render_part with the
+ * documented args list.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -25,9 +27,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ultimate_member_profile' ) ) {
 	return;
 }
-// CR-2026-09-25-PROFILE-LINKS: نقطة تمديد الروابط (profile-links.php) —
-// تُحمَّل وتُستدعى وقت العرض فقط (بعد بوابة الميزة وبعد تحميل الإضافات)،
-// ولا قسم بلا روابط مقبولة. غياب UM لا يمنعها؛ التعطيل يخفي اللوحة معها.
+// CR-2026-09-25-PROFILE-LINKS: the links extension point (profile-links.php) —
+// loaded and invoked at render time only (after the feature gate and after
+// plugins are loaded), and no section without accepted links. UM being absent
+// does not block it; disabling hides the panel along with it.
 require_once __DIR__ . '/profile-links.php';
 $profile_integration = function_exists( 'hossam_get_integration_decision' )
     ? hossam_get_integration_decision( 'ultimate_member' )

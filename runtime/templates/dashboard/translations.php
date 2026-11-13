@@ -1,21 +1,21 @@
 <?php
 /**
- * runtime/templates/dashboard/translations.php — بانل اللغات والترجمة (الدفعة 8)
+ * runtime/templates/dashboard/translations.php — Languages & Translation panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/translations.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/translations.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): بوابة
- * المالك is_feature_enabled('wpml_translations') بعد حارس ABSPATH —
- * return مبكر بنمط المصدر نفسه (bookings.php)؛ فشل آمن بلا إخراج.
- * شورت كود اللغة المثبت من المصدر (wpml_language_switcher) وسرد
- * اللغات النشطة وregistry states والرابط الإداري المحروس
- * manage_options باقية كما هي — بلا استبدال shortcode (مؤجل بقرار
- * صاحب المشروع في نص المصدر ذاته).
+ * The sole authorized delta (owner decision B3-08 — option a): the owner
+ * gate is_feature_enabled('wpml_translations') after the ABSPATH guard —
+ * early return in the same pattern as the source (bookings.php); fail-safe
+ * with no output. The source-pinned language shortcode (wpml_language_switcher),
+ * the active-languages listing, the registry states and the manage_options-
+ * gated admin link remain as-is — no shortcode replacement (deferred by the
+ * project owner's decision in the source text itself).
  *
- * args صريحة: البانل بلا متغيرات من الـshell — كل قراره من
- * الـregistry والقدرات المحلية؛ يُستدعى من render_part بقائمة
- * args الموثقة.
+ * Explicit args: the panel has no variables from the shell — all of its
+ * decisions come from the registry and local capabilities; it is called
+ * from render_part with the documented args list.
  *
  */
 

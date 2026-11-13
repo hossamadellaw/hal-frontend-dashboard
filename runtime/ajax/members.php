@@ -1,24 +1,24 @@
 <?php
 /**
- * runtime/ajax/members.php (الدفعة 6)
+ * runtime/ajax/members.php (batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: نقطة AJAX واحدة — قائمة الأعضاء hossam_get_members [SECTION 14]
- * مقصورة على manage_options (القسم التجريبي Pilot في المصدر — يبقى كما هو).
+ * Role: a single AJAX endpoint — the members list hossam_get_members [SECTION 14]
+ * restricted to manage_options (the Pilot section in the source — stays as-is).
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/members.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
+ * Source: a verbatim 1:1 move of all the code from legacy mu-plugins/hossam-dashboard/
+ * ajax/members.php — the source fingerprint byte-pinned in the batch-6 inventory
+ * (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ): بوابة feature
- * بعد nonce وقبل capability check (لا حرس 401 منفصل في هذا الملف —
- * المصدر ينتقل من nonce إلى manage_options مباشرة) —
- * is_feature_enabled('members') === false → feature_disabled 403 فشل مغلق؛
- * الافتراضي (enabled) يطابق سلوك المصدر حرفيًا.
+ * The only declared delta (owner decision B3-08, option A): a feature gate
+ * after the nonce and before the capability check (no separate 401 guard in
+ * this file — the source goes from the nonce straight to manage_options) —
+ * is_feature_enabled('members') === false → feature_disabled 403 fail-closed;
+ * the default (enabled) matches the source behavior verbatim.
  *
- * العقد المنقول كما هو: 403 Forbidden لغير المدير، 400 Invalid page
- * لغير السكالار، خريطة role_display_map وWP_User_Query وpagination
- * (page/has_more/total) حرفية، وفشل قراءة DB (last_error) → 500
- * برسالة آمنة بدل نجاح فارغ (B6-UNVERIFIED).
+ * The carried contract as-is: 403 Forbidden for non-admins, 400 Invalid page
+ * for non-scalars, the role_display_map map and WP_User_Query and pagination
+ * (page/has_more/total) verbatim, and a DB read failure (last_error) → 500
+ * with a safe message instead of an empty success (B6-UNVERIFIED).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// [MB-endpoint] Endpoint: hossam_get_members — manage_options فقط
+// [MB-endpoint] Endpoint: hossam_get_members — manage_options only
 add_action( 'wp_ajax_hossam_get_members', function(): void {
 	check_ajax_referer( 'hossam_nonce', 'nonce' );
 	if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'members' ) ) {

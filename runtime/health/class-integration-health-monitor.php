@@ -1,18 +1,21 @@
 <?php
 /**
- * runtime/health/class-integration-health-monitor.php (الدفعة 3)
+ * runtime/health/class-integration-health-monitor.php (batch 3)
  * ══════════════════════════════════════════════════════════════
- * العقد (معمارية §7.6 فصل نوعي الصحة + قرار المالك §2.5):
- *   - Integration Health يراقب decryptability/key source/provider
- *     capability لكل تكامل عبر allowlist الـRegistry. فشله يعطل
- *     التكامل وحده وينبه المسؤول — لا rollback للـRuntime أبدًا
- *     (Deployment/Boot Health في class-health-check.php منفصل).
- *   - لا يقرأ/يفك الأسرار داخل page render: الفحص job محدود
- *     (cron hook أو POST إداري) والنتائج تُخزن status codes منقحة
- *     فقط في option منفصلة — بلا قيم ولا responses خام.
- *   - التنبيه one-shot محدود التكرار: notice واحد لكل حالة فشل
- *     جديدة؛ العودة إلى ok (أو تغيّر codes) تعيد تسليح التنبيه.
- *   - Site Health test يقرأ الحالة المخزنة منقحة (بلا فك تشفير).
+ * Contract (architecture §7.6 health type separation + owner decision §2.5):
+ *   - Integration Health monitors decryptability/key source/provider
+ *     capability for every integration via the Registry allowlist. Its
+ *     failure disables that integration alone and alerts the admin — no
+ *     rollback of the Runtime ever (Deployment/Boot Health in
+ *     class-health-check.php is separate).
+ *   - It does not read/decrypt secrets inside a page render: the check is
+ *     a bounded job (a cron hook or an admin POST) and the results are
+ *     stored as sanitized status codes only in a separate option — no
+ *     values and no raw responses.
+ *   - The one-shot alert is rate-limited: one notice per new failure
+ *     state; returning to ok (or a change in codes) re-arms the alert.
+ *   - The Site Health test reads the stored state sanitized (with no
+ *     decryption).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -28,8 +31,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	const STATUS_BLOCKED = 'blocked';
 
 	/**
-	 * تسجيل الـhooks عند تحميل الـRuntime (من bootstrap). لا استدعاءات
-	 * WordPress أخرى هنا — التنفيذ وقت الـcallback.
+	 * Register the hooks when the Runtime loads (from bootstrap). No other
+	 * WordPress calls here — execution happens at callback time.
 	 */
 	public static function register(): void {
 		add_action( self::CRON_HOOK, array( self::class, 'run_checks' ) );
@@ -39,7 +42,7 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * جدولة الفحص الدوري (ساعة) بشكل idempotent — admin_init فقط.
+	 * Schedule the periodic check (hourly) idempotently — admin_init only.
 	 */
 	public static function ensure_schedule(): void {
 		if ( wp_next_scheduled( self::CRON_HOOK ) ) {
@@ -49,10 +52,11 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * الفحص الفعلي (job محدود): لكل سر في الـallowlist — التوفّر،
-	 * مصدر المفتاح، وقابلية فك التشفير (تُفك وتُهدر فورًا؛ لا قيمة
-	 * تُخزن)؛ وcapability المزود للـAI بفحص محلي بلا API call.
-	 * يخزن codes منقحة فقط ويعيد نفس الحالة.
+	 * The actual check (a bounded job): for every secret in the allowlist —
+	 * availability, key source, and decryptability (decrypted and discarded
+	 * immediately; no value is stored); and the provider capability for AI
+	 * with a local check and no API call. It stores sanitized codes only
+	 * and returns the same state.
 	 *
 	 * @return array<string, array{status:string, codes:string[]}>
 	 */
@@ -61,9 +65,10 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 		$key_source      = HAL_Frontend_Dashboard_Secret_Store::get_key_source();
 		$status          = array();
 
-		// B3-06-B (إعادة التسليم): الاستراتيجية المختارة للـAI تُحسم قبل
-		// حلقة الأسرار — عطل الـfallback المشفر لا يُسند إلى حالة التكامل
-		// إلا إذا كانت direct_key هي المختارة فعلًا.
+		// B3-06-B (re-delivery): the chosen AI strategy is settled before the
+		// secrets loop — a failure of the encrypted fallback is attributed to
+		// the integration state only if direct_key is the one actually
+		// chosen.
 		$ai_strategy = null;
 		if ( function_exists( 'hossam_ai_resolve_strategy' ) ) {
 			$resolved = hossam_ai_resolve_strategy();
@@ -78,30 +83,33 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 				$secret_id = (string) $secret['id'];
 				if ( 'ai' === $integration_id && 'ai_direct_key' === $secret_id
 					&& ( 'wp_ai_client' === $ai_strategy || null === $ai_strategy ) ) {
-					// B3-06-B: الـfallback ليس هو المختار (استراتيجية
-					// wp_ai_client) أو لا استراتيجية محسومة أصلاً — عطلُه
-					// لا يحجب المسار الصالح، والciphertext يبقى محفوظًا
-					// دون كشفه. أما direct_key المختار فيمر للفحص الحاجب.
+					// B3-06-B: the fallback is not the chosen one (the
+					// wp_ai_client strategy) or there is no settled strategy
+					// at all — its failure does not block the valid path, and
+					// the ciphertext stays stored without being exposed. The
+					// chosen direct_key, however, proceeds to the blocking
+					// check.
 					continue;
 				}
-				// B3-06-B: الصحة تُقيَّم للمصدر المختار وفق ترتيب §2.4 حصرًا —
-				// عطل HAL fallback غير المستخدم (تالف أو بلا مفتاح/Sodium)
-				// لا يحجب مصدرًا خارجيًا أعلى أولوية. أما fallback المختار
-				// والتالف فيظل حاجبًا.
+				// B3-06-B: health is evaluated for the chosen source per the
+				// §2.4 order exclusively — a failure of an unused HAL fallback
+				// (corrupt or without a key/Sodium) does not block an external
+				// source of higher priority. A chosen but corrupt fallback
+				// remains blocking.
 				$source = HAL_Frontend_Dashboard_Integration_Settings_Registry::credential_source( $secret_id );
 				if ( 'none' === $source ) {
 					if ( ! empty( $secret['optional'] ) ) {
-						continue; // سر اختياري غير مضبوط: لا حالة فشل، التكامل يبقى unavailable بسببه الخاص.
+						continue; // An optional secret not set: no failure state, the integration stays unavailable for its own reason.
 					}
 					$codes[] = 'secret_not_configured';
 					continue;
 				}
 				if ( 'hal_encrypted' !== $source ) {
-					continue; // المصدر الخارجي المختار يُستهلك كما هو — لا فك تشفير هنا.
+					continue; // The chosen external source is consumed as is — no decryption here.
 				}
 				if ( ! $store_available ) {
-					// B3-04: تشخيص الحاجب الفعلي منقحًا — غياب Sodium يظهر
-					// blocked صراحة بغير غياب المفتاح.
+					// B3-04: diagnosing the actual blocker sanitized — missing
+					// Sodium shows blocked explicitly, unlike a missing key.
 					$blocker = HAL_Frontend_Dashboard_Secret_Store::get_blocker();
 					$codes[] = 'sodium_missing' === $blocker ? 'sodium_unavailable' : 'key_source_unavailable';
 					continue;
@@ -112,7 +120,7 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 					$codes[] = 'decrypt_' . str_replace( 'hal_secret_', '', $decrypted->get_error_code() );
 					continue;
 				}
-				unset( $decrypted ); // القيمة تُهدر فورًا — لا تخزين ولا تسجيل.
+				unset( $decrypted ); // The value is discarded immediately — no storage and no logging.
 			}
 			foreach ( $definition['health'] as $consumer ) {
 				$codes = array_merge( $codes, self::probe_consumer( $integration_id, (string) $consumer ) );
@@ -131,25 +139,27 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 		$previous = get_option( self::STATUS_OPTION, array() );
 		update_option( self::STATUS_OPTION, $status, false );
 		if ( self::has_new_failure( $previous, $status ) ) {
-			update_option( self::NOTICE_OPTION, 0, false ); // إعادة تسليح التنبيه لحالة الفشل الجديدة.
+			update_option( self::NOTICE_OPTION, 0, false ); // Re-arm the alert for the new failure state.
 		}
 		return $status;
 	}
 
 	/**
-	 * capability المزود — فحص محلي بلا API call ولا transient (المرجع
-	 * الموحد §7.4: feature detection لا version check).
+	 * Provider capability — a local check with no API call and no transient
+	 * (unified reference §7.4: feature detection, not a version check).
 	 *
-	 * @return string[] codes فشل فقط.
+	 * @return string[] failure codes only.
 	 */
 	private static function probe_consumer( string $integration_id, string $consumer ): array {
 		if ( 'ai' === $integration_id && 'provider_capability' === $consumer ) {
-			// B3-06-A: تُقيَّم متطلبات الاستراتيجية المختارة فقط — فشل
-			// استراتيجية غير مستخدمة لا يحجب المختارة (§7.6: direct_key
-			// fallback مشروع عند غياب WP AI Client أو عدم دعمه).
+			// B3-06-A: only the chosen strategy's requirements are evaluated —
+			// a failure of an unused strategy does not block the chosen one
+			// (§7.6: direct_key fallback is legitimate when the WP AI Client
+			// is absent or unsupported).
 			if ( ! function_exists( 'hossam_ai_resolve_strategy' ) ) {
-				// الدفعة 4 تحمل adapters/ai.php — حتىها التكامل غير مكتمل
-				// بنيويًا (لا يتحول إلى enabled لمجرد الإعداد).
+				// Batch 4 carries adapters/ai.php — until then the integration
+				// is structurally incomplete (it does not become enabled
+				// merely by being configured).
 				return array( 'ai_adapter_not_loaded' );
 			}
 			$strategy = hossam_ai_resolve_strategy();
@@ -195,7 +205,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * الحالة المخزنة منقحة — يقرؤها المتحكم/Site Health بلا فك تشفير.
+	 * The stored state sanitized — read by the controller/Site Health with
+	 * no decryption.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -205,8 +216,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * Site Health test مباشر يقرأ الحالة المخزنة فقط (بلا فك تشفير
-	 * داخل الـrender — §14).
+	 * A direct Site Health test reading only the stored state (no decryption
+	 * inside the render — §14).
 	 *
 	 * @param array<string, array{direct:array<string, array{label:string, test:callable}>, async:array<string, array{label:string, test:callable}>>} $tests
 	 * @return array<string, mixed>
@@ -225,8 +236,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	public static function site_health_test(): array {
 		$status = self::get_status();
 
-		// B3-06: الحالة التي لم تُفحص لا تُعرض good — تُعرض recommended
-		// مع دعوة صريحة لتشغيل الفحص.
+		// B3-06: a state never checked is not shown good — it is shown
+		// recommended with an explicit invitation to run the check.
 		if ( array() === $status ) {
 			return array(
 				'label'       => __( 'HAL Frontend Dashboard integration health has not been checked yet', 'hal-frontend-dashboard' ),
@@ -273,8 +284,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * Admin notice: واحد لكل حالة فشل جديدة (one-shot محدود التكرار) —
-	 * العلامة تمنع التكرار حتى تتغير الحالة.
+	 * Admin notice: one per new failure state (a rate-limited one-shot) —
+	 * the flag prevents repetition until the state changes.
 	 */
 	public static function render_admin_notice(): void {
 		if ( ! current_user_can( HAL_Frontend_Dashboard_Settings_Repository::CAPABILITY ) ) {
@@ -294,7 +305,7 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 			return;
 		}
 		if ( (int) get_option( self::NOTICE_OPTION, 0 ) >= 1 ) {
-			return; // أُعلن لهذه الحالة مسبقًا — تنبيه واحد محدود التكرار.
+			return; // This state was already announced — a single rate-limited alert.
 		}
 		update_option( self::NOTICE_OPTION, 1, false );
 		printf(
@@ -304,7 +315,8 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	}
 
 	/**
-	 * هل أدخلت الحالة الجديدة فشلًا لم يكن موجودًا في السابقة؟
+	 * Did the new state introduce a failure that was not present in the
+	 * previous one?
 	 *
 	 * @param array<string, mixed> $previous
 	 * @param array<string, mixed> $current

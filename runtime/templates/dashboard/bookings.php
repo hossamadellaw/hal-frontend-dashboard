@@ -1,17 +1,18 @@
 <?php
 /**
- * runtime/templates/dashboard/bookings.php — بانل المواعيد/Amelia (الدفعة 7)
+ * runtime/templates/dashboard/bookings.php — Appointments panel/Amelia (batch 7)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/bookings.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 7 — snapshot 67044A2F…).
+ * Source: legacy theme/template-parts/dashboard/bookings.php (byte-level
+ * source fingerprint pinned in the batch 7 inventory — snapshot 67044A2F…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ): شرط
- * $bookings_allowed أضيفت عليه بوابة المالك is_feature_enabled('amelia')
- * — شروط المصدر (القدرات الثلاث) وحالة الـregistry وnonce المنفصل
- * hossam_lazy_appointments وفق scope باقية كما هي.
+ * The sole authorized delta (owner decision B3-08 — option a): the
+ * $bookings_allowed condition had the owner gate is_feature_enabled('amelia')
+ * added to it — the source conditions (the three capabilities), the registry
+ * state and the dedicated hossam_lazy_appointments nonce remain as-is per scope.
  *
- * args صريحة: البانل يكتفي بقدرات المستخدم والـregistry (بلا متغيرات من
- * الـshell) — يُستدعى من render_part بقائمة args الموثقة.
+ * Explicit args: the panel relies only on user capabilities and the registry
+ * (no variables from the shell) — it is called from render_part with the
+ * documented args list.
  * ══════════════════════════════════════════════════════════════
  */
 

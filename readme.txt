@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.1.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.3.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,14 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.3 =
+* The article editor gains a professional formatting toolbar above the writing canvas: ten tool groups plus a History group and an admin-only More menu, a static bottom action bar (Publish / Save Draft / Discard), and responsive tablet and phone layouts — all rendered with the existing dashboard stylesheet.
+* The editor sidebar gains the Publishing, Metadata, Tags, Translations Hub, and SEO & SERP cards, along with the empty/writing/saved/error editor states, the untranslated-language chip, legacy hidden-block handling, and RankMath suggestions — each behind the existing server-side capability gates.
+* All runtime source files are English-only: user-facing strings use the standard translation helper with registered English sources, and any remaining Arabic source text is confined to the tracked build/arabic-allowlist.txt file, which must shrink with every later release.
+* A new release tooling script (build/bump-release.sh) updates the plugin header, version constant, stable tag, installation ZIP name, changelog entry, and release sequence in one command, with pre-flight consistency checks, post-verify reporting, and an idempotent re-run.
+* The release workflow validates the Requires WordPress and Requires PHP header values against the built manifest, checks the installation ZIP name, the changelog entry, and the release sequence shape, and installs PHP 8.3 explicitly before the full test run.
+* Version identity 1.1.3 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 11.
 
 = 1.1.2 =
 * The AI assistant card is fully in English: the "Optional" tag and the card description now use the standard translation helper with English source strings registered for translation.

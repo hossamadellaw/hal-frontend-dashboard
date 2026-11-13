@@ -1,27 +1,31 @@
 /**
  * assets/js/modules/uploads.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدوال المنقولة حرفيًا: loadMyFiles(view), restoreFile(id, el),
+ * Linked tasks: T-22
+ * Functions moved verbatim: loadMyFiles(view), restoreFile(id, el),
  * deleteFilePermanently(id, el)
  *
  * TODO:
- * [x] نقل الثلاثة — تستدعي: hossam_get_my_files،
- *     hossam_restore_file، hossam_delete_file (ajax/uploads.php)
- * [x] مسجَّلة فى TAB_LOADERS (dashboard.js) تحت مفاتيح 'my-files' و'trash'
+ * [x] Moving the three — they call: hossam_get_my_files,
+ *     hossam_restore_file, hossam_delete_file (ajax/uploads.php)
+ * [x] Registered in TAB_LOADERS (dashboard.js) under the 'my-files' and
+ *     'trash' keys
  *
- * الدفعة الثانية (2026-08-24، تدقيق batch-execution-checklist-v7 بند 4):
- * 1) pagination حقيقية مطابقة للشكل الجديد من ajax/uploads.php
- *    {files,page,has_more}: زر Load more يجلب الصفحة التالية ويُلحقها،
- *    وتغيير view يُعيد التهيئة إلى صفحة 1.
- * 2) «تأكيد صريح» قبل الحذف النهائي: confirm قبل إرسال hossam_delete_file
- *    — الحماية الخادمية (ملكية post_author + wp_delete_attachment force)
- *    باقية كما هي فى الخادم، وهذا هو طبقة الواجهة المطلوبة نصًا.
- * 3) Core-first للرفع: hossamUploadFile() ترسل إلى wp_ajax_hossam_upload_file
- *    (حقل 'file' مطابق لتوقيع المحوِّل). [shared_files] fallback للرفع فقط
- *    داخل #hossam-shared-fallback ولا يُفتَح إلا عند فشل تقني محدد
- *    (شبكة/5xx/رد غير قابل للتحليل) — أبدًا لا عند رفض أمني (403) أو نوع
- *    ملف غير مسموح (400) وفق مرجع §Files وبوابة 8.2.
+ * Second batch (2026-08-24, audit of batch-execution-checklist-v7 item 4):
+ * 1) Real pagination matching the new shape from ajax/uploads.php
+ *    {files,page,has_more}: the Load more button fetches the next page
+ *    and appends it, and changing the view re-initializes to page 1.
+ * 2) "Explicit confirmation" before permanent deletion: confirm before
+ *    sending hossam_delete_file — the server-side protection
+ *    (post_author ownership + wp_delete_attachment force) stays as it is
+ *    in the server, and this is the UI layer required verbatim.
+ * 3) Core-first for upload: hossamUploadFile() sends to
+ *    wp_ajax_hossam_upload_file ('file' field matching the handler's
+ *    signature). [shared_files] fallback for upload only inside
+ *    #hossam-shared-fallback, and it is opened only on a defined
+ *    technical failure (network/5xx/unparseable response) — never on a
+ *    security refusal (403) or a disallowed file type (400), per the
+ *    §Files reference and gate 8.2.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -133,7 +137,7 @@ async function restoreFile(fileId, el){
 
 async function deleteFilePermanently(fileId, el){
   if(!window.hossamAjax || !fileId) return;
-  /* تأكيد صريح إلزامى قبل الحذف النهائي (بند 4 — الدفعة الثانية) */
+  /* Mandatory explicit confirmation before permanent deletion (item 4 — second batch) */
   if(!window.confirm(t('confirmDeleteFile','Delete this file permanently?'))){return;}
   try{
     const fd=new FormData();
@@ -144,11 +148,12 @@ async function deleteFilePermanently(fileId, el){
     const d=await r.json();
     if(d.success){
       showToast(t('fileDeleted','File deleted'),'success');
-      /* [B9-01] بعد الحذف الناجح تُعاد قراءة العرض المتأثر من الصفحة 1 بدل
-         إزالة الصف من DOM فقط؛ الإزالة وحدها تُبقي state.page/hasMore على
-         إزاحة قديمة فيفوّت Load more ملفًا انتقل إلى إزاحة سابقة
-         (سيناريو 101 ملف). نمط restoreFile — loadMyFiles(view) — هو المرجع
-         داخل هذا الملف نفسه. */
+      /* [B9-01] After a successful delete the affected view is re-read
+         from page 1 instead of only removing the row from the DOM; the
+         removal alone leaves state.page/hasMore on a stale offset, so
+         Load more misses a file that moved to an earlier offset (the
+         101-file scenario). The restoreFile pattern — loadMyFiles(view) —
+         is the reference inside this very file. */
       let _b901View='trash';
       try{
         const _b901Wrap=el&&el.closest?el.closest('#files-trash-wrap,#files-my-files-wrap'):null;
@@ -161,9 +166,10 @@ async function deleteFilePermanently(fileId, el){
   }catch(e){showToast(t('networkError','Network error'),'error');}
 }
 
-/* [Core-first — الدفعة الثانية] Upload → wp_ajax_hossam_upload_file.
-   قاعدة fallback: فشل تقني فقط (شبكة/5xx/رد غير قابل للتحليل) يفتح
-   #hossam-shared-fallback؛ رفض أمني/نوع غير مسموح = toast بلا fallback. */
+/* [Core-first — second batch] Upload → wp_ajax_hossam_upload_file.
+   Fallback rule: only a technical failure (network/5xx/unparseable
+   response) opens #hossam-shared-fallback; a security refusal/disallowed
+   type = toast without fallback. */
 async function hossamUploadFile(form){
   if(!window.hossamAjax || !form) return false;
   const input=form.querySelector('input[type="file"][name="file"]');

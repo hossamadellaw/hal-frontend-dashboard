@@ -1,35 +1,35 @@
 <?php
 /**
- * runtime/ajax/seo.php (الدفعة 5)
+ * runtime/ajax/seo.php (Batch 5)
  * ══════════════════════════════════════════════════════════════
- * الدور: إجراء AJAX واحد — wp_ajax_hossam_save_seo لحفظ بيانات SEO.
- * منطق الكتابة مالكه adapters/rankmath.php (الدفعة 4)؛ هذا الـendpoint
- * يترجم فقط — كما قرر رأس المصدر حرفيًا.
+ * Role: a single AJAX action — wp_ajax_hossam_save_seo to save SEO data.
+ * The write logic is owned by adapters/rankmath.php (Batch 4); this endpoint
+ * only translates — exactly as the source header states verbatim.
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/seo.php — بصمة المصدر بالبايت مثبتة في inventory الدفعة 5
- * (build/source-inventory-batch-5.json). صفر تعديل في العقود.
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/seo.php — the source fingerprint is pinned byte-for-byte in the Batch 5
+ * inventory (build/source-inventory-batch-5.json). Zero changes to the contracts.
  *
- * الدلتا المصرَّح بها (دمج v1.1.0 — صف R10 «دمج v1.1.0: 404 الموحد»):
- *   - 404 الموحد (H3 §1.2/§1.5): الغائب والغير مملوك والبلا قدرة =
- *     404 برسالة الغائب نفسها — بوابة واحدة تبتلع الوجود والملكية معًا
- *     (صفر لمس JS).
- *   - consume seo 30/د بعد اكتمال كل التحققات وقبل كتابة post_meta
- *     (G3 §1.3-9 — المخفف القائم في rankmath.php باقٍ).
- *   - audit واحد article_save_seo (G4 §3-أ-6 — أسماء الحقول المحفوظة
- *     حصرًا، لا قيم إطلاقًا).
+ * The authorized delta (v1.1.0 merge — row R10 «v1.1.0 merge: the unified 404»):
+ *   - the unified 404 (H3 §1.2/§1.5): missing, not-owned, and no-capability =
+ *     404 with the same missing-message — one gate swallows existence and ownership together
+ *     (zero JS touch).
+ *   - consume seo 30/min after all validations complete and before writing post_meta
+ *     (G3 §1.3-9 — the existing mitigator in rankmath.php remains).
+ *   - a single audit article_save_seo (G4 §3-a-6 — saved field names
+ *     exclusively, never values).
  *
- * حالة التحميل — v1.0.6 §8.3 (القرار الموحد أ/ج): يُحمَّل تاسعًا من
- * runtime/bootstrap.php؛ البوابة كشف وقت التشغيل (verified_fields في
- * السجل) + مفتاح المالك rank_math_seo للإظهار. عند غياب Rank Math
- * تبقى النقطة 503 والقالب قراءة فقط (تراجع آمن لا يعطل شيئًا آخر).
+ * Load state — v1.0.6 §8.3 (the unified decision a/c): it loads ninth from
+ * runtime/bootstrap.php; the gate is a runtime detection (verified_fields in
+ * the registry) + the owner key rank_math_seo for display. In the absence of Rank Math
+ * the endpoint stays 503 and the template read-only (a safe fallback that disables nothing else).
  *
- * العقد المنقول كما هو: check_ajax_referer('hossam_nonce','nonce') ثم
- * حارس 401؛ 503 بأسباب السجل عند غير available أو غياب
- * plugin_contract/verified_fields؛ 400 لغير السكالار/الأنواع و404 لغير
- * post/الغير مملوك/البلا قدرة edit_post (404 الموحد برسالة الغائب
- * نفسها — دمج v1.1.0 R10)؛ التنظيف كله داخل المحوِّل؛ الاستجابة تعرض
- * قراءة راجعة من الخادم فقط {message,fields}.
+ * The carried-over contract as-is: check_ajax_referer('hossam_nonce','nonce') then
+ * a 401 guard; 503 with the registry reasons when not available or missing
+ * plugin_contract/verified_fields; 400 for non-scalar/types and 404 for non-
+ * post/not-owned/no edit_post capability (the unified 404 with the missing-message
+ * — v1.1.0 merge R10); all sanitization inside the adapter; the response shows
+ * a server-side read-back only {message,fields}.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -53,9 +53,9 @@ add_action( 'wp_ajax_hossam_save_seo', function(): void {
 	}
 	$post_id = absint( $post_id_raw );
 	$post    = $post_id ? get_post( $post_id ) : null;
-	// R10 (دمج v1.1.0 — 404 الموحد، H3 §1.2/§1.5): الغائب والغير مملوك
-	// والبلا قدرة = 404 برسالة الغائب نفسها — بوابة واحدة تبتلع الوجود
-	// والملكية معًا فلا كشف وجود قبل الرد.
+	// R10 (v1.1.0 merge — the unified 404, H3 §1.2/§1.5): missing, not-owned,
+	// and no-capability = 404 with the same missing-message — one gate swallows existence
+	// and ownership together so no existence leaks before the reply.
 	if ( ! $post || 'post' !== $post->post_type || ! current_user_can( 'edit_post', $post_id ) ) {
 		wp_send_json_error( [ 'message' => hossam_t( 'Article not found.' ) ], 404 );
 	}
@@ -65,7 +65,7 @@ add_action( 'wp_ajax_hossam_save_seo', function(): void {
 		if ( ! is_string( $_POST['title'] ) ) {
 			wp_send_json_error( [ 'message' => hossam_t( 'Invalid title.' ) ], 400 );
 		}
-		// v1.0.6 §8.4: title اختياري — نفس حد القالب (maxlength=255).
+		// v1.0.6 §8.4: title is optional — the same template limit (maxlength=255).
 		$title_length = function_exists( 'mb_strlen' ) ? mb_strlen( $_POST['title'] ) : strlen( $_POST['title'] );
 		if ( $title_length > 255 ) {
 			wp_send_json_error( [ 'message' => hossam_t( 'Invalid title.' ) ], 400 );
@@ -94,9 +94,9 @@ add_action( 'wp_ajax_hossam_save_seo', function(): void {
 	}
 	$data['robots'] = $_POST['robots'];
 
-	// R10 (G3 §1.3-9): consume seo 30/د — بعد nonce/401/rm-decision/ملكية
-	// وتطهير المدخلات وقبل كتابة post_meta مباشرة (عقد G3 §1.1-1)؛ الترجمة
-	// بنمط error_data['status'].
+	// R10 (G3 §1.3-9): consume seo 30/min — after nonce/401/rm-decision/ownership
+	// and input sanitization and directly before writing post_meta (contract G3 §1.1-1); the translation
+	// in the error_data['status'] pattern.
 	$quota = hossam_rate_limit_consume( 'seo', (int) get_current_user_id(), 30, MINUTE_IN_SECONDS );
 	if ( is_wp_error( $quota ) ) {
 		$data_status = $quota->get_error_data();
@@ -110,9 +110,9 @@ add_action( 'wp_ajax_hossam_save_seo', function(): void {
 		wp_send_json_error( [ 'message' => hossam_t( 'SEO settings could not be saved.' ) ], 500 );
 	}
 
-	// R10 (G4 §3-أ-6): article_save_seo بعد النجاح وقبل success — meta
-	// fields بأسماء الحقول المحفوظة حصرًا، لا قيم إطلاقًا؛ قيمة الإرجاع
-	// تُتجاهل عمدًا (G4 §5).
+	// R10 (G4 §3-a-6): article_save_seo after success and before success — meta
+	// fields with the saved field names exclusively, never values; the return value
+	// is deliberately ignored (G4 §5).
 	hossam_audit_log(
 		'article_save_seo',
 		[

@@ -2,44 +2,44 @@
 /**
  * runtime/core/setup.php
  * ══════════════════════════════════════════════════════════════
- * الدور: البنية التحتية المشتركة المملوكة للـrelease — اكتشاف صفحة
- * Dashboard، مسارات الأصول من سياق الـrelease (RUNTIME_ROOT/RUNTIME_URL)،
- * تحميل CSS/JS، والحراسات التى تعمل site-wide.
+ * Role: the release-owned shared infrastructure — Dashboard page
+ * detection, asset paths from the release context (RUNTIME_ROOT/RUNTIME_URL),
+ * CSS/JS loading, and the site-wide guards.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/core/setup.php
- * (الدفعة 2 من HAL Frontend Dashboard). التعديلات المصرَّح بها:
- *   - hossam_asset_path() / hossam_asset_uri(): حُذف كامل منطق child theme
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/core/setup.php
+ * (batch 2 of HAL Frontend Dashboard). The sanctioned modifications:
+ *   - hossam_asset_path() / hossam_asset_uri(): the entire child theme logic was removed
  *     (get_stylesheet_directory/get_template_directory/uploads/dashboard-assets)
- *     واستُبدل بسياق الـrelease حصرًا عبر HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT
- *     وHAL_FRONTEND_DASHBOARD_RUNTIME_URL (يُعرِّفهما loader-core.php قبل
- *     تحميل runtime/bootstrap.php).
- *   - B2-03 (تدقيق الدفعة 2): حُذف wp_enqueue_style('astra-parent-style')
- *     عبر get_template_directory_uri() من كتلة enqueue الخاصة
- *     بـDashboard — لا اعتماد لأصل Dashboard على القالب؛ الأصول
- *     مملوكة للـrelease حصرًا، وبدون تنفيذ دفعة الأصول كاملة ولا
- *     إعادة تصميم (إعادة التحقق البصري عند بوابة الدفعة 9).
- *   - B2-U3 (تدقيق الدفعة 2): hossam_integration_registry_key() صار
- *     مفتاح الـtransient مقيَّدًا بمعرّف الـrelease — تبديل release
- *     يتيمة القيمة القديمة تلقائيًا (TTL يمسحها) بدل الاعتماد على
- *     أحداث plugins فقط (activated/deactivated/upgrader).
- *   - الدفعة 7 (§7.5): hossam_is_dashboard() صارت تستخدم predicate
+ *     and replaced exclusively with the release context via HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT
+ *     and HAL_FRONTEND_DASHBOARD_RUNTIME_URL (both defined by loader-core.php before
+ *     loading runtime/bootstrap.php).
+ *   - B2-03 (batch 2 audit): wp_enqueue_style('astra-parent-style')
+ *     via get_template_directory_uri() was removed from the Dashboard enqueue
+ *     block — no dependency of a Dashboard asset on the theme; the assets
+ *     are release-owned exclusively, and without executing the full assets batch nor
+ *     a redesign (visual re-verification at the batch 9 gate).
+ *   - B2-U3 (batch 2 audit): hossam_integration_registry_key() now has
+ *     the transient key bound to the release id — switching a release
+ *     orphans the old value automatically (TTL sweeps it) instead of relying on
+ *     plugins events only (activated/deactivated/upgrader).
+ *   - Batch 7 (§7.5): hossam_is_dashboard() now uses the predicate
  *     HAL_Frontend_Dashboard_Template_Controller::is_target_query()
- *     (صفحة المالك ID + ترجمات WPML) بدل is_page('dashboard')/
- *     is_page_template('page-dashboard.php') — fail-closed؛ المستهلكون
- *     (enqueue/body classes/wp hook) يستهلكون predicate الـtemplate
- *     نفسه فلا تسرب assets إلى صفحات أخرى.
+ *     (owner page ID + WPML translations) instead of is_page('dashboard')/
+ *     is_page_template('page-dashboard.php') — fail-closed; the consumers
+ *     (enqueue/body classes/wp hook) consume the template predicate
+ *     itself, so no assets leak to other pages.
  *
- * ملاحظات تصحيح تاريخية (ملخَّصة من المصدر):
- *   - LiteSpeed no-cache حارس site-wide أُلحق بهذا الملف تاريخيًا.
- *   - استدعاءات hossam_wpml_all_paths()/hossam_wpml_is_rtl() (adapters/wpml.php،
- *     الدفعة 4) محمية بحارس function_exists أو مؤجلة إلى callback time
- *     (init/wp_enqueue_scripts) حيث تكون adapters محمَّلة قبل التنفيذ.
- *   - hossam_dashboard_url() معرَّفة في adapters/wpml.php (خارج هذه الدفعة)؛
- *     استدعاءاتها هنا إما داخل callbacks تُنفَّذ وقت الطلب (init/admin_init/
- *     plugins_loaded/login_redirect) — أي بعد اكتمال تحميل adapters — أو
- *     محمية بحارس function_exists في مسار تعريف الدالة.
- *   - wp_localize_script يستهلك hossam_get_i18n_strings() من core/i18n.php.
- *   - التعليق التوثيقي التاريخي الطويل للـTODO لا يُنقل — هذا الرأس موجز.
+ * Historical fix notes (summarized from the source):
+ *   - A LiteSpeed no-cache site-wide guard was historically appended to this file.
+ *   - hossam_wpml_all_paths()/hossam_wpml_is_rtl() calls (adapters/wpml.php,
+ *     batch 4) are protected by a function_exists guard or deferred to callback time
+ *     (init/wp_enqueue_scripts) where the adapters are loaded before execution.
+ *   - hossam_dashboard_url() is defined in adapters/wpml.php (outside this batch);
+ *     its calls here are either inside callbacks executed at request time (init/admin_init/
+ *     plugins_loaded/login_redirect) — i.e. after the adapters finish loading — or
+ *     protected by a function_exists guard in the function-definition path.
+ *   - wp_localize_script consumes hossam_get_i18n_strings() from core/i18n.php.
+ *   - The long historical TODO doc comment is not carried over — this header is concise.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -75,7 +75,7 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 		if ( ! is_array( $profile ) ) {
 			$snapshots[ $blog ] = new WP_Error(
 				'hossam_ai_runtime_profile_unavailable',
-				__( 'AI assistance is unavailable in this environment.', 'astra-child' )
+				__( 'AI assistance is unavailable in this environment.', 'hal-frontend-dashboard' )
 			);
 			return $snapshots[ $blog ];
 		}
@@ -97,7 +97,7 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 				|| false === filter_var( $profile[ $key ], FILTER_VALIDATE_INT ) ) {
 				$snapshots[ $blog ] = new WP_Error(
 					'hossam_ai_runtime_profile_invalid',
-					__( 'AI assistance is unavailable in this environment.', 'astra-child' )
+					__( 'AI assistance is unavailable in this environment.', 'hal-frontend-dashboard' )
 				);
 				return $snapshots[ $blog ];
 			}
@@ -106,7 +106,7 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 			if ( $value < $minimum || $value > $maximum ) {
 				$snapshots[ $blog ] = new WP_Error(
 					'hossam_ai_runtime_profile_invalid',
-					__( 'AI assistance is unavailable in this environment.', 'astra-child' )
+					__( 'AI assistance is unavailable in this environment.', 'hal-frontend-dashboard' )
 				);
 				return $snapshots[ $blog ];
 			}
@@ -118,7 +118,7 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 		if ( $normalized['processing_deadline'] < $maximum_timeout + 30 ) {
 			$snapshots[ $blog ] = new WP_Error(
 				'hossam_ai_runtime_profile_invalid',
-				__( 'AI assistance is unavailable in this environment.', 'astra-child' )
+				__( 'AI assistance is unavailable in this environment.', 'hal-frontend-dashboard' )
 			);
 			return $snapshots[ $blog ];
 		}
@@ -129,14 +129,14 @@ if ( ! function_exists( 'hossam_ai_get_runtime_profile' ) ) {
 }
 
 /**
- * سجّل قدرات التكاملات؛ لا يُنشأ قبل اكتمال تحميل الإضافات العادية.
+ * Register the integrations capabilities; it is not created before the regular plugins finish loading.
  *
- * B2-U3 (حسم invalidation عند تبديل release): المفتاح مقيَّد بمعرّف
- * الـrelease، فكل إصدار يبني ويسجّل كاشه الخاص ويتيمة قيم الإصدارات
- * السابقة تلقائيًا حتى تنقضي مدة TTL — بلا افتراض حدث switch ولا
- * إضافة أحداث جديدة على ملفات الدفعة 1 المغلقة. أحداث
- * activated/deactivated/upgrader تبقى كما هي للتبديل داخل نفس
- * الـrelease.
+ * B2-U3 (invalidation resolution on release switch): the key is bound to the
+ * release id, so every release builds and registers its own cache and orphans the previous releases'
+ * values automatically until the TTL elapses — without assuming a switch event nor
+ * adding new events to the closed batch 1 files. The
+ * activated/deactivated/upgrader events stay as they are for switches within the same
+ * release.
  */
 if ( ! function_exists( 'hossam_integration_registry_key' ) ) {
 	function hossam_integration_registry_key(): string {
@@ -251,10 +251,10 @@ if ( ! function_exists( 'hossam_get_integration_capabilities' ) ) {
 
 		$amelia_capabilities = [
 			'bookings_shortcode' => shortcode_exists( 'ameliaemployeepanel' ),
-			// v1.1.1 (E3): المحاذاة — القدرة تعكس مصدر الاعتماد الفعلي الذي
-			// يقبه المحلل (env→constant→hal_encrypted عبر الRegistry) بدل
-			// الثابت وحده؛ غياب الصنف (شيم/بيئات اختبار) يعود للفحص بالثابت
-			// القائم — fail-closed متسق مع المحلل.
+			// v1.1.1 (E3): the alignment — the capability reflects the actual dependency source that
+			// the resolver honors (env→constant→hal_encrypted via the Registry) instead of
+			// the constant alone; the absence of the class (shims/test environments) falls back to the existing
+			// constant check — fail-closed, consistent with the resolver.
 			'elite_api_secret'   => class_exists( 'HAL_Frontend_Dashboard_Integration_Settings_Registry' )
 				? 'none' !== HAL_Frontend_Dashboard_Integration_Settings_Registry::credential_source( 'amelia_elite_api_key' )
 				: ( defined( 'HOSSAM_AMELIA_API_KEY' ) && '' !== HOSSAM_AMELIA_API_KEY ),
@@ -266,10 +266,10 @@ if ( ! function_exists( 'hossam_get_integration_capabilities' ) ) {
 		];
 		$rank_math_capabilities = [
 			'plugin_contract' => defined( 'RANK_MATH_VERSION' ),
-			// v1.0.6 §8.2 (القرار الموحد أ/ج): كشف وقت التشغيل بدل القيمة
-			// الثابتة — فيُفتح بوابتا القالب (seo.php) والنقطة (ajax/seo.php)
-			// تلقائيًا معًا عند توافر Rank Math؛ مفتاح المالك rank_math_seo
-			// يبقى بوابة إظهار الواجهة.
+			// v1.0.6 §8.2 (unified decision a/c): runtime detection instead of the
+			// static value — the two gates of the template (seo.php) and the endpoint (ajax/seo.php)
+			// thus open automatically together when Rank Math is available; the owner key rank_math_seo
+			// remains the UI display gate.
 			'verified_fields' => class_exists( 'RankMath\\Post' ) && method_exists( 'RankMath\\Post', 'get_meta' ),
 		];
 		$woocommerce_capabilities = [
@@ -337,8 +337,8 @@ if ( ! function_exists( 'hossam_get_integration_capabilities' ) ) {
 if ( ! function_exists( 'hossam_get_integration_decision' ) ) {
 	/**
 	 * Single read accessor for panels/endpoints to consume the capability
-	 * registry (بند تمهيدي 3: قرار قدرة لكل panel/endpoint من السجل نفسه:
-	 * available / limited / unavailable). Unknown keys degrade safely.
+		 * registry (introductory item 3: one capability decision per panel/endpoint from the registry itself:
+		 * available / limited / unavailable). Unknown keys degrade safely.
 	 *
 	 * @return array{status:string,plugin_active:bool,version:string,capabilities:array<string,bool>,reason:string,checked_at:string}
 	 */
@@ -425,16 +425,16 @@ add_action( 'upgrader_process_complete', 'hossam_invalidate_integration_capabili
 add_action( 'wp_loaded', 'hossam_get_integration_capabilities', 20 );
 
 // ══════════════════════════════════════════════════════════════
-// جدولة cron المخصصة عبر cron_schedules — تُسجَّل هنا فى core قبل أى
-// استعمال لِـ`hossam_every_five_minutes` للكسح الدوري لجدول مهام AI
-// (المسجَّل والمُجدوَل من ajax/ai.php). الفلتر يُستدعى وقت الجدولة نفسه
-// فلا يعتمد على ترتيب تحميل الملفات.
+// Scheduling the custom cron via cron_schedules — registered here in core before any
+// use of `hossam_every_five_minutes` for the periodic sweep of the AI jobs table
+// (registered and scheduled from ajax/ai.php). The filter is called at the scheduling time itself,
+// so it does not depend on the file loading order.
 // ══════════════════════════════════════════════════════════════
 add_filter( 'cron_schedules', function ( array $schedules ): array {
 	if ( ! isset( $schedules['hossam_every_five_minutes'] ) ) {
 		$schedules['hossam_every_five_minutes'] = [
 			'interval' => 5 * MINUTE_IN_SECONDS,
-			'display'  => __( 'Every 5 Minutes (Hossam Dashboard)', 'astra-child' ),
+			'display'  => __( 'Every 5 Minutes (Hossam Dashboard)', 'hal-frontend-dashboard' ),
 		];
 	}
 	return $schedules;
@@ -444,14 +444,14 @@ if ( ! function_exists( 'hossam_is_dashboard' ) ) {
     /**
      * Detects the Dashboard page reliably across WPML translations.
      *
-     * الدفعة 7 (§7.5): العقد الهدف الوحيد هو صفحة المالك (page ID
-     * المملوك عبر Installer) وترجمات WPML المثبتة عبر predicate
+     * Batch 7 (§7.5): the sole target contract is the owner page (the page ID
+     * owned via Installer) and the WPML translations installed via the predicate
      * HAL_Frontend_Dashboard_Template_Controller::is_target_query() —
-     * نفس predicate الـtemplate_include حصرًا حتى لا تتسرب assets أو
-     * body classes إلى صفحات أخرى. لا اعتماد متبقٍ على
-     * is_page('dashboard') ولا is_page_template('page-dashboard.php')
-     * ولا slug عام. الفشل مغلق: غياب الـController أو صفحة مملوكة
-     * يعيد false (فشل آمن بلا assets ولا قالب).
+     * the exact same predicate as template_include exclusively, so that no assets or
+     * body classes leak to other pages. No remaining dependency on
+     * is_page('dashboard') nor is_page_template('page-dashboard.php')
+     * nor a generic slug. Failure is closed: the absence of the Controller or an owned page
+     * returns false (safe failure with no assets and no template).
      *
      * @return bool
      */
@@ -463,12 +463,12 @@ if ( ! function_exists( 'hossam_is_dashboard' ) ) {
 
 if ( ! function_exists('hossam_asset_path') ) {
     /**
-     * Release-owned asset path (دفعة 2: استُبدلت مسارات child theme
-     * القديمة بسياق الـrelease — لا get_stylesheet_directory ولا
-     * uploads/dashboard-assets هنا).
+     * Release-owned asset path (batch 2: the old child theme paths were
+     * replaced with the release context — no get_stylesheet_directory nor
+     * uploads/dashboard-assets here).
      *
-     * @param string $file المسار النسبي للملف.
-     * @return string المسار الكامل على الخادم.
+     * @param string $file The relative path of the file.
+     * @return string The full path on the server.
      */
     function hossam_asset_path( string $file ): string {
         return HAL_FRONTEND_DASHBOARD_RUNTIME_ROOT . 'assets/' . $file;
@@ -477,11 +477,11 @@ if ( ! function_exists('hossam_asset_path') ) {
 
 if ( ! function_exists('hossam_asset_uri') ) {
     /**
-     * Release-owned asset URI (دفعة 2: استُبدلت روابط child theme
-     * القديمة برابط الـrelease).
+     * Release-owned asset URI (batch 2: the old child theme links were
+     * replaced with the release URI).
      *
-     * @param string $file المسار النسبي للملف.
-     * @return string الرابط الكامل للملف.
+     * @param string $file The relative path of the file.
+     * @return string The full URI of the file.
      */
     function hossam_asset_uri( string $file ): string {
         return HAL_FRONTEND_DASHBOARD_RUNTIME_URL . 'assets/' . $file;
@@ -561,11 +561,11 @@ add_action( 'admin_init', function(): void {
 add_action( 'wp_enqueue_scripts', function(): void {
     if ( ! hossam_is_dashboard() ) return;
 
-    // B2-03 (معمارية §8.3/§13 وقرار المالك §2.1): حُذف enqueue
-    // style.css للقالب الأب عبر get_template_directory_uri() — كتلة
-    // أصول Dashboard مملوكة للـrelease حصرًا (dashboard.css وmodules
-    // عبر hossam_asset_uri()). إعادة التحقق البصري للتكافؤ موقعها
-    // بوابة الدفعة 9 (مقارنة بصرية لكل panel) وليست إعادة تصميم هنا.
+    // B2-03 (architecture §8.3/§13 and owner decision §2.1): the enqueue of the
+    // parent theme's style.css via get_template_directory_uri() was removed — the
+    // Dashboard assets block is release-owned exclusively (dashboard.css and modules
+    // via hossam_asset_uri()). The visual equivalence re-verification belongs to
+    // the batch 9 gate (a visual comparison of every panel) and is not a redesign here.
 
     $css_path        = hossam_asset_path( 'css/dashboard.css' );
     $js_path         = hossam_asset_path( 'js/dashboard.js' );
@@ -601,48 +601,49 @@ add_action( 'wp_enqueue_scripts', function(): void {
         true
     );
 
-    // v1.0.6 P1a: منتقي الوسائط القياسي للصورة المميزة — قبل تسجيل
-    // hossam-dashboard-posts مباشرة حتى تُطبع أصول الوسائط قبلها.
-    // على صفحات الداشبورد فقط (الحارس أعلاه يمنع أي تحميل site-wide)،
-    // ومشروط بـupload_files كواجهة الصورة نفسها. التفصيل المحسوم: شرط
-    // القدرة وحده دون تقييد بلوحة، لأن التنقل بين اللوحات يتم بالـJS
-    // داخل الصفحة الواحدة (تقييد ?panel= خادميًا كان سيكسر التنقل اللاحق).
+    // v1.0.6 P1a: the standard media picker for the featured image — directly before
+    // registering hossam-dashboard-posts so the media assets are printed before it.
+    // On Dashboard pages only (the guard above blocks any site-wide loading),
+    // and conditioned on upload_files as the interface of the image itself. The settled detail: the
+    // capability condition alone without a panel restriction, because navigation between panels happens
+    // in JS
+    // within the single page (a server-side ?panel= restriction would have broken the later navigation).
     if ( current_user_can( 'upload_files' ) ) {
         wp_enqueue_media();
     }
 
-    // v1.0.6 §9: المحرر الغني — حزم Block Editor الرسمية على لوحة HAL حصرًا.
-    // قرار المالك محسوم: إظهار وتغليف لا بناء — تركيب مكونات Gutenberg
-    // العلنية (BlockEditorProvider + BlockCanvas + Inserter + BlockTools)
-    // داخل غلاف HAL، بلا محرك/كتل بديلة وبلا Experimental.
-    // البوابات (كلها fail-closed):
-    //   - مفتاح المالك rich_editor (نمط is_feature_enabled) بوابة إظهار؛
-    //     المفتاح مسجل في FEATURES (class-settings-repository.php:41-45)
-    //     وبافتراضي مغلق مقصود (:85-87) فيُغلق العرض حتى تخصيصه من مالك
-    //     الإعدادات — والـtextarea يبقى حقل النموذج.
-    //   - مسار تحرير مسموح واحد على الأقل: edit_posts (إنشاء — ولو مُنع
-    //     المستخدم من تحرير مقال آخر) أو edit_post لمقال بعينه مطلوب
-    //     تحريره (post_id من الطلب). لا اعتماد على panel وحده لأن التنقل
-    //     بين اللوحات يجري داخل الصفحة.
-    //   - upload_files شرط مستقل للوسائط فقط — لا يمنع تحميل بقية الواجهة.
-    // فحوص الخادم (wordpress-posts.php:38-40,106-113) إلزامية باقية؛ إظهار
-    // الواجهة أو تحميل حزمها لا يمنح صلاحية ولا يستبدلها.
-    // الحزم: handles مسجلة من WordPress للنسخة المثبتة (لا تثبيت حزم ولا
-    // أرقام أسطر نواة) مع حراسة التسجيل wp_script_is/wp_style_is؛ ترتيب
-    // الاعتماد الصحيح تحسمه تبعيات التسجيل الرسمية. لا تُطبع الحزمة الثقيلة
-    // (block-editor.js ≈2.7MB) إلا لمن يملك مسار تحرير (allowed أدناه).
-    // إحالة script-loader السابقة (edit-post/editor/edit-widgets) تبعيات
-    // أنماط لا تسجيل JavaScript — لا تُستخدم هنا.
+    // v1.0.6 §9: the rich editor — the official Block Editor packages on the HAL panel exclusively.
+    // The owner decision is settled: showing and wrapping, not building — assembling the public
+    // Gutenberg components (BlockEditorProvider + BlockCanvas + Inserter + BlockTools)
+    // inside a HAL wrapper, with no replacement engine/blocks and no Experimental.
+    // The gates (all fail-closed):
+    //   - The owner key rich_editor (an is_feature_enabled pattern) is the display gate;
+    //     the key is registered in FEATURES (class-settings-repository.php:41-45)
+    //     and defaults to intentionally closed (:85-87), so the display stays closed until the settings
+    //     owner customizes it — and the textarea remains the form field.
+    //   - At least one allowed edit path: edit_posts (creating — even if the
+    //     user is prevented from editing another article) or edit_post for the specific article requested
+    //     to be edited (post_id from the request). No reliance on the panel alone because navigation
+    //     between panels happens inside the page.
+    //   - upload_files is an independent condition for media only — it does not block loading the rest of the interface.
+    // The server checks (wordpress-posts.php:38-40,106-113) remain mandatory; showing
+    // the interface or loading its packages grants no capability and does not replace it.
+    // The packages: handles registered by WordPress for the installed version (no package installation and
+    // no core line numbers) with the wp_script_is/wp_style_is registration guards; the correct
+    // dependency order is settled by the official registration dependencies. The heavy package
+    // (block-editor.js ≈2.7MB) is printed only for whoever owns an edit path (allowed below).
+    // The earlier script-loader referral (edit-post/editor/edit-widgets) is style dependencies,
+    // not JavaScript registration — not used here.
     $hossam_rich_reason  = 'feature-disabled';
     $hossam_rich_allowed = false;
-    // OEB/3 (H1 §6-3): الوضع يُقرأ من get_effective_editor_mode() حصرًا —
-    // off → لا حزم إطلاقًا وتعليل الغياب mode-off؛ ما دام الوضع ≠ off
-    // تُحمَّل الحزم لكل من اجتاز البوابة (embed باقٍ متاحًا لمن اجتاز
-    // البوابة في official — ضمانة المالك H1 §4/§8/§7-1). لا فرع إسقاط
-    // حزم في official×مدير (تصويب E2 محسوم: الإسقاط كان يقلب
-    // $hossam_rich_enabled=false فيُسقط embed عن المدير وينقض الضمانة).
-    // غياب القارئ (class/method) يبقى فشلًا مغلقًا بالنمط القائم
-    // feature-disabled — لا قراءة وضع من مصدر آخر.
+    // OEB/3 (H1 §6-3): the mode is read from get_effective_editor_mode() exclusively —
+    // off → no packages at all and the absence labeled mode-off; as long as the mode ≠ off
+    // the packages load for everyone who passed the gate (embed remains available to those who passed
+    // the gate in official — the owner guarantee H1 §4/§8/§7-1). No package-dropping branch
+    // in official×manager (E2 correction settled: the drop used to flip
+    // $hossam_rich_enabled=false, dropping embed for the manager and voiding the guarantee).
+    // The absence of the reader (class/method) remains a closed failure with the existing
+    // feature-disabled pattern — no mode read from another source.
     $hossam_editor_mode = '';
     if ( class_exists( 'HAL_Frontend_Dashboard_Settings_Repository' )
         && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'get_effective_editor_mode' ) ) {
@@ -664,14 +665,14 @@ add_action( 'wp_enqueue_scripts', function(): void {
             $hossam_rich_reason = 'no-edit-path';
         }
     }
-    // الكتل المطلوبة (Table وDetails والوسائط والقوائم والروابط تنسيق نص +
-    // Playlist وTabs في 7.1.3) تأتي من التسجيل الرسمي حصرًا عبر
-    // registerCoreBlocks في posts.js؛ كتل الإضافات الأخرى لا تُضمَّن تلقائيًا
-    // لأن أصولها لا تُحمَّل في HAL. غياب core/playlist أو core/tabs خارج
-    // 7.1.3 يُتجاوز ببقية الكتل — UNVERIFIED محليًا (النواة 6.7.1).
-    // v1.1.1 (C2): حزمة wp-format-library توفر عناصر تنسيق النص
-    // (Bold/Italic/Link) عبر BlockToolbar المرسوم يدويًا في posts.js:712 —
-    // غيابها في نواة أقدم يُتجاوز رشيقًا عبر الحارس القائم (ليست في
+    // The required blocks (Table and Details and the media and the lists and the text-formatting links +
+    // Playlist and Tabs in 7.1.3) come from the official registration exclusively via
+    // registerCoreBlocks in posts.js; other plugin blocks are not auto-included
+    // because their assets are not loaded in HAL. The absence of core/playlist or core/tabs outside
+    // 7.1.3 is gracefully bypassed by the rest of the blocks — UNVERIFIED locally (core 6.7.1).
+    // v1.1.1 (C2): the wp-format-library package provides the text-formatting controls
+    // (Bold/Italic/Link) via the BlockToolbar drawn manually in posts.js:712 —
+    // its absence in an older core is gracefully bypassed via the existing guard (it is not in
     // $hossam_rich_critical).
     $hossam_rich_handles = array(
         'wp-element', 'wp-data', 'wp-components', 'wp-blocks',
@@ -688,8 +689,8 @@ add_action( 'wp_enqueue_scripts', function(): void {
             }
             wp_enqueue_script( $hossam_rich_handle );
         }
-        // v1.1.1 (C2): أنماط format-library تُحمَّل بنفس حارس wp_style_is
-        // الرشيق — غياب التسجيل يُتخطى بلا أي تأثير على بقية الحزم.
+        // v1.1.1 (C2): the format-library styles load with the same graceful wp_style_is
+        // guard — the absence of registration is skipped with no effect whatsoever on the rest of the packages.
         foreach ( array( 'wp-components', 'wp-block-editor', 'wp-block-library', 'wp-format-library' ) as $hossam_rich_style ) {
             if ( function_exists( 'wp_style_is' ) && ! wp_style_is( $hossam_rich_style, 'registered' ) ) {
                 continue;
@@ -711,22 +712,27 @@ add_action( 'wp_enqueue_scripts', function(): void {
         true
     );
 
-    // v1.0.6 §9: إعدادات المحرر الغني على hossam-dashboard-posts — كائن
-    // مستقل hossamRichEditor (hossamAjax أعلاه كما هو بلا تغيير، B9-E3 سليم).
-    // enabled=false يعني بقاء الـtextarea ظاهرًا؛ canUpload يعكس upload_files
-    // (شرط منفصل للوسائط)؛ REST/Nonce يُصدر مشروطًا بتمكين المحرر وupload_files؛
-    // '' غيره (uploadMedia) — لا endpoint جديد.
+    // v1.0.6 §9: the rich editor settings on hossam-dashboard-posts — a separate
+    // hossamRichEditor object (hossamAjax above stays as is with no change, B9-E3 intact).
+    // enabled=false means the textarea stays visible; canUpload reflects upload_files
+    // (a separate condition for media); REST/Nonce is issued conditionally on the editor being enabled and upload_files;
+    // '' otherwise (uploadMedia) — no new endpoint.
     $hossam_rich_can_upload = $hossam_rich_enabled && current_user_can( 'upload_files' );
     wp_localize_script( 'hossam-dashboard-posts', 'hossamRichEditor', [
         'enabled'   => $hossam_rich_enabled,
         'canUpload' => current_user_can( 'upload_files' ),
         'restRoot'  => function_exists( 'rest_url' ) ? rest_url() : '',
         'restNonce' => $hossam_rich_can_upload ? wp_create_nonce( 'wp_rest' ) : '',
-        // OEB/3 (H1 §6-3): الوضع الفعلي بجوار restNonce بلا دمج بنيوي —
-        // مصدره المتغير أعلاه المقروء من get_effective_editor_mode() حصرًا.
+        // OEB/3 (H1 §6-3): the actual mode next to restNonce with no structural merge —
+        // its source is the variable above read from get_effective_editor_mode() exclusively.
         'mode'      => $hossam_editor_mode,
         'isRtl'     => function_exists( 'hossam_wpml_is_rtl' ) ? hossam_wpml_is_rtl() : is_rtl(),
         'reason'    => $hossam_rich_reason,
+        // [W8] v1.1.3 (OP-2): the admin-only extended-block gate - a display
+        // capability flag computed server-side (the :107-110 pattern);
+        // the endpoint re-verifies server-side on every save (the standing
+        // rule: display gates never authorize).
+        'adminExtend' => $hossam_rich_enabled && current_user_can( 'manage_options' ),
     ] );
 
     wp_enqueue_script(
@@ -769,7 +775,7 @@ add_action( 'wp_enqueue_scripts', function(): void {
         true
     );
 
-    // ربط وحدة AI بواجهة posts بعد تنفيذ الأزرار المشروطة.
+    // Hook the AI module onto the posts interface after the conditional buttons execute.
     wp_enqueue_script(
         'hossam-dashboard-ai',
         hossam_asset_uri( 'js/modules/ai.js' ),
@@ -786,8 +792,8 @@ add_action( 'wp_enqueue_scripts', function(): void {
     ] );
 }, 20 );
 
-// v1.0.8 (2026-10-29) — REC-2 — تحصين ذاتي معتمد من المالك؛ التصنيف أ/ب/ج
-// بقبول ما بعد النشر (§4/2)؛ قابل للإزالة بمعزل.
+// v1.0.8 (2026-10-29) — REC-2 — owner-approved self-hardening; the classification a/b/c
+// with post-publication acceptance (§4/2); removable in isolation.
 add_action( 'wp_enqueue_scripts', function(): void {
     if ( ! hossam_is_dashboard() ) return;
 

@@ -1,23 +1,26 @@
 <?php
 /**
- * runtime/settings/class-settings-repository.php — Settings Repository (الدفعة 3)
+ * runtime/settings/class-settings-repository.php — Settings Repository (batch 3)
  * ══════════════════════════════════════════════════════════════
- * العقد (معمارية §14 و§8.3 وقرارات المالك §2.3/§2.4):
- *   - schema/version/defaults وgetters مكتوبة الأنواع مع validation
- *     صارم؛ لا مفاتيح مجهولة ولا shapes حرة.
- *   - option واحدة غير حساسة باسم ثابت وautoload=yes بقيمة صغيرة
- *     مقيسة 373B — قرار دورة الإجماع v1.0.9 (صف R6)؛ لا سر ولا
- *     ciphertext هنا (Secret Store ملف مستقل) ولا بيانات مستخدم.
- *   - الإعدادات بيانات موقع خارج releases/state وتبقى عبر
- *     update/rollback (لا تدخل release manifest — §2.5).
- *   - defaults تحافظ على السلوك الوظيفي المرحل: كل المميزات owner
- *     enabled=true (القرار الفعلي يجمع لاحقًا registry/capability/
- *     ownership في دفعاتها — هنا الإعداد وحده لا يمنح صلاحية مورد)؛
- *     الشعار attachment id=0 (fallback النصي HAL قرار المالك)؛
- *     ai_preference=auto (enum من المرجع الموحد §7.4).
- *   - cache داخل الطلب يبطل عند الحفظ وخلال invalidate_cache().
- *   - لا تقرأ $_POST ولا options مباشرة من المتحكم: المتحكم يمرر
- *     قيمًا منقاة إلى save() وحدها.
+ * Contract (architecture §14 and §8.3 and owner decisions §2.3/§2.4):
+ *   - schema/version/defaults and getters are typed with strict
+ *     validation; no unknown keys and no free-form shapes.
+ *   - A single non-sensitive option with a fixed name and autoload=yes
+ *     holding a small measured value of 373B — consensus-cycle decision
+ *     v1.0.9 (row R6); no secret and no ciphertext here (Secret Store is
+ *     a separate file) and no user data.
+ *   - Settings are site data outside releases/state and persist across
+ *     update/rollback (they do not enter the release manifest — §2.5).
+ *   - defaults preserve the migrated functional behavior: every feature
+ *     owner enabled=true (the effective decision later combines registry/
+ *     capability/ownership in their batches — the setting alone here
+ *     grants no resource permission); the logo attachment id=0 (the HAL
+ *     textual fallback, owner decision); ai_preference=auto (enum from
+ *     the unified reference §7.4).
+ *   - The in-request cache is invalidated on save and during
+ *     invalidate_cache().
+ *   - $_POST is not read and options are not read directly from the
+ *     controller: the controller passes sanitized values to save() alone.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -29,15 +32,17 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	const OPTION_NAME    = 'hal_frontend_dashboard_settings';
 
 	/**
-	 * Capability الإدارة المعتمد (قرار المالك §2.3): runtime checks
-	 * تستخدم capability فقط، والمنح الافتراضي من Installer.
+	 * The approved management capability (owner decision §2.3): runtime
+	 * checks use the capability only, and the default grants come from the
+	 * Installer.
 	 */
 	const CAPABILITY = 'manage_hal_frontend_dashboard';
 
 	/**
-	 * المميزات الاثنتا عشرة المعتمدة (معمارية §7.6 Feature toggles) —
-	 * لا toggle خارج هذه القائمة. v1.0.6 §9 (doc:121): سُجل rich_editor
-	 * هنا ليصير قابلًا للتفعيل عبر المسار العام، بافتراضي مغلق مقصود.
+	 * The twelve approved features (architecture §7.6 Feature toggles) —
+	 * no toggle outside this list. v1.0.6 §9 (doc:121): rich_editor was
+	 * registered here to become togglable through the public path, with an
+	 * intentionally closed default.
 	 */
 	const FEATURES = array(
 		'posts', 'files', 'inbox', 'members', 'amelia', 'finance', 'store',
@@ -46,37 +51,40 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	);
 
 	/**
-	 * قيم تفضيل AI المسموحة (المرجع الموحد §7.4): auto أو wp_ai_client
-	 * أو direct_key — يحررها manage_options فقط (يُنفَّذ في المتحكم).
+	 * Allowed AI preference values (unified reference §7.4): auto or
+	 * wp_ai_client or direct_key — only manage_options changes them
+	 * (enforced in the controller).
 	 */
 	const AI_PREFERENCES = array( 'auto', 'wp_ai_client', 'direct_key' );
 
 	/**
-	 * OEB/1 (H1 §3): أوضاع المحرر الغني — مفتاح مستقل شقيق
-	 * ai_preference وليس عضوًا في FEATURES (عقد FEATURES منطقي بحت
-	 * لا يُكسر). الافتراضي embed = سلوك اليوم حرفيًا (fail-closed)
-	 * حتى قرار مالك صريح.
+	 * OEB/1 (H1 §3): rich editor modes — an independent sibling key of
+	 * ai_preference and not a member of FEATURES (the FEATURES contract is
+	 * purely logical and must not be broken). The embed default = today's
+	 * behavior verbatim (fail-closed) until an explicit owner decision.
 	 */
 	const EDITOR_MODES = array( 'official', 'embed', 'off' );
 
 	/**
-	 * أنواع صور الشعار المسموحة (معمارية §7.6 Branding): PNG/JPEG/WebP؛
-	 * SVG مرفوض افتراضيًا ولا يقبل إلا Change Request مستقل.
+	 * Allowed logo image types (architecture §7.6 Branding): PNG/JPEG/WebP;
+	 * SVG is rejected by default and accepted only via a separate Change
+	 * Request.
 	 */
 	const BRANDING_ALLOWED_MIME = array( 'image/png', 'image/jpeg', 'image/webp' );
 
 	/**
-	 * v1.1.1 (W1): سقوف محارف اسم الموقع والوصف — التجاوز يرفض النموذج
-	 * كله (WP_Error في save() وsave_failed في المتحكم).
+	 * v1.1.1 (W1): site title and tagline character caps — exceeding them
+	 * rejects the whole form (WP_Error in save() and save_failed in the
+	 * controller).
 	 */
 	const BRANDING_SITE_TITLE_MAX   = 60;
 	const BRANDING_SITE_TAGLINE_MAX = 80;
 
 	/**
-	 * v1.1.1 (W3): مفاتيح أقسام الموقع الثمانية المغلقة — مطابقة حرفيًا
-	 * لمراسي حلقة fallback في templates/dashboard.php (قسم fallback
-	 * $section_defs). لا مفتاح خارج هذه القائمة يُقبل من input ولا
-	 * يُخزَّن.
+	 * v1.1.1 (W3): the eight closed site section keys — a verbatim match
+	 * for the anchors of the fallback loop in templates/dashboard.php (the
+	 * fallback section $section_defs). No key outside this list is accepted
+	 * from input or stored.
 	 */
 	const SITE_SECTION_KEYS = array(
 		'home', 'about', 'services', 'blog', 'contact', 'privacy', 'terms', 'shop',
@@ -86,25 +94,27 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	private static $cache = array();
 
 	/**
-	 * v1.1.1 (W1): طول المحارف — mb_strlen عند توافرها وإلا strlen
-	 * (نمط rankmath.php:161 وajax/seo.php:69 القائم: بيئات الشيم
-	 * والاختبار بلا mbstring تبقى صالحة؛ mbstring متاح في الإنتاج
-	 * فيُقاس بالمحارف لا بالبايت).
+	 * v1.1.1 (W1): character length — mb_strlen when available, otherwise
+	 * strlen (the existing rankmath.php:161 and ajax/seo.php:69 pattern:
+	 * shim and test environments without mbstring stay valid; mbstring is
+	 * available in production, so the measure is characters, not bytes).
 	 */
 	private static function text_length( string $value ): int {
 		return function_exists( 'mb_strlen' ) ? mb_strlen( $value ) : strlen( $value );
 	}
 
 	/**
-	 * مفتاح الكاش الحالي: رقم المدونة عند توفره، وإلا سياق واحد.
-	 * على Single Site يبقى السلوك مطابقًا تمامًا (مفتاح ثابت واحد).
+	 * The current cache key: the blog id when available, otherwise one
+	 * context. On Single Site the behavior stays exactly the same (one
+	 * fixed key).
 	 */
 	private static function cache_blog_id(): int {
 		return function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
 	}
 
 	/**
-	 * الحالة الكاملة بعد الدمج مع defaults والتحقق من schema.
+	 * The full state after merging with defaults and validating against
+	 * the schema.
 	 *
 	 * @return array{schema_version:string, features:array<string,bool>, branding_attachment_id:int, ai_preference:string, rich_editor_mode:string, branding_site_title:string, branding_site_tagline:string, site_section_urls:array<string,string>}
 	 */
@@ -118,8 +128,9 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 
 		$features = array();
 		foreach ( self::FEATURES as $feature ) {
-			// v1.0.6 §9 (doc:121): rich_editor بافتراضي مغلق مقصود —
-			// لا يُعمم true العام عليه (fail-closed حتى تخصيص المالك).
+			// v1.0.6 §9 (doc:121): rich_editor with an intentionally closed
+			// default — the general true is not extended to it (fail-closed
+			// until an owner assignment).
 			$default = 'rich_editor' === $feature ? false : true;
 			$features[ $feature ] = isset( $stored['features'][ $feature ] )
 				? (bool) $stored['features'][ $feature ]
@@ -133,19 +144,20 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$ai_preference = (string) $stored['ai_preference'];
 		}
 
-		// OEB/1 (H1 §3): تطبيع وضع المحرر الغني fail-closed — غياب
-		// المفتاح أو أي قيمة خارج EDITOR_MODES يعود embed (نمط تطبيع
-		// ai_preference أعلاه): الترقية لا تغيّر شيئًا لأي موقع قبل
-		// قرار مالك صريح.
+		// OEB/1 (H1 §3): fail-closed rich editor mode normalization — an
+		// absent key or any value outside EDITOR_MODES returns embed (the
+		// ai_preference normalization pattern above): upgrading changes
+		// nothing for any site before an explicit owner decision.
 		$editor_mode = 'embed';
 		if ( isset( $stored['rich_editor_mode'] ) && in_array( $stored['rich_editor_mode'], self::EDITOR_MODES, true ) ) {
 			$editor_mode = (string) $stored['rich_editor_mode'];
 		}
 
-		// v1.1.1 (W1): تطبيع اسم الموقع والوصف بنمط ai_preference حرفيًا —
-		// غير النص أو تجاوز السقف يُطبَّع '' (fail-closed)؛ '' يعني fallback
-		// النصي القائم لكل موضع في القالب. القيم بيانات مستخدم تُخرج
-		// مهرَّبة عند الرندر حصرًا (لا i18n ولا hossam_t).
+		// v1.1.1 (W1): site title and tagline normalization in the verbatim
+		// ai_preference pattern — non-string or over-cap values are
+		// normalized to '' (fail-closed); '' means the existing textual
+		// fallback at every position in the template. The values are user
+		// data escaped only at render time (no i18n and no hossam_t).
 		$branding_site_title = '';
 		if ( isset( $stored['branding_site_title'] ) && is_string( $stored['branding_site_title'] )
 			&& self::text_length( $stored['branding_site_title'] ) <= self::BRANDING_SITE_TITLE_MAX ) {
@@ -158,9 +170,10 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$branding_site_tagline = $stored['branding_site_tagline'];
 		}
 
-		// v1.1.1 (W3): تطبيع روابط أقسام الموقع — غير المصفوفة يعيد
-		// الثمانية ب'' (auto عبر المحلل القائم)؛ المفتاح المجهول المخزن
-		// يُهمَل؛ القيمة غير النصية تُطبَّع '' (الفاسد = فراغ = auto).
+		// v1.1.1 (W3): site section URL normalization — a non-array returns
+		// the eight with '' (auto via the existing resolver); an unknown
+		// stored key is ignored; a non-string value is normalized to ''
+		// (malformed = empty = auto).
 		$site_section_urls = array_fill_keys( self::SITE_SECTION_KEYS, '' );
 		if ( isset( $stored['site_section_urls'] ) && is_array( $stored['site_section_urls'] ) ) {
 			foreach ( self::SITE_SECTION_KEYS as $section_key ) {
@@ -185,7 +198,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	}
 
 	/**
-	 * حالة مميزة واحدة — مفاتيح خارج القائمة تفشل مغلقًا (false).
+	 * A single feature state — keys outside the list fail closed (false).
 	 */
 	public static function is_feature_enabled( string $feature ): bool {
 		$all = self::get_all();
@@ -195,34 +208,36 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	public static function get_branding_attachment_id(): int {
 		$attachment_id = self::get_all()['branding_attachment_id'];
 		if ( $attachment_id > 0 && is_wp_error( self::validate_branding_attachment_id( $attachment_id ) ) ) {
-			// المرفق حُذف أو لم يعد صورة مقروءة من الأنواع المعتمدة:
-			// fallback نصي آمن (قرار المالك §2.3) — يُعاد 0 والمستهلك
-			// يعرض العلامة النصية HAL.
+			// The attachment was deleted or is no longer a readable image of
+			// the approved types: a safe textual fallback (owner decision
+			// §2.3) — 0 is returned and the consumer displays the HAL text
+			// mark.
 			return 0;
 		}
 		return $attachment_id;
 	}
 
 	/**
-	 * تفضيل استراتيجية AI — enum مغلق (auto/wp_ai_client/direct_key).
+	 * AI strategy preference — a closed enum (auto/wp_ai_client/direct_key).
 	 */
 	public static function get_ai_preference(): string {
 		return self::get_all()['ai_preference'];
 	}
 
 	/**
-	 * OEB/1 (H1 §3): الوضع المطبَّع الخام لمفتاح rich_editor_mode
-	 * الشقيق — غياب/فاسد طُبِّع embed في get_all() (fail-closed)؛
-	 * نمط get_ai_preference.
+	 * OEB/1 (H1 §3): the raw normalized mode of the sibling
+	 * rich_editor_mode key — absent/corrupt is normalized to embed in
+	 * get_all() (fail-closed); the get_ai_preference pattern.
 	 */
 	public static function get_rich_editor_mode(): string {
 		return self::get_all()['rich_editor_mode'];
 	}
 
 	/**
-	 * OEB/1 (H1 §3): الوضع الفعلي للمحرر الغني — المفتاح القائم
-	 * rich_editor يبقى الرئيس fail-closed للسطح الغني كله: تعطيله
-	 * يجعل الوضع الفعلي off بغض النظر عن rich_editor_mode.
+	 * OEB/1 (H1 §3): the effective rich editor mode — the existing
+	 * rich_editor key stays the fail-closed master of the whole rich
+	 * surface: disabling it makes the effective mode off regardless of
+	 * rich_editor_mode.
 	 */
 	public static function get_effective_editor_mode(): string {
 		if ( ! self::is_feature_enabled( 'rich_editor' ) ) {
@@ -232,9 +247,10 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	}
 
 	/**
-	 * التحقق من أن attachment id صورة قابلة للقراءة ضمن الأنواع
-	 * المسموحة (PNG/JPEG/WebP؛ SVG مرفوض افتراضيًا — §7.6). غياب/حذف
-	 * المرفق يرفض هنا ويبقى الـ0 (fallback نصي آمن).
+	 * Validate that the attachment id is a readable image within the
+	 * allowed types (PNG/JPEG/WebP; SVG is rejected by default — §7.6). A
+	 * missing/deleted attachment is rejected here and the 0 remains (safe
+	 * textual fallback).
 	 *
 	 * @return true|WP_Error
 	 */
@@ -257,9 +273,9 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	}
 
 	/**
-	 * الكتابة الوحيدة للإعدادات: تحقق صارم لكل مفتاح معروف، ورفض
-	 * المفاتيح المجهولة كليًا (لا shapes مجهولة — §14). لا تُقبل
-	 * أسرار هنا إطلاقًا.
+	 * The only write path for settings: strict validation of every known
+	 * key, and wholesale rejection of unknown keys (no unknown shapes —
+	 * §14). Secrets are never accepted here.
 	 *
 	 * @param array{features?:array<string,bool>, branding_attachment_id?:int, ai_preference?:string, rich_editor_mode?:string, branding_site_title?:string, branding_site_tagline?:string, site_section_urls?:array<string,string>} $settings
 	 * @return true|WP_Error
@@ -308,8 +324,8 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['ai_preference'] = $preference;
 		}
 
-		// OEB/1 (H1 §3): كتلة rich_editor_mode بنمط ai_preference حرفيًا
-		// — لا قيم خارج EDITOR_MODES إطلاقًا.
+		// OEB/1 (H1 §3): the rich_editor_mode block in the verbatim
+		// ai_preference pattern — no values outside EDITOR_MODES ever.
 		if ( array_key_exists( 'rich_editor_mode', $settings ) ) {
 			$editor_mode = $settings['rich_editor_mode'];
 			if ( ! is_string( $editor_mode ) || ! in_array( $editor_mode, self::EDITOR_MODES, true ) ) {
@@ -318,9 +334,10 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['rich_editor_mode'] = $editor_mode;
 		}
 
-		// v1.1.1 (W1): كتلتا اسم الموقع والوصف — نص حر (بيانات مستخدم
-		// تُخرج مهرَّبة عند الرندر حصرًا) بتحقق شكل وسقف mb_strlen؛
-		// الخارج عن السقف يرفض النموذج كله (fail-closed).
+		// v1.1.1 (W1): the site title and tagline blocks — free text (user
+		// data escaped only at render time) with shape validation and an
+		// mb_strlen cap; exceeding the cap rejects the whole form
+		// (fail-closed).
 		if ( array_key_exists( 'branding_site_title', $settings ) ) {
 			$site_title = $settings['branding_site_title'];
 			if ( ! is_string( $site_title ) || self::text_length( $site_title ) > self::BRANDING_SITE_TITLE_MAX ) {
@@ -337,9 +354,10 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['branding_site_tagline'] = $site_tagline;
 		}
 
-		// v1.1.1 (W3): كتلة روابط أقسام الموقع — مصفوفة الثمانية المغلقة
-		// حصرًا: مفتاح خارجها أو قيمة غير نصية يرفض النموذج كله؛
-		// التُخزين دائمًا للثمانية كاملة (الغائب يُطبَّع '' = auto).
+		// v1.1.1 (W3): the site section URLs block — an array of the eight
+		// closed keys exclusively: a key outside them or a non-string value
+		// rejects the whole form; storage is always for all eight in full
+		// (an absent one is normalized to '' = auto).
 		if ( array_key_exists( 'site_section_urls', $settings ) ) {
 			$section_urls = $settings['site_section_urls'];
 			if ( ! is_array( $section_urls ) ) {
@@ -359,8 +377,8 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$current['site_section_urls'] = $normalized_urls;
 		}
 
-		// v1.1.1 (W1/W3): حارس المفاتيح المجهولة يتوسع بالمفاتيح الثلاثة
-		// الجديدة — لا shapes مجهولة.
+		// v1.1.1 (W1/W3): the unknown-key guard expands with the three new
+		// keys — no unknown shapes.
 		foreach ( $settings as $key => $value ) {
 			if ( ! in_array( $key, array( 'features', 'branding_attachment_id', 'ai_preference', 'rich_editor_mode', 'branding_site_title', 'branding_site_tagline', 'site_section_urls' ), true ) ) {
 				return new WP_Error( 'hal_settings_unknown_key', 'Unknown settings key.' );
@@ -370,12 +388,13 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 		$stored_raw = get_option( self::OPTION_NAME, array() );
 		$stored_raw = is_array( $stored_raw ) ? $stored_raw : array();
 
-		// B3-PERSIST (§8.4: لا downgrade تلقائي، والتوافق خلال نافذة
-		// rollback): الكتابة تبدأ من المخزن كما هو — أي مفتاح أو قسم أو
-		// مفتاح مميزات كتبته نسخة أحدث (schema أعلى أو مفاتيح لا تعرفها
-		// هذه النسخة) يبقى سليمًا، وتضع هذه النسخة مفاتيحها المعروفة
-		// فوقه فقط. نسخة schema الأحدث لا تُخفض؛ هذه النسخة لا تخترع
-		// migration — تقرأ ما تعرفه وتتسامح مع البقية.
+		// B3-PERSIST (§8.4: no automatic downgrade, and compatibility during
+		// the rollback window): the write starts from the store as it is —
+		// any key or section or feature key written by a newer version (a
+		// higher schema or keys this version does not know) stays intact,
+		// and this version places its known keys on top of it only. A newer
+		// schema version is not downgraded; this version invents no
+		// migration — it reads what it knows and tolerates the rest.
 		$stored_schema = isset( $stored_raw['schema_version'] ) && is_string( $stored_raw['schema_version'] )
 			? $stored_raw['schema_version']
 			: null;
@@ -393,8 +412,8 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 		$payload['branding_attachment_id'] = $current['branding_attachment_id'];
 		$payload['ai_preference'] = $current['ai_preference'];
 		$payload['rich_editor_mode'] = $current['rich_editor_mode'];
-		// v1.1.1 (W1/W3): المفاتيح الثلاثة الجديدة تُكتب من $current
-		// المطبَّع دومًا — الثمانية كاملة في site_section_urls.
+		// v1.1.1 (W1/W3): the three new keys are always written from the
+		// normalized $current — all eight in full in site_section_urls.
 		$payload['branding_site_title'] = $current['branding_site_title'];
 		$payload['branding_site_tagline'] = $current['branding_site_tagline'];
 		$payload['site_section_urls'] = $current['site_section_urls'];
@@ -402,16 +421,18 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 			$payload['schema_version'] = self::SCHEMA_VERSION;
 		}
 
-		// B3-02: التمييز بين عدم التغيير وفشل الكتابة — update_option
-		// يعيد false في الحالتين، فالمقارنة الصريحة تمنع إعلان نجاح
-		// كاذب عند فشل كتابة قيمة مختلفة فعلاً.
+		// B3-02: distinguishing no-change from a write failure —
+		// update_option returns false in both cases, so the explicit
+		// comparison prevents declaring a false success when writing an
+		// actually different value fails.
 		if ( $stored_raw === $payload ) {
 			self::invalidate_cache();
 			return true;
 		}
 
-		// R6 (G5 §5-1): الوسيط الثالث true (bool → 'on') — كل حفظ فعلي
-		// يُعيد تثبيت الأوتولود والدوام من البناء؛ لا null ولا قيم نصية.
+		// R6 (G5 §5-1): the third argument true (bool → 'on') — every actual
+		// save re-establishes autoload and persistence by construction; no
+		// null and no string values.
 		$written = update_option( self::OPTION_NAME, $payload, true );
 		self::invalidate_cache();
 		if ( false === $written ) {
@@ -421,24 +442,28 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	}
 
 	/**
-	 * إبطال كاش الطلب — يستدعى بعد الحفظ ويتاح للمستهلكين عند حاجة
-	 * إعادة قراءة قسرية (قرار قدرة واحد، §8.3). يمسح كل المدونات:
-	 * الكتابة لمدونة لا يجوز أن تُبقي قراءة قديمة لأي مدونة.
+	 * Invalidate the request cache — called after saving and made available
+	 * to consumers when a forced re-read is needed (a one-capability
+	 * decision, §8.3). It clears every blog: a write to one blog must not
+	 * leave a stale read for any blog.
 	 */
 	public static function invalidate_cache(): void {
 		self::$cache = array();
 	}
 
 	/**
-	 * R6 (G5 §5-2): التحويل الأولي لأوتولود option الإعدادات — يُسجَّل
-	 * على init بنمط ensure_table الثلاثي (tables.php:200-219). حارس علم
-	 * حرفي `hossam_settings_autoload_migrated`: إن غاب العلم حُوِّل صف
-	 * الخيار القائم عبر `wp_set_option_autoload_values` (قيم boolean هي
-	 * المسار المستقر بعد إهلاك 6.7.0 لنصّي 'yes'/'no') ثم أُنشئ العلم
-	 * بأوتولود افتراضي — عكس درس C7 المقصود لخيارات «لا-autoload»: علم
-	 * صغير يُقرأ كل طلب من alloptions بلا SQL في الثبات. الحارسان
-	 * بـfunction_exists يحفظان بيئات الشيم/الإصدارات الأقدم، والكاتب
-	 * أعلاه يعيد تثبيت الأوتولود مع كل حفظ فعلي على أي حال.
+	 * R6 (G5 §5-2): the one-time migration of the settings option's
+	 * autoload — registered on init in the triple ensure_table pattern
+	 * (tables.php:200-219). A verbatim flag guard
+	 * `hossam_settings_autoload_migrated`: when the flag is absent, the
+	 * existing option row is migrated via `wp_set_option_autoload_values`
+	 * (boolean values are the stable path after 6.7.0 deprecated the
+	 * textual 'yes'/'no') and the flag is then created with a default
+	 * autoload — the opposite of the intended C7 lesson for no-autoload
+	 * options: a small flag read from alloptions on every request with no
+	 * SQL in steady state. The two function_exists guards preserve shim/
+	 * older-version environments, and the writer above re-establishes the
+	 * autoload with every actual save anyway.
 	 */
 	public static function init(): void {
 		if ( get_option( 'hossam_settings_autoload_migrated' ) ) {
@@ -453,7 +478,7 @@ final class HAL_Frontend_Dashboard_Settings_Repository {
 	}
 }
 
-// R6 (G5 §5-2): نمط tables.php/audit-log.php — تسجيل التحويل الأولي على init.
+// R6 (G5 §5-2): the tables.php/audit-log.php pattern — registering the one-time migration on init.
 add_action( 'init', function (): void {
 	HAL_Frontend_Dashboard_Settings_Repository::init();
 } );

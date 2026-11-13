@@ -25,7 +25,7 @@
  *             set served by inline fallbacks, which is byte-identical to
  *             the legacy i18n state (contractError, loadFailed,
  *             requestFailed) — equivalence, not silent drift.
- *   BYTES     — each of the five shipped files is byte-identical to its
+ *   BYTES     — each of the five shipped files matches its current-state
  *             exclusive legacy source and to its
  *             build/source-inventory-batch-9.json entry; the recorded
  *             snapshot_id recomputes from the files array.
@@ -381,6 +381,19 @@ $mappings = array(
 	'theme/assets/js/modules/members.js'   => 'runtime/assets/js/modules/members.js',
 );
 
+/* v1.1.3: canonical comparator for the root-present branch — the literal
+ * first-party jsStripComments pattern (batch10-modules.test.js:226-230) as
+ * PHP + LF normalization only, whitespace deliberately KEPT: the documented
+ * negative control proves a whitespace-only change inside an equal-length
+ * string is caught by strip-only and missed by a whitespace-dropping variant. */
+if ( ! function_exists( 'b9_canonical_source' ) ) {
+	function b9_canonical_source( string $code ): string {
+		$code = str_replace( "\r\n", "\n", $code );
+		$code = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $code );
+		$code = preg_replace( '/(^|\s)\/\/[^\n]*/', '$1', $code );
+		return $code;
+	}
+}
 foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	if ( ! $B9_LEGACY ) {
 		// ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التهشير والأطوال على الصيغة
@@ -403,8 +416,10 @@ foreach ( $mappings as $legacy_rel => $runtime_rel ) {
 	$dst_bytes = strlen( str_replace( "\r\n", "\n", $dst_content ) );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	b9_check( 'B9-B1-byte-identity-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $dst_hash && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes'],
-		"{$runtime_rel} is byte-identical to the exclusive source and matches inventory",
+		null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes']
+			&& b9_canonical_source( $src_content ) === b9_canonical_source( $dst_content )
+			&& 'b64d13c95870033cf306fd80a5990414e1dff12905bf7eb05f51bbdfffb6d36c' === $src_hash,
+		"{$runtime_rel} matches the current-state inventory and is canonical-identical to the exclusive source (comments stripped, LF, whitespace kept) with the historical source hash pinned — v1.1.3 comments batch",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
 
@@ -448,12 +463,20 @@ foreach ( $audit_deltas as $legacy_rel => $pair ) {
 	$dst_hash = hash_file( 'sha256', $GLOBALS['B9_PROJECT'] . '/' . $runtime_rel );
 	$inv      = $inv_by_path[ $legacy_rel ] ?? null;
 	$leg_src  = (string) file_get_contents( $source_root . '/' . $legacy_rel );
+	$dst_bytes  = strlen( str_replace( "\r\n", "\n", $dst_src ) );
+	$v113_history = array(
+		'theme/assets/css/dashboard.css'      => 'e566f258ab54d8ee4d8b2caf75d067b11cb36b3db3ca883b76ba740b705df722',
+		'theme/assets/js/dashboard.js'       => '8dd5a568c159818602ba2114f93ead2d363f8b89e75e54756b0f5ab47e886f1c',
+		'theme/assets/js/modules/uploads.js' => '89e1840cc63694e53f19f9ea246c692ea03dcb566272b26d58698f42ee9c0da0',
+		'theme/assets/js/modules/posts.js'   => '13882c91dd5079dc57b5596d64b795f4b8cdac9bf90641392281a43ea6c93ef0',
+	);
 	b9_check( 'B9-B1-audit-delta-' . basename( $legacy_rel ),
-		null !== $inv && $src_hash === $inv['sha256'] && (int) filesize( $source_root . '/' . $legacy_rel ) === (int) $inv['bytes']
+		null !== $inv && $dst_hash === $inv['sha256'] && $dst_bytes === (int) $inv['bytes']
 			&& $src_hash !== $dst_hash
+			&& $v113_history[ $legacy_rel ] === $src_hash
 			&& false !== strpos( $dst_src, '[' . $marker . ']' )
 			&& false === strpos( $leg_src, '[' . $marker . ']' ),
-		"{$runtime_rel} keeps source-side inventory provenance and carries exactly the documented audit marker [{$marker}]",
+		"{$runtime_rel} matches the current-state inventory and carries exactly the documented audit marker [{$marker}] against the pinned historical source (v1.1.3 comments batch)",
 		"{$runtime_rel}: source={$src_hash} dest={$dst_hash} inventory=" . ( $inv['sha256'] ?? 'missing' ) );
 }
 
@@ -755,7 +778,10 @@ unset( $_REQUEST['post_id'] );
  * Summary
  * ════════════════════════════════════════════════════════════════ */
 
-echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_SKIP']} skipped (legacy root absent — inventory-proxy only, never passed), {$GLOBALS['B9_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
+$b9_label = $B9_LEGACY
+	? 'full suite executed (canonical comparison)'
+	: 'legacy root absent — inventory-proxy only, never passed';
+echo "B9 RESULT: {$GLOBALS['B9_PASS']} pass, {$GLOBALS['B9_SKIP']} skipped ({$b9_label}), {$GLOBALS['B9_FAIL']} fail (PHP " . PHP_VERSION . ")\n";
 if ( $GLOBALS['B9_FAIL'] > 0 ) {
 	echo "Failures:\n" . implode( "\n", $GLOBALS['B9_FAILS'] ) . "\n";
 	exit( 1 );

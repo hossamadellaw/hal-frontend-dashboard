@@ -1,23 +1,25 @@
 <?php
 /**
- * runtime/templates/dashboard/seo.php — بانل SEO (الدفعة 8)
+ * runtime/templates/dashboard/seo.php — SEO panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/seo.php (بصمة المصدر
- * بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/seo.php (byte-level source
+ * fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ
- * §15.14/§15.16/§15.19/§15.20): بوابة المالك is_feature_enabled(
- * 'rank_math_seo') قبل أول إخراج — return مبكر (تعليق HTML للبانل
- * في المصدر يسبق شرطه، فامتداد الشرط وحده لا يمنع الإخراج)؛ شرط
- * قدرة المصدر current_user_can('edit_posts') باقٍ حرفيًا كما هو،
- * وpagination ($_seo_page عبر absint/max) وresource permission
- * (edit_post لكل مقال داخل الحلقة) وregistry states
- * ($hossam_rm_can_read/$hossam_rm_can_write) وحالة القراءة فقط
- * باقية كما هي (عقد §19).
+ * The sole authorized delta (owner decision B3-08 — option a
+ * §15.14/§15.16/§15.19/§15.20): the owner gate is_feature_enabled(
+ * 'rank_math_seo') before the first output — early return (the panel's
+ * HTML comment in the source precedes its condition, so extending the
+ * condition alone would not stop the output); the source capability
+ * condition current_user_can('edit_posts') remains verbatim as-is, and
+ * the pagination ($_seo_page via absint/max) and the resource permission
+ * (edit_post for every article inside the loop) and the registry states
+ * ($hossam_rm_can_read/$hossam_rm_can_write) and the read-only state
+ * remain as-is (contract §19).
  *
- * args صريحة: يستهلك من الـshell $author_filter و$user_id و
- * $_dash_base (روابط pagination) — بقية المتغيرات حسابات محلية
- * داخل البانل؛ يُستدعى من render_part بقائمة args الموثقة.
+ * Explicit args: it consumes $author_filter and $user_id and
+ * $_dash_base (pagination links) from the shell — the remaining variables
+ * are local computations inside the panel; it is called from render_part
+ * with the documented args list.
  *
  */
 
@@ -50,8 +52,9 @@ if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rank_mat
       </div>
 
       <?php
-      // البند التمهيدى 3 (الدفعة الثانية): قرار التكامل من سجل القدرات —
-      // عند غياب Rank Math: إشعار آمن وبلا بيانات زائفة؛ بقية اللوحة تعمل.
+      // Preliminary item 3 (batch 2): the integration decision comes from the
+      // capabilities registry — when Rank Math is absent: a safe notice with no
+      // false data; the rest of the panel keeps working.
       if ( ! $hossam_rm_can_write ) : ?>
       <div class="ph-notice mb-14"><?php echo esc_html( $hossam_rm_decision['reason'] ?: hossam_t( 'SEO editing is read-only until Rank Math fields are verified.' ) ); ?></div>
       <?php endif; ?>
@@ -211,7 +214,7 @@ if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'rank_mat
       </div>
       <?php endif; ?>
 
-      <!-- محرر SEO المضمَّن — يفتح من زر Edit SEO؛ الحفظ عبر wp_ajax_hossam_save_seo فقط -->
+      <!-- Inline SEO editor — opened from the Edit SEO button; saving happens via wp_ajax_hossam_save_seo only -->
       <?php if ( $hossam_rm_can_write ) : ?>
       <div class="card mb-14" id="hossam-seo-editor" style="display:none">
         <div class="card-title mb-12"><?php echo esc_html( hossam_t( 'Edit SEO' ) ); ?> — <span id="hossam-seo-post-label"></span></div>

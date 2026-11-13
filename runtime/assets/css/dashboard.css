@@ -580,9 +580,10 @@ select.form-input{
 .divider{height:1px;background:var(--border);margin:20px 0}
 .flex{display:flex}.items-center{align-items:center}.gap-6{gap:6px}.gap-8{gap:8px}.gap-12{gap:12px}.gap-16{gap:16px}
 .mt-4{margin-top:4px}.mt-8{margin-top:8px}.mt-12{margin-top:12px}.mt-16{margin-top:16px}.mt-20{margin-top:20px}
-/* [B9-U1] text-center تستهلكها uploads.js (زر Load more) ولا قاعدة لها في
-   الملف؛ كانت تُغطى — إن غُطيت — بورقة القالب الأب المحذوفة (B2-03).
-   قاعدة utility واحدة بنمط السطر نفسه، بلا إعادة تصميم. */
+/* [B9-U1] text-center is consumed by uploads.js (the Load more button) and has
+   no rule of its own in this file; it was covered — if at all — by the deleted
+   parent-template stylesheet (B2-03).
+   One utility rule in the same-line style, with no redesign. */
 .text-center{text-align:center}
 .mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-14{margin-bottom:14px}.mb-16{margin-bottom:16px}
 .ml-auto{margin-left:auto}.w-full{width:100%}
@@ -768,8 +769,8 @@ select.form-input{
 }
 
 /* ══════════════════════════════════════════════════════════════
-   [C-1] T1-14 — RTL: Select arrows في filter bar
-   الدليل: background-position للسهم يظهر في اليمين بدل اليسار في RTL
+   [C-1] T1-14 — RTL: Select arrows in the filter bar
+   Evidence: the arrow's background-position appears on the right instead of the left in RTL
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] select.form-input,
 [dir="rtl"] .filter-select {
@@ -780,7 +781,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-2] T1-14 — RTL: Filter count badge margin
-   الدليل: margin-left يدفع الـ badge لليمين في LTR — يجب عكسه
+   Evidence: margin-left pushes the badge to the right in LTR — must be mirrored
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .filter-count {
   margin-left: 0;
@@ -789,7 +790,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-3] T1-14 — RTL: User pill padding
-   الدليل: padding غير متوازن يُزيح الـ avatar في RTL
+   Evidence: unbalanced padding shifts the avatar in RTL
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .user-pill {
   padding: 4px 4px 4px 12px;
@@ -797,7 +798,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-4] T1-14 — RTL: Info card lists
-   الدليل: margin-left لـ ul يُزيح النقاط خارج الحاوية في RTL
+   Evidence: the ul's margin-left pushes the bullets outside the container in RTL
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .info-card ul {
   margin-left: 0;
@@ -806,7 +807,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-5] T1-14 — RTL: Finance table alignment
-   الدليل: .fin-tbl headers يبقون text-align:left في RTL
+   Evidence: the .fin-tbl headers stay text-align:left in RTL
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .fin-tbl th,
 [dir="rtl"] .fin-tbl td {
@@ -815,7 +816,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-6] T1-14 — RTL: Toast border direction
-   الدليل: border-left يظهر في الجانب الخطأ في RTL layout
+   Evidence: border-left appears on the wrong side in the RTL layout
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .toast {
   border-left: none;
@@ -827,7 +828,7 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-7] T1-14 — RTL: Toast animation direction
-   الدليل: toastIn يتحرك من اليمين لليسار — يجب عكسه في RTL
+   Evidence: toastIn moves right-to-left — must be mirrored in RTL
    ══════════════════════════════════════════════════════════════ */
 @keyframes toastInRtl {
   from { opacity: 0; transform: translateX(-20px); }
@@ -842,8 +843,8 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-01] T3-11 — Skeleton Loading styles
-   الدليل: لا يوجد أي .skel-* في dashboard.css (762 سطراً)
-   يُستخدَم في: dashboard.js [J-03]
+   Evidence: no .skel-* anywhere in dashboard.css (762 lines)
+   Used in: dashboard.js [J-03]
    ══════════════════════════════════════════════════════════════ */
 .skel-row {
   padding: 10px 0;
@@ -884,8 +885,8 @@ select.form-input{
 
 /* ══════════════════════════════════════════════════════════════
    [C-02] T3-08 — Rank Math SEO Score styles
-   الدليل: لا يوجد أي .rm-* في dashboard.css
-   يُستخدَم في: page-dashboard.php [P-09]
+   Evidence: no .rm-* anywhere in dashboard.css
+   Used in: page-dashboard.php [P-09]
    ══════════════════════════════════════════════════════════════ */
 .rm-score {
   display: inline-block;
@@ -916,8 +917,8 @@ select.form-input{
 [dir="rtl"] .fin-pagination { justify-content: flex-start; }
 
 /* ══════════════════════════════════════════════════════════════
-   [استكمال-CSS-WC-pills] — WooCommerce order status pills
-   الدليل: غائبة من dashboard.css و dashboard-FINAL.css
+   [css-wc-pills-completion] — WooCommerce order status pills
+   Evidence: absent from dashboard.css and dashboard-FINAL.css
    ══════════════════════════════════════════════════════════════ */
 .fin-tbl .pill            { background: var(--bg-2);       color: var(--txt-2);   }
 .fin-tbl .pill-processing { background: var(--info-bg);    color: var(--info);    }
@@ -928,9 +929,9 @@ select.form-input{
 .fin-tbl .pill-failed     { background: var(--danger-bg);  color: var(--danger);  }
 
 /* ══════════════════════════════════════════════════════════════
-   [C-03] فئات مفقودة — Finance-KPI / Members / Store / Trash
-   الدليل: fin-kpi-grid, fin-kpi-card, mb-table, wc-product-card,
-   trash-item, trash-restore-btn غير معرَّفة فى dashboard.css
+   [C-03] missing classes — Finance-KPI / Members / Store / Trash
+   Evidence: fin-kpi-grid, fin-kpi-card, mb-table, wc-product-card,
+   trash-item, trash-restore-btn are undefined in dashboard.css
    ══════════════════════════════════════════════════════════════ */
 .fin-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
 .fin-kpi-card{
@@ -971,12 +972,12 @@ select.form-input{
 .trash-restore-btn:hover{background:var(--success);color:var(--white)}
 
 /* ══════════════════════════════════════════════════════════════
-   [C-04] فئات مفقودة إضافية — Header Inbox / Finance KPI الحقيقية / Tabs
-   الدليل: hdr-inbox (page-dashboard.php سطر 499) بلا أي تعريف CSS؛
-   kpi-card/kpi-label/kpi-value هى الفئات التى يبنيها فعليًا
-   loadFinanceSummary() فى dashboard_modified.js (وليس fin-kpi-card)؛
-   tab-group/tab-btn/tab-content/tab-bar تُستخدَم فى 4 تجمعات تبويب
-   (files/finance/store/members) وتُشغَّلها switchTab()
+   [C-04] additional missing classes — Header Inbox / the real Finance KPI / Tabs
+   Evidence: hdr-inbox (page-dashboard.php line 499) has no CSS definition;
+   kpi-card/kpi-label/kpi-value are the classes loadFinanceSummary()
+   actually builds in dashboard_modified.js (not fin-kpi-card);
+   tab-group/tab-btn/tab-content/tab-bar are used in 4 tab groups
+   (files/finance/store/members) and driven by switchTab()
    ══════════════════════════════════════════════════════════════ */
 .hdr-inbox{
   width:34px;height:34px;border-radius:var(--radius);
@@ -1017,10 +1018,10 @@ select.form-input{
 [dir="rtl"] .trash-item      { flex-direction: row-reverse; }
 
 /* ══════════════════════════════════════════════════════════════
-   [B9-U2] v1.0.6 §12-أ — تحضيرًا لـP4: أنماط فقط بلا markup
-   ([B9-U1] يبقى كما هو أعلاه). زر الإزالة + بطاقة النجاح
-   (.hossam-post-success-card) + الشجرة/الطي/الإزاحة RTL/حاوية
-   التمرير/الشارة. بلا url() — يحافظ على عقد B9-C1 (data: فقط).
+   [B9-U2] v1.0.6 §12-a — in preparation for P4: styles only, no markup
+   ([B9-U1] stays as-is above). The remove button + the success card
+   (.hossam-post-success-card) + the tree/collapse/RTL offset/scroll
+   container/badge. No url() — preserves the B9-C1 contract (data: only).
    ══════════════════════════════════════════════════════════════ */
 #hossam-new-thumbnail-remove,
 #hossam-edit-thumbnail-remove{margin-inline-start:8px}
@@ -1030,11 +1031,12 @@ select.form-input{
 .hossam-cat-scroll{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;background:var(--white)}
 
 /* ══════════════════════════════════════════════════════════════
-   [B9-U3] v1.0.6 §9 — تنسيق المحرر الغني داخل قالب HAL
-   ([B9-U1]/[B9-U2] يبقيان كما هما). غلاف inserter/toolbar/canvas +
-   RTL + إخفاء الـtextarea بعد نجاح التهيئة فقط. أنماط محتوى الـiframe
-   تُمرَّر عبر واجهة BlockCanvas الرسمية (styles في posts.js) — هنا
-   تنسيق الغلاف الخارجي فقط. بلا url() — عقد B9-C1 (data: فقط).
+   [B9-U3] v1.0.6 §9 — styling the rich editor inside the HAL template
+   ([B9-U1]/[B9-U2] stay as they are). The inserter/toolbar/canvas shell +
+   RTL + hiding the textarea only after successful initialization. The iframe
+   content styles are passed through the official BlockCanvas interface
+   (styles in posts.js) — here the outer shell is styled only. No url() — the
+   B9-C1 contract (data: only).
    ══════════════════════════════════════════════════════════════ */
 .hossam-rich-editor{margin-top:10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--white);box-shadow:var(--shadow-sm);overflow:hidden}
 .hossam-rich-editor[hidden]{display:none}
@@ -1052,16 +1054,17 @@ textarea.hossam-rich-hidden{display:none}
 [dir="rtl"] .hossam-rich-editor-canvas{direction:rtl}
 
 /* ══════════════════════════════════════════════════════════════
-   [OEB-U1] v1.1.0 (OEB/6 — H1 §6-7) — أنماط زر OEB و<dialog>
-   ([B9-U1]/[B9-U2]/[B9-U3] تبقى كما هي بلا لمس). RTL أولًا (القيد 3:
-   يُقاس على [dir="rtl"] أولًا بقواعد اتجاه صريحة ثم أساس منطقي
-   direction-agnostic). بلا أي مصدر أصل خارجي ولا دالة رابط ملف —
-   عقد B9-C1 (data: فقط). بلا تثبيت عائم على الشاشة (§ب — لا عائم
-   جديد؛ <dialog> يتموضع في top-layer الأصلي بلا أي تموضع يدوي).
-   بلا مكتبة ولا إطار. بلا لمس $audit_deltas. أسماء الأصناف البسيطة
-   لمستهلكها (صف R39): .hossam-oeb-btn / .hossam-oeb-dialog /
+   [OEB-U1] v1.1.0 (OEB/6 — H1 §6-7) — the OEB button and <dialog> styles
+   ([B9-U1]/[B9-U2]/[B9-U3] stay as they are, untouched). RTL first
+   (constraint 3: measured on [dir="rtl"] first with explicit direction rules,
+   then a direction-agnostic logical base). No external asset source and no
+   file-link function — the B9-C1 contract (data: only). No floating screen
+   pinning (§b — nothing new floats; the <dialog> positions itself in the
+   native top layer with no manual positioning).
+   No library, no framework. No $audit_deltas touched. The simple class names
+   named for their consumer (row R39): .hossam-oeb-btn / .hossam-oeb-dialog /
    .hossam-oeb-dialog-head / .hossam-oeb-status / .hossam-oeb-actions.
-   الشكل النهائي بقبول بصري لاحق (H1 §9-1).
+   The final look is subject to a later visual acceptance (H1 §9-1).
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] .hossam-oeb-btn{flex-direction:row-reverse}
 [dir="rtl"] dialog.hossam-oeb-dialog{direction:rtl;text-align:right}
@@ -1077,16 +1080,19 @@ dialog.hossam-oeb-dialog::backdrop{background:rgba(23,24,37,.5)}
 .hossam-oeb-actions .btn{margin:0}
 
 /* ══════════════════════════════════════════════════════════════
-   [E1] v1.1.1 — تمييز OEB بصريًا (كتلة مستقلة ملاصقة لـ[OEB-U1] —
-   [OEB-U1] نفسه بلا أي لمس: كل القواعد أدناه إضافات تركيبية تسبق/
-   تتبع قواعده دون تعديلها). المعالجة: إطار علوي ذهبي للحوار (إطار)
-   + شارة معيّن قبل نص الزر (شارة) + سطر «بوابة الإدارة» في رأس
-   الحوار (نص توضيحي بنمط __() بنطاق hal-frontend-dashboard —
-   markup القالب). بلا توكنات خام جديدة: الرسم عبر التوكنات القائمة
-   أعلى الملف حصرًا. صفر قنوات رسائل بين النوافذ وصفر تضمين لوحة
-   الإدارة وصفر مساس بمسار posts.js:884-1078 (النافذة/اللقطة/
-   return-sync). بلا fixed|sticky (عدّاد الملف = 4 — عقد B14E-14).
-   RTL أولًا.
+   [E1] v1.1.1 — the OEB visual distinction (an independent block adjacent to
+   [OEB-U1] —
+   [OEB-U1] itself is untouched: every rule below is a compositional addition
+   preceding/following its rules without modifying them). The treatment: a
+   golden top frame for the dialog (frame)
+   + a diamond badge before the button text (badge) + an "Admin gateway" line
+   in the dialog head (an explanatory text in the __() pattern with the
+   hal-frontend-dashboard domain —
+   template markup). No new raw tokens: the drawing uses the existing tokens
+   at the top of the file only. Zero cross-window message channels, zero admin
+   panel embedding, zero touch on the posts.js:884-1078 path (the window/snapshot/
+   return-sync). No fixed|sticky (the file counter = 4 — the B14E-14 contract).
+   RTL first.
    ══════════════════════════════════════════════════════════════ */
 [dir="rtl"] dialog.hossam-oeb-dialog .hossam-oeb-gate-note{direction:rtl;text-align:right}
 [dir="rtl"] dialog.hossam-oeb-dialog .hossam-oeb-gate-note span:last-child{margin-right:0;margin-left:auto}
@@ -1104,31 +1110,36 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 }
 
 /* ══════════════════════════════════════════════════════════════
-   [R22] v1.1.0 (H6 §2/§4) — دمج v1.1.0: إسقاط PROPOSED + ضغط v2.8
-   (وسم مستقل مجاور لـ[OEB-U1] — بلا دمج بنيوي). يبقى كما هو بلا
-   لمس: media queries التجاوب الثلاثي (Fluid/768-1024/<768)؛ طي
-   الشريط الجانبي CSS حصرًا؛ ثبات شريط الأدوات فوق الكانفس مع
-   .hossam-rich-editor-toolbar:empty{display:none} (v2.5)؛ تحسينات
-   RTL للمحرر الغني (:1039-1052 وRTL :1050-1052).
-   [وسم دلتا — الحسم]: الشرطي المحمول «الشريط السفلي العائم (م18)
-   وأورب AI (م19) — لا يُنفذان إلا بعد قرار المالك» ⇒ محسوم
-   بالإسقاط بالقياس: النموذج v2.8 يثبّت الشريط ساكنًا في التدفق
-   بكل العروض — لا عائم سفلي للأفعال ولا أورب AI في أي عرض
-   (تصادم التوست المقاس: .toast-container :596 وRTL :631).
-   مواصفة §2.4 «Sticky» — ملغاة بأحدث قرار مالك (v2.8): صفر
-   تموضع ثابت/لاصق (fixed أو sticky) لأشرطة الأفعال
-   panel-write/panel-edit.
-   المعتمد الوحيد من م18: ضغط أشرطة الأفعال على ≤768px (CSS حصرًا:
-   حشو أقل/حد أعلى مثبت/أزرار أصغر بمقياس .btn-sm الموجود) والشريط
-   يبقى في التدفق (position:static صريح) بعد حقل المحتوى مباشرة.
-   RTL أولًا: يُقاس على [dir="rtl"] أولًا بلا انزياح — قاعدة RTL
-   معلنة أولًا بذات قيم القاعدة الأساسية، وكل خصائص الضغط على
-   الحافة العلوية المتماثلة اتجاهيًا وبلا أي تغيير ترتيب (لا
-   flex-direction)، فتسري على الاتجاهين بالقياس نفسه. بلا مكتبة
-   ولا إطار، وبلا نسخ شاشة WP (قيد 6). بنود القبول (H6 §2):
-   (1) صفر fixed|sticky جديد — (2) الشريط في التدفق بضغط v2.8 على
-   ≤768px — (3) RTL أولًا بلا انزياح — (4) وسم الإلغاء هذا هو
-   التوثيق (يوثقه التوثيق لاحقًا).
+   [R22] v1.1.0 (H6 §2/§4) — the v1.1.0 merge: PROPOSED dropped + the v2.8 compaction
+   (an independent tag adjacent to [OEB-U1] — no structural merge). Stays as-is,
+   untouched: the three-tier responsive media queries (Fluid/768-1024/<768);
+   the sidebar collapse in CSS only; the toolbar's steady place above the
+   canvas with
+   .hossam-rich-editor-toolbar:empty{display:none} (v2.5); the rich editor's
+   RTL refinements (:1039-1052 and RTL :1050-1052).
+   [Delta tag — the resolution]: the carried conditional "the floating bottom
+   action bar (m18)
+   and the AI orb (m19) — implemented only after an owner decision" ⇒ resolved
+   by measured dropping: the v2.8 model pins the bar statically in flow
+   across every viewport — no floating bottom action bar and no AI orb in any
+   viewport (the measured toast collision: .toast-container :596 and RTL :631).
+   The §2.4 "Sticky" spec — superseded by the latest owner decision (v2.8):
+   zero fixed/sticky positioning for the
+   panel-write/panel-edit action bars.
+   The only approved part of m18: compacting the action bars at ≤768px (CSS
+   only: less padding/a pinned top border/smaller buttons on the existing
+   .btn-sm scale) and the bar stays in flow (explicit position:static) right
+   after the content field.
+   RTL first: measured on [dir="rtl"] first with no drift — an RTL rule
+   declared first with the base rule's own values, and every compaction
+   property sits on the directionally symmetric top edge with no ordering
+   change (no
+   flex-direction), so it applies to both directions by the same measurement.
+   No library, no framework, and no WP admin screen copies (constraint 6).
+   The acceptance items (H6 §2):
+   (1) zero new fixed|sticky — (2) the bar in flow with the v2.8 compaction at
+   ≤768px — (3) RTL first with no drift — (4) this cancellation tag is the
+   documentation (documented later by the documentation).
    ══════════════════════════════════════════════════════════════ */
 @media(max-width:768px){
   [dir="rtl"] #panel-write .form-actions,
@@ -1144,26 +1155,29 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 }
 
 /* ══════════════════════════════════════════════════════════════
-   [#panel-write] v1.1.1 (C1 — إعادة تغليب لوحة «مقال جديد» وفق
-   النموذج المعتمد v1.0.9-article-editor-v2). عزل تام (C3): كل قواعد
-   هذه الكتلة تحت #panel-write حصرًا — صفر مساس بلوحات edit-article/
-   all-articles/overview أو الشريط الجانبي. الرسم عبر التوكنات القائمة
-   أعلى الملف حصرًا (لا قيم ألوان/ظلال/خطوط خام من النموذج؛ خريطة
-   الدلتا في تقرير الموجة). صفر fixed|sticky (عدّاد الملف = 4 — عقد
-   B14E-14/B15S-8) والشريط/الكانفس ساكنان في التدفق (قرار v2.8).
-   RTL أولًا. الأصناف الجديدة ببادئة hossam-write-. لا محرك تحرير —
-   BlockCanvas القائم هو السطح الوحيد. الأسلوب السطري المضغوط = عرف
-   الملف (النطاق الاسمي للميزانية افترض أسلوبًا مطولًا).
+   [#panel-write] v1.1.1 (C1 — re-capsuling the "new article" panel per the
+   approved v1.0.9-article-editor-v2 model). Full isolation (C3): every rule in
+   this block lives under #panel-write only — zero touch on the edit-article/
+   all-articles/overview panels or the sidebar. Drawing via the existing tokens
+   at the top of the file only (no raw color/shadow/font values from the model;
+   the delta map is in the wave report). Zero fixed|sticky (the file counter = 4
+   — the B14E-14/B15S-8 contract) and the toolbar/canvas are static in flow
+   (the v2.8 decision).
+   RTL first. The new classes carry the hossam-write- prefix. No editing
+   engine — the existing BlockCanvas is the only surface. The compact one-line
+   style = the file's own convention (the nominal budget scope assumed a
+   longhand style).
    ══════════════════════════════════════════════════════════════ */
-/* RTL أولًا — فصل الشارة وترتيب سطر السياسة */
+/* RTL first — badge separation and the policy-line ordering */
 [dir="rtl"] #panel-write .hossam-write-h1-badge{border-right:none;border-left:1px solid var(--border)}
 [dir="rtl"] #panel-write .hossam-write-title-hint{flex-direction:row-reverse;justify-content:flex-start}
-/* مساحة العمل: عمود الكتابة + عمود بطاقة AI المستقلة (النموذج:
-   editor-layout-grid) — بلا البطاقة ينسدل إلى عمود واحد */
+/* The workspace: the writing column + the independent AI card column (the
+   model:
+   editor-layout-grid) — without the card it collapses to one column */
 #panel-write .hossam-write-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;max-width:1440px;margin:0 auto}
 #panel-write .hossam-write-workspace.hossam-write-has-aside{grid-template-columns:minmax(0,1fr) 320px}
 #panel-write .hossam-write-card{margin-bottom:0}
-/* (1) صف العنوان — غلاف + شارة H1 + سطر السياسة (النموذج:
+/* (1) Title row — shell + H1 badge + policy line (the model:
    title-input-container / title-field-shell / h1-lock-badge /
    title-footer-hint / policy-pill) */
 #panel-write .hossam-write-title-shell{display:flex;align-items:stretch;background:var(--white);border:2px solid var(--border);border-radius:var(--radius);transition:border-color var(--trans),box-shadow var(--trans)}
@@ -1173,20 +1187,22 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 #panel-write .hossam-write-title-input::placeholder{color:var(--txt-3);font-weight:400}
 #panel-write .hossam-write-title-hint{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txt-3);margin-top:2px}
 #panel-write .hossam-write-policy-pill{background:var(--gold-pale);color:var(--gold-dim);padding:1px 6px;border-radius:3px;font-weight:600}
-/* (2) لوحة المحتوى — صندوق ملتحق واحد: الـtextarea (حقل مصدر الحقيقة)
-   والحامل الغني (شريط الأدوات فوق الكانفس) داخل غلاف بسعر واحد وفي
-   التدفق (النموذج: pro-toolbar-container + editor-canvas-surface —
-   ساكن بلا تثبيت). تسطيح حدود/ظلال الأبناء داخل الغلاف هنا حصرًا؛
-   [B9-U3] يبقى بلا لمس خارج اللوحة. */
+/* (2) Content panel — one attached box: the textarea (the truth-source field)
+   and the rich carrier (the toolbar above the canvas) inside a single-priced
+   shell, in flow (the model: hossam-pro-toolbar-container + editor-canvas-surface —
+   static with no pinning). Flattening the children's borders/shadows inside
+   the shell here only;
+   [B9-U3] stays untouched outside the panel. */
 #panel-write .hossam-write-editor-surface{display:flex;flex-direction:column;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
 #panel-write .hossam-write-editor-surface:focus-within{border-color:var(--gold)}
 #panel-write .hossam-write-editor-surface .form-input{border:none;border-radius:0;background:var(--white)}
 #panel-write .hossam-write-editor-surface .form-input:focus{border:none;box-shadow:none}
 #panel-write .hossam-write-editor-surface .hossam-rich-editor{margin-top:8px;border:none;border-radius:0;box-shadow:none}
 #panel-write .hossam-write-editor-surface .hossam-rich-editor-canvas{min-height:340px}
-/* (3) بطاقة AI المستقلة — العمود الجانبي (النموذج: Panel 5 cardAi —
-   hal-card-header/title + وصف + صف أفعال). الأزرار وسماتها من posts.js
-   بلا لمس؛ النتائج داخل اللوحة (لا نافذة منبثقة — B14E-15). */
+/* (3) The independent AI card — the side column (the model: Panel 5 cardAi —
+   hal-card-header/title + a description + an actions row). The buttons and
+   their attributes come from posts.js untouched; results stay inside the panel
+   (no popup — B14E-15). */
 #panel-write .hossam-write-ai-card{margin-bottom:0}
 #panel-write .hossam-write-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--cream)}
 #panel-write .hossam-write-card-title{font-size:12px;font-weight:700;color:var(--txt-1);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
@@ -1194,8 +1210,174 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 #panel-write .hossam-write-card-tag{font-size:10px;color:var(--gold-dim);font-weight:600}
 #panel-write .hossam-write-card-desc{font-size:12px;color:var(--txt-2);margin-bottom:10px}
 #panel-write .hossam-write-ai-actions .filter-select{max-width:110px}
-/* التجاوب — العمود الجانبي ينسدل تحت عمود الكتابة (النموذج: طي
-   العمودين في العروض الضيقة) */
+/* Responsiveness — the side column collapses under the writing column (the
+   model: the two columns fold in narrow viewports) */
 @media(max-width:900px){
   #panel-write .hossam-write-workspace.hossam-write-has-aside{grid-template-columns:1fr}
 }
+/* ══ v1.1.3 W6 — the side column display holders, the Languages &
+   Translation card, and the simplified SEO meter (D2/D3) ══
+   Token-based only (the adopted designs: no model skin — dashboard.css
+   tokens stay the single design language; extension in this file, no new
+   asset). */
+/* (4) The side column stack — the AI card and the three display holders
+   share one column so the workspace grid keeps two children. */
+#panel-write .hossam-write-side-stack{display:flex;flex-direction:column;gap:18px;min-width:0}
+#panel-write .hossam-write-side-stack .hossam-write-ai-card{margin-bottom:0}
+.hossam-aside-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--cream)}
+.hossam-aside-row:last-of-type{border-bottom:none}
+.hossam-aside-row .form-label{margin-bottom:0}
+.hossam-aside-muted{font-size:12px;color:var(--txt-3);text-align:end}
+.hossam-aside-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:10px}
+.hossam-aside-empty{color:var(--txt-3)}
+/* (5) The Languages & Translation card — one row per active language:
+   code chip + name + status pill + the single action (the design's
+   one-action rule). */
+.hossam-lang-rows{display:flex;flex-direction:column}
+.hossam-lang-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--cream)}
+.hossam-lang-row:last-child{border-bottom:none}
+.hossam-lang-code{font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--txt-2);background:var(--bg-2,#f5f5f5);border:1px solid var(--border);border-radius:3px;padding:1px 6px;min-width:30px;text-align:center}
+.hossam-lang-name{font-size:13px;color:var(--txt-1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hossam-lang-row.is-original .hossam-lang-code{background:var(--gold-pale);color:var(--gold-dim);border-color:var(--gold-pale)}
+.pill.hossam-lang-original{background:var(--gold-pale);color:var(--gold-dim)}
+.pill.hossam-lang-none{background:var(--bg-2,#f5f5f5);color:var(--txt-3,#999)}
+.hossam-lang-action{display:flex;align-items:center}
+.hossam-lang-action .btn{white-space:nowrap}
+/* (6) The simplified SEO meter — read-only; the fill classes use the same
+   thresholds and tokens as the articles-table score classes. */
+.hossam-seo-meter{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.hossam-seo-meter-track{flex:1;height:8px;border-radius:6px;background:var(--bg-2,#f5f5f5);overflow:hidden;border:1px solid var(--border)}
+.hossam-seo-meter-fill{display:block;height:100%;border-radius:6px;transition:width .2s ease}
+.hossam-seo-meter-good{background:var(--success)}
+.hossam-seo-meter-avg{background:var(--warn)}
+.hossam-seo-meter-weak{background:var(--danger)}
+.hossam-seo-meter-none{background:var(--border)}
+.hossam-seo-meter-value{font-size:12px;font-weight:700;color:var(--txt-1);min-width:38px;text-align:center}
+.hossam-seo-meter-label{font-size:11px;font-weight:600}
+.hossam-seo-meter-label-good{color:var(--success)}
+.hossam-seo-meter-label-avg{color:var(--warn)}
+.hossam-seo-meter-label-weak{color:var(--danger)}
+.hossam-seo-meter-label-none{color:var(--txt-3)}
+/* (7) The SEO field heads and counters — guidance only (the live update is
+   later JS). */
+.hossam-seo-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hossam-seo-counter{font-size:11px;color:var(--txt-3);font-variant-numeric:tabular-nums}
+.hossam-seo-robots{display:flex;flex-direction:column;gap:6px}
+.hossam-seo-robots-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-1)}
+.hossam-robots-raw{font-size:10px;color:var(--txt-3);margin-inline-start:auto}
+
+/* ================================================================
+   v1.1.3 W7 - the professional toolbar (the measured model
+   structure: ten groups + More + History), the responsive layout
+   (<=1024 one scrollable row with the More fold, <=768 off-canvas
+   drawer), the static bottom action bar, and the focus mode.
+   Token-based only; extension in this file, no new asset.
+   ================================================================ */
+#panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 6px 8px; margin-bottom: 8px;
+  position: static;
+}
+.hossam-pt-group { display: flex; align-items: center; gap: 3px; }
+.hossam-pt-select {
+  font-size: 12px; padding: 4px 6px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--white); color: var(--txt-1);
+  max-width: 190px;
+}
+.hossam-pt-btn {
+  min-width: 30px; height: 30px; padding: 0 7px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--white);
+  color: var(--txt-1); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; gap: 2px;
+}
+.hossam-pt-btn:hover { border-color: var(--gold); color: var(--gold-dim); }
+.hossam-pt-divider { width: 1px; height: 22px; background: var(--cream); margin: 0 4px; }
+.hossam-pt-dropdown { position: relative; display: inline-flex; }
+.hossam-pt-caret { font-size: 9px; color: var(--txt-3); }
+.hossam-pt-menu {
+  position: absolute; top: 34px; inset-inline-start: 0; z-index: 60;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 10px; min-width: 210px;
+}
+.hossam-pt-menu-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--txt-3); margin-bottom: 6px; }
+.hossam-pt-swatch-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.hossam-pt-swatch { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; padding: 0; }
+.hossam-pt-swatch:hover { outline: 2px solid var(--gold); }
+.hossam-pt-free-row { display: flex; align-items: center; gap: 6px; }
+.hossam-pt-free-row input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--white); }
+.hossam-pt-menu-item {
+  display: block; width: 100%; text-align: start; padding: 6px 8px;
+  font-size: 12px; background: none; border: none; border-radius: 4px;
+  color: var(--txt-1); cursor: pointer;
+}
+.hossam-pt-menu-item:hover { background: var(--bg-2); }
+.hossam-pt-more-toggle { font-size: 12px; font-weight: 600; }
+.hossam-pt-more-toggle .hossam-pt-caret { display: inline; }
+/* The More fold: hossam-pt-extra groups hide until hossam-pt-more-open (tablet/phone). */
+.hossam-pt-more-toggle { display: none; }
+/* Responsive <=1024: one horizontal scrollable row; the extra groups fold
+   behind More (the model: the toolbar becomes one scrollable row). */
+@media (max-width: 1024px) {
+  #panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+  }
+  .hossam-pt-more-toggle { display: inline-flex; }
+  .hossam-pt-group.hossam-pt-extra { display: none; }
+  .hossam-pro-toolbar-container.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }
+}
+/* Responsive <=768: the toolbar becomes an off-canvas drawer (the model:
+   slides from the inline-start edge with the dark backdrop); the bottom
+   action bar docks and stays elevated for thumb reach. */
+@media (max-width: 768px) {
+  #panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
+    position: fixed; inset-inline-start: 0; top: 0; bottom: 0; height: auto;
+    width: min(78vw, 320px); margin: 0; z-index: 100040;
+    flex-direction: column; align-items: stretch; gap: 8px;
+    overflow-y: auto; transform: translateX(-110%);
+    transition: transform .25s ease; border-radius: 0; padding: 12px;
+  }
+  [dir="rtl"] #panel-write .hossam-pro-toolbar-container,
+  [dir="rtl"] #panel-edit-article .hossam-pro-toolbar-container { transform: translateX(110%); }
+  .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  [dir="rtl"] .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  .hossam-pro-toolbar-container.hossam-pt-more-open::before {
+    content: ""; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: -1;
+  }
+  .hossam-pt-select { max-width: none; width: 100%; }
+  .hossam-pt-menu { position: static; box-shadow: none; }
+  .hossam-pt-more-toggle { display: inline-flex; margin-bottom: 4px; }
+  .action-bottom-bar {
+    position: sticky; bottom: 0; z-index: 30; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 10px; margin-top: 10px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  }
+  .hossam-bar-left { display: flex; gap: 8px; flex-wrap: wrap; }
+}
+/* Desktop: the bottom bar stays static under the editor (the model shows it
+   docked on tablet/mobile; on desktop the form's own actions govern). */
+.action-bottom-bar { display: none; }
+@media (max-width: 768px) { .action-bottom-bar { display: flex; } }
+/* Focus mode: the side column and the panel header fold away. */
+.hossam-zen-focus .hossam-write-side-stack,
+.hossam-zen-focus .page-hdr { display: none !important; }
+
+/* ================================================================
+   v1.1.3 W8 - the language chips column (T-09/AC-R5) and the SEO
+   suggestions checklist (OP-8). Token-based; extension only.
+   ================================================================ */
+.hossam-lang-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.hossam-lang-chip {
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 1px 6px; border-radius: 3px; border: 1px solid var(--border);
+  color: var(--txt-3); background: var(--bg-2);
+}
+.hossam-chip-src { background: var(--gold-pale); color: var(--gold-dim); border-color: var(--gold-pale); }
+.hossam-chip-pub { background: var(--success-bg); color: var(--success); border-color: transparent; }
+.hossam-chip-draft { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.hossam-chip-none { color: var(--txt-3); }
+.hossam-seo-suggestions { margin: 0 0 8px; padding-inline-start: 18px; font-size: 12px; color: var(--txt-2); }
+.hossam-seo-suggestions li { margin-bottom: 3px; }

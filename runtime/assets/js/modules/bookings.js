@@ -1,21 +1,21 @@
 /**
  * assets/js/modules/bookings.js
  * ══════════════════════════════════════════════════════════════
- * المهام المرتبطة: T-22
- * الدالة المنقولة حرفيًا: loadAppointmentsPanel()
+ * Related tasks: T-22
+ * Function moved verbatim: loadAppointmentsPanel()
  *
- * ⚠ لا علاقة لهذا الملف بـhossam_get_upcoming_appointments — ذلك
- * الاستدعاء يبقى فى <script> مضمَّن مباشرة داخل
- * template-parts/dashboard/overview.php (استثناء موثَّق، راجع ملاحظة
- * ajax/appointments.php). هذا الملف يخص فقط loadAppointmentsPanel()
- * التى تستدعي hossam_lazy_appointments (nonce منفصل: hossam_lazy_appointments،
- * يُقرَأ من data-lazy-nonce فى العنصر، لا من hossamAjax.nonce العام).
+ * ⚠ This file has nothing to do with hossam_get_upcoming_appointments — that
+ * call remains in a <script> embedded directly inside
+ * template-parts/dashboard/overview.php (documented exception, see the note
+ * in ajax/appointments.php). This file only covers loadAppointmentsPanel()
+ * which calls hossam_lazy_appointments (separate nonce: hossam_lazy_appointments,
+ * read from data-lazy-nonce on the element, not from the global hossamAjax.nonce).
  *
  * TODO:
- * [x] نقل loadAppointmentsPanel() حرفيًا — مؤكَّد 2026-08-24: الدالة
- *     معرَّفة أدناه (:24) بـnonce منفصل من data-lazy-nonce
- * [x] مسجَّلة فى nav() لتُستدعى عند فتح panelId === 'appointments'
- *     — مؤكَّد 2026-08-24: dashboard.js:104 يستدعيها حرفيًا بهذا الشرط
+ * [x] Moved loadAppointmentsPanel() verbatim — confirmed 2026-08-24: the
+ *     function is defined below (:24) with a separate nonce from data-lazy-nonce
+ * [x] Registered in nav() to be called when opening panelId === 'appointments'
+ *     — confirmed 2026-08-24: dashboard.js:104 calls it verbatim under this condition
  * ══════════════════════════════════════════════════════════════
  */
 

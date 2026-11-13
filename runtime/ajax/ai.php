@@ -1,32 +1,32 @@
 <?php
 /**
- * runtime/ajax/ai.php (الدفعة 6)
+ * runtime/ajax/ai.php (Batch 6)
  * ══════════════════════════════════════════════════════════════
- * الدور: طبقة Job Queue غير متزامنة لكل استدعاءات الذكاء الاصطناعي:
- * submit_job/get_job_status/set_preference (wp_ajax_*) + العامل الداخلي
- * hossam_ai_process_job_event (cron hook — لا wp_ajax ولا cookies ولا
- * nonce للعامل) + الكسح الدوري hossam_ai_sweep_jobs_event عبر init.
+ * Role: an asynchronous Job Queue layer for every AI call:
+ * submit_job/get_job_status/set_preference (wp_ajax_*) + the internal worker
+ * hossam_ai_process_job_event (cron hook — no wp_ajax, no cookies, no
+ * nonce for the worker) + the periodic sweep hossam_ai_sweep_jobs_event via init.
  *
- * المصدر: نقل حرفي 1:1 لكل الكود من legacy mu-plugins/hossam-dashboard/
- * ajax/ai.php — بصمة المصدر الحالي بالبايت مثبتة في inventory الدفعة 6
- * (build/source-inventory-batch-6.json، snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA؛
- * المصدر انحرف عن baseline الدفعة 0 قبل ترحيله — موثق في الـinventory).
+ * Source: verbatim 1:1 transfer of all code from legacy mu-plugins/hossam-dashboard/
+ * ajax/ai.php — the current source fingerprint is pinned byte-for-byte in the Batch 6
+ * inventory (build/source-inventory-batch-6.json, snapshot E48A0A98063529FA19C53E7AD25DDFA2A665C7E4AA795B0E280CADD8841490CA;
+ * the source had drifted from the Batch 0 baseline before its migration — documented in the inventory).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08، الخيار أ):
- * 1) بوابة feature في الـendpoints الثلاثة بعد nonce وحرس 401 إن وُجد
- *    وقبل أي capability check — is_feature_enabled('ai') === false →
- *    feature_disabled 403 فشل مغلق؛ الافتراضي (enabled) يطابق المصدر.
- * 2) بوابة العامل بعد الـclaim الناجح حصرًا (حتى لا تُدنَّس مهمة غير
- *    pending): is_feature_enabled('ai') === false → فشل آمن موثق
- *    hossam_ai_fail_job( $job_id, 'feature_disabled' ) دون ترك مهمة
- *    معلقة (عقد §7.6: منع jobs جديدة + عقد موثق على pending دون تعليق) —
- *    ولا تنفيذ أي استراتيجية والمصدر الأصلي بلا feature toggles إطلاقًا.
+ * The only authorized delta (owner decision B3-08, option a):
+ * 1) a feature gate in the three endpoints after the nonce and the 401 guard when present,
+ *    and before any capability check — is_feature_enabled('ai') === false →
+ *    feature_disabled 403 closed failure; the default (enabled) matches the source.
+ * 2) the worker gate after the successful claim exclusively (so a non-pending
+ *    job is not desecrated): is_feature_enabled('ai') === false → a documented safe failure
+ *    hossam_ai_fail_job( $job_id, 'feature_disabled' ) without leaving a job
+ *    hanging (contract §7.6: blocking new jobs + a documented contract on pending without hanging) —
+ *    and no strategy executes, and the original source has no feature toggles at all.
  *
- * العقد المنقول كما هو: ملخص رأس المصدر — استبدال loopback بجدولة داخلية،
- * claim ذري WHERE status=pending مع إعادة تحقق user_can(edit_post) قبل
- * التنفيذ، حسم الاستراتيجية عند submit وحده (لا fallback بعد البدء)،
- * أزمنة UTC حصرًا، حماية تكلفة ثلاثية (transient/دaily/concurrent)،
- * والقيم التشغيلية من runtime profile موثوق يفشل آمنًا عند غيابه.
+ * The carried-over contract as-is: a summary of the source header — replacing loopback with internal scheduling,
+ * an atomic claim WHERE status=pending with a re-verified user_can(edit_post) before
+ * execution, strategy resolution at submit alone (no fallback after starting),
+ * UTC times exclusively, triple cost protection (transient/daily/concurrent),
+ * and the operational values from a trusted runtime profile that fails safe when absent.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -35,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * أنواع المهام المسموحة — أي قيمة غير مذكورة هنا تُرفَض فورًا.
+ * Allowed job types — any value not listed here is rejected immediately.
  */
 if ( ! function_exists( 'hossam_ai_get_allowed_job_types' ) ) {
 	function hossam_ai_get_allowed_job_types(): array {
@@ -97,9 +97,9 @@ if ( ! function_exists( 'hossam_ai_get_lock_name' ) ) {
 }
 
 /**
- * تعليم job حالة نهائية بخطأ آمن — الرسالة نص داخلى ثابت فقط،
- * لا تفاصيل مزود ولا أسرار. UPDATE مُجهَّز صراحةً لضبط أعمدة NULL
- * بسلوك موحد عبر إصدارات wpdb.
+ * Marks a job with a terminal status under a safe error — the message is a fixed internal text only,
+ * no provider details and no secrets. An explicitly prepared UPDATE to control the NULL
+ * columns with uniform behavior across wpdb versions.
  */
 if ( ! function_exists( 'hossam_ai_fail_job' ) ) {
 	function hossam_ai_fail_job( int $job_id, string $safe_reason ): void {
@@ -119,9 +119,9 @@ if ( ! function_exists( 'hossam_ai_fail_job' ) ) {
 			)
 		);
 
-		// R11 (G4 §3-أ-14 موضع 1/2): ai_fail بعد UPDATE أثّر فعلاً — guard
-		// rows_affected؛ meta reason منقّى sanitize_key مسبقًا؛ قيمة الإرجاع
-		// تُتجاهل عمدًا (G4 §5). كل مسارات الفشل تمر هنا.
+		// R11 (G4 §3-a-14 position 1/2): ai_fail after the UPDATE actually took effect — a
+		// rows_affected guard; meta reason pre-sanitized with sanitize_key; the return
+		// value is deliberately ignored (G4 §5). Every failure path passes here.
 		if ( (int) $wpdb->rows_affected > 0 ) {
 			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => [ 'reason' => sanitize_key( $safe_reason ) ] ] );
 		}
@@ -157,9 +157,9 @@ if ( ! function_exists( 'hossam_ai_fail_job_if_outstanding' ) ) {
 		);
 		$outstanding = false !== $updated && (int) $updated > 0;
 
-		// R11 (G4 §3-أ-14 موضع 2/2): ai_fail بعد UPDATE الشرطي — بguard على
-		// القيمة المرجعة true (rows_affected>0)؛ meta reason منقّى
-		// sanitize_key مسبقًا؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+		// R11 (G4 §3-a-14 position 2/2): ai_fail after the conditional UPDATE — with a
+		// guard on the returned value true (rows_affected>0); meta reason pre-sanitized
+		// with sanitize_key; the return value is deliberately ignored (G4 §5).
 		if ( $outstanding ) {
 			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => [ 'reason' => sanitize_key( $safe_reason ) ] ] );
 		}
@@ -318,8 +318,8 @@ if ( ! function_exists( 'hossam_ai_claim_job_with_capacity' ) ) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 1) تقديم مهمة جديدة — تحقق مستخدم/ملكية/حدود، حسم الاستراتيجية،
-//    حفظ job + strategy_id، ثم فحص نتيجة الجدولة
+// 1) Submit a new job — user/ownership/limits validation, strategy resolution,
+//    saving job + strategy_id, then checking the scheduling result
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 	check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -347,8 +347,8 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 		wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 	}
 
-	// ملكية المقال عبر قدرة Core على مستوى المورد (المرجع سطر 142 حرفيًا):
-	// لا مقارنة post_author يدوية — Core يحسم الكاتب والمحرر والمدير.
+	// Article ownership via a Core resource-level capability (reference line 142 verbatim):
+	// no manual post_author comparison — Core decides author, editor and administrator.
 	if ( $post_id ) {
 		$post = get_post( $post_id );
 		if ( ! $post
@@ -364,7 +364,7 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 		wp_send_json_error( [ 'message' => 'AI assistance is unavailable in this environment.' ], 503 );
 	}
 
-	// ── حسم الاستراتيجية عند submit وحده؛ الفشل هنا فشل نهائي آمن.
+	// ── Strategy resolved at submit alone; failure here is a safe terminal failure.
 	$strategy = hossam_ai_resolve_strategy();
 	if ( is_wp_error( $strategy ) ) {
 		wp_send_json_error( [ 'message' => 'No AI provider is currently available.' ], 503 );
@@ -404,9 +404,9 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 		);
 	}
 
-	// R11 (G4 §3-أ-12): ai_submit بعد بوابة الخطأ وقبل كتلة الجدولة —
-	// موضع واحد يغطي مخرجي النجاح (:399/:408) حتى لو فشلت الجدولة؛
-	// لا input_data ولا محتوى في meta؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+	// R11 (G4 §3-a-12): ai_submit after the error gate and before the scheduling block —
+	// one position covering both success exits (:399/:408) even if scheduling fails;
+	// no input_data and no content in meta; the return value is deliberately ignored (G4 §5).
 	hossam_audit_log(
 		'ai_submit',
 		[
@@ -419,13 +419,13 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 		]
 	);
 
-	// ── الجدولة الداخلية: hook واحد بمعاملاته، بلا تكرار، وبفحص نتيجة.
-	//    لا loopback ولا admin-ajax ولا nonce ولا cookies للعامل.
+	// ── Internal scheduling: one hook with its args, no duplication, with a result check.
+	//    No loopback, no admin-ajax, no nonce, no cookies for the worker.
 	$hook = 'hossam_ai_process_job_event';
 	$args = [ $job_id ];
 
 	if ( false !== wp_next_scheduled( $hook, $args ) ) {
-		// حدث بنفس الـhook والمعاملات مجدول بالفعل — لا ازدواج.
+		// An event with the same hook and args is already scheduled — no duplication.
 		wp_send_json_success( [ 'job_id' => $job_id ] );
 	}
 
@@ -439,20 +439,20 @@ add_action( 'wp_ajax_hossam_ai_submit_job', function (): void {
 } );
 
 // ══════════════════════════════════════════════════════════════
-// 2) العامل الداخلي — hook cron فقط. لا wp_ajax_hossam_ai_process_job،
-//    لا cookies، لا nonce. الـclaim ذري ثم إعادة تحقق الصلاحية قبل التنفيذ.
-//    B6-02: فشل الـprofile مع التعطيل ينهي pending/processing
-//    (feature_disabled) بدل إعادة الجدولة العمياء.
+// 2) The internal worker — a cron hook only. No wp_ajax_hossam_ai_process_job,
+//    no cookies, no nonce. The claim is atomic then the capability is re-verified before execution.
+//    B6-02: a profile failure with the feature disabled terminates pending/processing
+//    (feature_disabled) instead of blind rescheduling.
 // ══════════════════════════════════════════════════════════════
 add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 	global $wpdb;
 	$table   = $wpdb->prefix . 'hossam_ai_jobs';
 	$profile = hossam_ai_get_runtime_profile();
 	if ( is_wp_error( $profile ) ) {
-		// B6-02: فشل الـprofile لا يعيد الجدولة عميانيًا — التعطيل
-		// ينهي المهام القائمة (pending/processing فقط؛ المنتهية أو
-		// الغائبة أو عطل القراءة تُترك دون مساس ولا إعادة جدولة
-		// عبثية)، وإلا تُعاد الجدولة كالسابق.
+		// B6-02: a profile failure does not reschedule blindly — the disablement
+		// terminates the outstanding jobs (pending/processing only; completed or
+		// missing ones or a read failure are left untouched with no
+		// gratuitous rescheduling), otherwise it reschedules as before.
 		if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) ) {
 			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT status FROM {$table} WHERE id = %d", $job_id ), ARRAY_A );
 			$state    = is_array( $existing ) ? ( $existing['status'] ?? null ) : null;
@@ -470,7 +470,7 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 		return;
 	}
 	if ( ! $claimed ) {
-		return; // قبضها عامل آخر أو ليست pending — لا شيء يُنفَّذ.
+		return; // Claimed by another worker or not pending — nothing executes.
 	}
 	if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) ) {
 		hossam_ai_fail_job( $job_id, 'feature_disabled' );
@@ -487,8 +487,8 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 		return;
 	}
 
-	// إعادة التحقق من الصلاحية قبل التنفيذ (المرجع حرفيًا): فقدان
-	// صلاحية المستخدم على المقال بين submit والتنفيذ يفشل بأمان.
+	// Re-verifying the capability before execution (reference verbatim): loss of
+	// the user's capability on the article between submit and execution fails safely.
 	$post_id = (int) $job['post_id'];
 	$allowed = $post_id
 		? user_can( (int) $job['user_id'], 'edit_post', $post_id )
@@ -519,8 +519,8 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 			return;
 	}
 
-	// التنفيذ على strategy_id المحفوظ عند submit حصرًا — لا إعادة حسم
-	// فى العامل ولا fallback لمزود ثانٍ بعد بدء التنفيذ الفعلي.
+	// Execution on the strategy_id saved at submit exclusively — no re-resolution
+	// in the worker and no fallback to a second provider after actual execution starts.
 	$strategies = hossam_ai_get_strategies();
 	$strategy_id = (string) $job['strategy_id'];
 
@@ -555,19 +555,19 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 		)
 	);
 
-	// R11 (G4 §3-أ-13): ai_complete بعد UPDATE الاكتمال — بguard
-	// rows_affected>0؛ meta job_type حصرًا (لا result إطلاقًا)؛ قيمة
-	// الإرجاع تُتجاهل عمدًا (G4 §5).
+	// R11 (G4 §3-a-13): ai_complete after the completion UPDATE — with a
+	// rows_affected>0 guard; meta job_type exclusively (never result); the return
+	// value is deliberately ignored (G4 §5).
 	if ( (int) $wpdb->rows_affected > 0 ) {
 		hossam_audit_log( 'ai_complete', [ 'object_id' => $job_id, 'meta' => [ 'job_type' => (string) $job['job_type'] ] ] );
 	}
 } );
 
 // ══════════════════════════════════════════════════════════════
-// 3) الكسح الدوري — hossam_every_five_minutes من core/setup.php.
-//    إعادة جدولة pending العالقة ضمن حد المحاولات (بعد فحص
-//    wp_next_scheduled)، وفشل processing المتجاوزة deadline بأمان
-//    بلا retry لمزود بديل.
+// 3) The periodic sweep — hossam_every_five_minutes from core/setup.php.
+//    Rescheduling stuck pending jobs within the attempt limit (after checking
+//    wp_next_scheduled), and safely failing processing jobs past the deadline
+//    with no retry to an alternative provider.
 // ══════════════════════════════════════════════════════════════
 add_action( 'init', function (): void {
 	if ( wp_next_scheduled( 'hossam_ai_sweep_jobs_event' ) ) {
@@ -581,12 +581,12 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 	$table  = $wpdb->prefix . 'hossam_ai_jobs';
 	$sweep  = hossam_ai_get_sweep_limits();
 	if ( is_wp_error( $sweep ) ) {
-		// B6-02: بلا حدود كسح لا تُحسم الأعمار — لكن التعطيل ينهي
-		// القائمة (pending/processing) إذ لا تنفيذ ممكن أبدًا ما دام
-		// التقديم محظورًا (submit/ad adapters ترفض) وكل حدث عامل يأخذ
-		// المسار السريع نفسه؛ completed/failed تُترك دائمًا. الـprocessing
-		// هنا يتيم حتمًا: لا منفذ حي يمكنه إكماله تحت التعطيل، ومسار
-		// الـdeadline معطل بغياب الـprofile.
+		// B6-02: without sweep limits ages cannot be settled — but the disablement terminates
+		// the outstanding ones (pending/processing) since no execution is ever possible while
+		// submission is blocked (submit/ad adapters reject) and every worker event takes
+		// the same fast path; completed/failed are always left alone. The processing ones
+		// here are inevitably orphaned: no live executor can complete them under the disablement, and the
+		// deadline path is disabled by the absence of the profile.
 		if ( ! HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) ) {
 			$pending = $wpdb->get_col( "SELECT id FROM {$table} WHERE status = 'pending' LIMIT 20" );
 			foreach ( (array) $pending as $pending_id ) {
@@ -601,7 +601,7 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 	}
 	$utc_now = time();
 
-	// (أ) processing تجاوزت deadline → فشل نهائي بأمان، بلا أي retry.
+	// (a) processing past the deadline → a safe terminal failure, with no retry.
 	$deadline_utc = gmdate( 'Y-m-d H:i:s', $utc_now - $sweep['processing_deadline'] );
 	$expired = $wpdb->get_col(
 		$wpdb->prepare(
@@ -613,8 +613,8 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 		hossam_ai_fail_job( (int) $expired_id, 'processing_deadline_exceeded' );
 	}
 
-	// (ب) pending عالقة (فاتها حدثها) ضمن حد المحاولات → إعادة جدولة
-	//     نفس الـhook ونفس المعاملات بعد فحص wp_next_scheduled حرفيًا.
+	// (b) stuck pending (missed their event) within the attempt limit → rescheduling
+	//     the same hook and same args after a verbatim wp_next_scheduled check.
 	$stale_utc = gmdate( 'Y-m-d H:i:s', $utc_now - $sweep['stale_pending'] );
 	$stale = $wpdb->get_results(
 		$wpdb->prepare(
@@ -631,12 +631,12 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 		$args   = [ $job_id ];
 
 		if ( false !== wp_next_scheduled( $hook, $args ) ) {
-			continue; // لا ازدواج أحداث — المرجع حرفيًا.
+			continue; // No duplicate events — reference verbatim.
 		}
 
 		$scheduled = wp_schedule_single_event( time(), $hook, $args );
 		if ( false === $scheduled || is_wp_error( $scheduled ) ) {
-			continue; // فشل جدولة الكسح لا يعلم المهمة فشلاً — محاولة الدورة التالية.
+			continue; // A failed sweep schedule does not mark the job failed — the next cycle's attempt.
 		}
 
 		$wpdb->update(
@@ -648,8 +648,8 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 		);
 	}
 
-	// (ج) زومبي pending — V110-H2: محاولات مستنفدة (Z1، وتسبق عند الجمع)
-	//     أو يتيمة next_run_at IS NULL (Z2 تراث سكيمة 1.1.1) — فشل نهائي بلا أي retry.
+	// (c) zombie pending — V110-H2: exhausted attempts (Z1, and preceding on the count)
+	//     or orphaned next_run_at IS NULL (Z2 legacy schema 1.1.1) — Final failure with no retry.
 	$zombies = $wpdb->get_results(
 		$wpdb->prepare(
 			"SELECT id, attempt_count FROM {$table} WHERE status = 'pending' AND ( attempt_count >= %d OR next_run_at IS NULL ) LIMIT 20",
@@ -666,8 +666,8 @@ add_action( 'hossam_ai_sweep_jobs_event', function (): void {
 } );
 
 // ══════════════════════════════════════════════════════════════
-// 4) استطلاع حالة المهمة — المالك وحده؛ لا strategy ولا secrets فى
-//    الاستجابة (job_id والحالة والنتيجة الآمنة فقط، كما تستهلكها ai.js).
+// 4) Poll job status — the owner alone; no strategy and no secrets in
+//    the response (job_id, the status and the safe result only, as ai.js consumes them).
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_ai_get_job_status', function (): void {
 	check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -687,7 +687,7 @@ add_action( 'wp_ajax_hossam_ai_get_job_status', function (): void {
 	global $wpdb;
 	$table = $wpdb->prefix . 'hossam_ai_jobs';
 
-	// شرط الملكية داخل WHERE — مالك المهمة فقط يستطلع حالتها.
+	// Ownership condition inside WHERE — only the job's owner polls its status.
 	$job = $wpdb->get_row(
 		$wpdb->prepare( "SELECT status, result, last_error FROM {$table} WHERE id = %d AND user_id = %d", $job_id, get_current_user_id() ),
 		ARRAY_A
@@ -697,7 +697,7 @@ add_action( 'wp_ajax_hossam_ai_get_job_status', function (): void {
 		wp_send_json_error( [ 'message' => 'Job not found' ], 404 );
 	}
 
-	// R11-(هـ) (G3 §1.3-12): consume استطلاع poll 120/د — قراءة اختيارية منفذة لبوابة الخريطة 15/15 (F-07)
+	// R11-(e) (G3 §1.3-12): consume poll 120/min — an optional read granted per the map gate 15/15 (F-07)
 	$hossam_rl = hossam_rate_limit_consume( 'poll', (int) get_current_user_id(), 120, MINUTE_IN_SECONDS );
 	if ( is_wp_error( $hossam_rl ) ) {
 		$hossam_rl_data = $hossam_rl->get_error_data();
@@ -715,8 +715,8 @@ add_action( 'wp_ajax_hossam_ai_get_job_status', function (): void {
 } );
 
 // ══════════════════════════════════════════════════════════════
-// 5) تحرير التفضيل — manage_options حصريًا (البند: option محدود ومُنظَّف).
-//    لا واجهة له خارج posts.php التزامًا بقيد «تطوير جديد داخل posts.php فقط».
+// 5) Preference editing — manage_options exclusively (the clause: a limited and sanitized option).
+//    No UI for it outside posts.php in compliance with the constraint «new development inside posts.php only».
 // ══════════════════════════════════════════════════════════════
 add_action( 'wp_ajax_hossam_ai_set_preference', function (): void {
 	check_ajax_referer( 'hossam_nonce', 'nonce' );
@@ -734,10 +734,10 @@ add_action( 'wp_ajax_hossam_ai_set_preference', function (): void {
 		wp_send_json_error( [ 'message' => 'Invalid preference' ], 400 );
 	}
 
-	// R11 (G4 §3-أ-16): ai_preference_set بعد نجاح hossam_ai_set_preference
-	// وقبل wp_send_json_success — صف settings بلا object_id (NULL في
-	// القائمة المغلقة)، meta preference (القيمة المنقّاة sanitize_key
-	// أعلاه)؛ قيمة الإرجاع تُتجاهل عمدًا (G4 §5).
+	// R11 (G4 §3-a-16): ai_preference_set after hossam_ai_set_preference succeeds
+	// and before wp_send_json_success — a settings row with no object_id (NULL in
+	// the closed list), meta preference (the sanitize_key-sanitized value
+	// above); the return value is deliberately ignored (G4 §5).
 	hossam_audit_log( 'ai_preference_set', [ 'meta' => [ 'preference' => $preference ] ] );
 
 	wp_send_json_success( [ 'preference' => hossam_ai_get_preference() ] );

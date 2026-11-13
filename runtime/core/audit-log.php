@@ -1,120 +1,120 @@
 <?php
-// تفويض الإصدار #2 (ESC-3): الحارس في قمة الملف (بوابة batch12 §7 — guardLine>70
-// قاست :95) — الترويسة التوثيقية كاملة بعده بلا حرف محتوى.
+// Release delegation #2 (ESC-3): the guard at the top of the file (batch12 §7 gate — guardLine>70
+// measured :95) — the full doc header follows it with no content characters.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 /**
- * runtime/core/audit-log.php — وحدة سجل التدقيق والاحتفاظ (v1.1.0 — صف R2 موسوم «دمج v1.1.0» — ملف جديد)
+ * runtime/core/audit-log.php — the audit log and retention module (v1.1.0 — R2 row tagged «merge v1.1.0» — new file)
  * ══════════════════════════════════════════════════════════════
- * الدور: الصمام الخادمي — جدول {$wpdb->prefix}hossam_audit_log + الدالة
- * الموحدة hossam_audit_log() + القائمة المغلقة 20 حدثًا + المستمع الواحد
- * لhook الأسرار + سياسة H1 + محرك الاحتفاظ الرباعي.
+ * Role: the server-side valve — the {$wpdb->prefix}hossam_audit_log table + the
+ * unified function hossam_audit_log() + the closed 20-event list + the single
+ * listener for the secrets hook + the H1 policy + the four-way retention engine.
  *
- * المصدر الحاكم: G4-AUDIT-LOG-POSITION.md — الوثيقة المختومة
- * (sha256 = 21ea8cefdfaeecba5d58ff817f65eb5436c9f8ff35dcccbe9961dc6e73a5fa97،
- * أُثبتت بsha256sum قبل أي نقل). النقل الحرفي (تصويب K4/K8 E4 —
- * استقلالية العقد): §2 كتلة الأعمدة العشرة وأنواعها والفهارس الخمسة
- * (بملاحظات الأعمدة الصامدة)، §3-أ جدول object_type لكل حدث،
- * receiver_id لميتا message_send، البنود الأربعة المتبقية من عقد
- * hossam_audit_log الثماني، وصياغة §6-1 الحرفية (فحص القيمة والوجود لا
- * حالة autoload). الدلتا الموسومة من القائمة: الحدث 20 secret_key_mismatch
- * والفرع الرابع في المستمع (H7 §2-ج-4) + الحدث 19 article_h1_normalized
- * (حسم Q5 — دفاع G2 العميق).
+ * Governing source: G4-AUDIT-LOG-POSITION.md — the sealed document
+ * (sha256 = 21ea8cefdfaeecba5d58ff817f65eb5436c9f8ff35dcccbe9961dc6e73a5fa97,
+ * attested with sha256sum before any porting). The verbatim port (K4/K8 E4 correction —
+ * contract autonomy): §2 the ten-column block with their types and the five indexes
+ * (with the resilient column notes), §3-a the object_type table per event,
+ * receiver_id for the message_send meta, the four remaining items of the eight-item
+ * hossam_audit_log contract, and the literal §6-1 wording (the value-and-existence check, not
+ * the autoload state). The tagged delta from the list: event 20 secret_key_mismatch
+ * and the fourth branch in the listener (H7 §2-c-4) + event 19 article_h1_normalized
+ * (Q5 resolution — the G2 deep defense).
  *
- * ═══ عقد hossam_audit_log( string $event_action, array $context ): bool الثماني ═══
- *   1. فشل الكتابة يُبتلع مع error_log ولا يغيّر سير المنادي — القيمة
- *      المرجعة تُتجاهل عمدًا في كل نقاط النداء (G4 §5).
- *   2. user_id من الجلسة حصرًا (get_current_user_id) — صفر superglobals
- *      في الملف ومسار الكتابة كله: لا $_POST/$_GET/$_REQUEST/$_COOKIE.
- *      الاستثناء الموثق الوحيد عند تمكين ip_enabled: قراءة
- *      $_SERVER['REMOTE_ADDR'] حصرًا مع FILTER_VALIDATE_IP وإلا NULL —
- *      رفض X-Forwarded-For نهائيًا (راس منتِحل يجعل «الدليل» قابلاً
- *      للتأليف — Q4-1).
- *   3. لقطات الهوية: user_login VARCHAR(60) من الجلسة (يبقى مقروءًا بعد
- *      حذف المستخدم)؛ object_title لقطة مقصوصة sanitize_text_field +
- *      mb_substr(0,255) غير مفهرسة.
- *   4. meta: JSON منقح بمفاتيح مغلقة لكل حدث (جدول الأحداث أدناه) وقيم
- *      scalar منقحة (ومصفوفة أسماء للأحداث 6/15) — وسقف 64KB: تجاوزه
- *      يُسقط الحقل كله مع error_log والحدث يبقى بأساسه في الأعمدة.
- *   5. INSERT مُحضَّر واحد بNULL inline (نمط ai.php UPDATE مُجهَّز
- *      :99-103): أعمدة object_id/meta/ip تُنقل NULL حرفيًا في SQL عند
- *      غيابها — NULL يعني «لا كائن» والصفر مزيف يلوّث الفهرس.
- *   6. created_at UTC صريح (gmdate) — متسقًا مع cutoff بgmdate في
- *      محرك الاحتفاظ (Q4-3/بند القبول 9).
- *   7. مفتاح الإيقاف enabled=false ⇒ تعيد true بلا كتابة (Q4-5) — يوقف
- *      كتابة السجل وحصة audit_log في الكسح حصرًا، بلا unschedule
- *      (احتفاظ الجداول الثلاثة الأخرى مستقل عن المفتاح).
- *   8. event_action خارج القائمة المغلقة العشرين يُتجاهل دفاعيًا
- *      (false + error_log) — القائمة مغلقة لا تُفتح إلا بقرار مالك.
- *   كما أن object_type مستمد من الجدول المغلق حصرًا لا من النداء.
+ * ═══ The eight-item contract of hossam_audit_log( string $event_action, array $context ): bool ═══
+ *   1. Write failure is swallowed with error_log and never changes the caller's flow — the
+ *      return value is deliberately ignored at every call site (G4 §5).
+ *   2. user_id from the session exclusively (get_current_user_id) — zero superglobals
+ *      in the file and the whole write path: no $_POST/$_GET/$_REQUEST/$_COOKIE.
+ *      The sole documented exception when ip_enabled is on: reading
+ *      $_SERVER['REMOTE_ADDR'] exclusively with FILTER_VALIDATE_IP, otherwise NULL —
+ *      X-Forwarded-For is refused definitively (a spoofed origin makes the «evidence»
+ *      fabricable — Q4-1).
+ *   3. Identity snapshots: user_login VARCHAR(60) from the session (stays readable after
+ *      the user is deleted); object_title a truncated snapshot with sanitize_text_field +
+ *      mb_substr(0,255), unindexed.
+ *   4. meta: sanitized JSON with closed keys per event (the events table below) and sanitized
+ *      scalar values (and a names array for events 6/15) — with a 64KB cap: exceeding it
+ *      drops the whole field with error_log and the event keeps its base in the columns.
+ *   5. One prepared INSERT with inline NULL (the ai.php prepared UPDATE pattern
+ *      :99-103): the object_id/meta/ip columns are passed as literal NULL in SQL when
+ *      absent — NULL means «no object» and a fake zero pollutes the index.
+ *   6. created_at explicit UTC (gmdate) — consistent with the gmdate-based cutoff in
+ *      the retention engine (Q4-3/acceptance item 9).
+ *   7. The kill switch enabled=false ⇒ returns true with no write (Q4-5) — it stops
+ *      the log write and the audit_log share in the sweep exclusively, with no unschedule
+ *      (the retention of the other three tables is independent of the switch).
+ *   8. event_action outside the closed twenty-event list is defensively ignored
+ *      (false + error_log) — the list is closed and opens only by owner decision.
+ *   Also, object_type derives from the closed table exclusively, not from the call.
  *
- * ═══ عقد كاتب واحد (G4 موقع Q3-3 / §6-7) ═══
- * hossam_audit_log_db_version = '1.0.0' يكتبه hossam_dashboard_ensure_table
- * حصرًا (نمط tables.php:196 بلا وسيط autoload — autoloaded كما هي حالة
- * خيارات النسخ الثلاثة القائمة) — صفر update_option/add_option على خيار
- * النسخة من هذا الملف إطلاقًا. فحص §6-1: القيمة والوجود فقط، لا حالة
- * autoload التي يحددها مسار النواة نفسها. خيار الإعدادات
- * hossam_audit_log_settings يُنشأ add_option(…, false) فحسب عند أول
- * كتابة فعلية وكل كتابة لاحقة update_option(…, false) — الوسيط false
- * حاضر دوومًا (بصمة C7 الصحيحة؛ درس option.php:1298+940).
+ * ═══ Single-writer contract (G4 site Q3-3 / §6-7) ═══
+ * hossam_audit_log_db_version = '1.0.0' is written by hossam_dashboard_ensure_table
+ * exclusively (the tables.php:196 pattern with no autoload argument — autoloaded as is
+ * the state of the three existing versions' options) — zero update_option/add_option on the
+ * version option from this file ever. The §6-1 check: value and existence only, not the
+ * autoload state which the core path itself determines. The settings option
+ * hossam_audit_log_settings is created with add_option(…, false) only at the first
+ * actual write and every later write is update_option(…, false) — the false argument
+ * present always (the correct C7 fingerprint; the lesson of option.php:1298+940).
  *
- * ═══ أمر الإيقاف الآمن الموثق للمالك (Q4-5 — بلا UI في v1.1.0) ═══
+ * ═══ The documented safe kill command for the owner (Q4-5 — no UI in v1.1.0) ═══
  *   wp eval 'update_option("hossam_audit_log_settings",["enabled"=>false,"days"=>90,"ip_enabled"=>false],false);'
- * تحذير موثق: لا تستخدم `wp option update` على هذا الخيار (بلا وسيط
- * autoload) — يعيد ضبطه 'auto-on' (C7 حرفيًا). الإيقاف لا يُلغي الجدولة
- * (unschedule مرفوض — كلفة الحدث المتبقي ≈ صفر ويعاود التمكين تلقائيًا).
+ * Documented warning: do not use `wp option update` on this option (no autoload
+ * argument) — it resets it to 'auto-on' (C7 literally). Stopping does not cancel the schedule
+ * (unschedule refused — the cost of the remaining event ≈ zero and re-enabling resumes automatically).
  *
- * ═══ حد التلاعب المقبول (Q4-7 — معلن لا مخفي) ═══
- * السجل غير مقاوم لمهاجم يملك قاعدة البيانات كاملة (كود ببيانات اعتماد
- * DB يستطيع UPDATE/DELETE). لا مسار تعديل/حذف من التطبيق إلا cron
- * الاحتفاظ، ولا تصدير خارج الموقع ولا توقيع صفوف في v1.1.0 — الجدول
- * ضمن نسخ DB الاحتياطية ذاتها. أي توسعة = قرار مالك في دورة لاحقة.
+ * ═══ The acceptable tamper boundary (Q4-7 — declared, not hidden) ═══
+ * The log is not resistant to an attacker owning the full database (code with DB
+ * credentials can UPDATE/DELETE). There is no edit/delete path from the application except the
+ * retention cron, no off-site export and no row signing in v1.1.0 — the table is
+ * within the DB backups themselves. Any expansion = an owner decision in a later cycle.
  *
- * ═══ نقطة الربط المستقبلية الوحيدة (Q4-2) ═══
- * amelia_after_booking_added (notifications.php:128) — مستمع المواعيد
- * يُضاف لاحقًا من هذا الملف حصرًا؛ appointments.php لا يُلمس فالقيد 9
- * محفوظ بنيويًا. لا endpoints جديدة (صفر wp_ajax_/register_rest_route)،
- * ولا مواعيد إضافية غير الحدث الواحد hossam_dashboard_retention_sweep_event.
+ * ═══ The single future integration point (Q4-2) ═══
+ * amelia_after_booking_added (notifications.php:128) — the appointments listener
+ * is added later from this file exclusively; appointments.php is untouched so constraint 9
+ * stays structurally preserved. No new endpoints (zero wp_ajax_/register_rest_route),
+ * and no additional schedules beyond the single event hossam_dashboard_retention_sweep_event.
  *
- * ═══ عقد التكامل مع الزومبي (H2 §4-5 — موسوم دلتا) ═══
- * الاحتفاظ terminal-only (حصة ai_jobs تحذف status IN
- * ('completed','failed') بتاريخ updated_at فقط) وإنتاج terminal
- * مسؤولية آلة الحالة (صف R30 على runtime/ajax/ai.php). صفر مواضع نداء
- * audit جديدة من الزومبي: حدث ai_fail يتدفق من دالتي الاختناق
- * القائمتين (hossam_ai_fail_job / hossam_ai_fail_job_if_outstanding).
- * قيم meta.reason الجديدتين attempts_exhausted/orphaned_pending بيانات
- * في حقل لا أعمدة جديدة — تعبر sanitize_key (ai.php:116/:146) وسقف
- * meta 64KB هنا، وتُقبل لأن reason مفتاح مغلق مسبقًا للحدث 14.
+ * ═══ Zombie integration contract (H2 §4-5 — tagged delta) ═══
+ * The retention is terminal-only (the ai_jobs share deletes status IN
+ * ('completed','failed') by updated_at date only) and terminal production is the
+ * state machine's responsibility (the R30 row on runtime/ajax/ai.php). Zero new audit
+ * call sites from the zombie: the ai_fail event flows from the two existing
+ * choke functions (hossam_ai_fail_job / hossam_ai_fail_job_if_outstanding).
+ * The two new meta.reason values attempts_exhausted/orphaned_pending are data
+ * in a field with no new columns — they pass sanitize_key (ai.php:116/:146) and the 64KB
+ * meta cap here, and are accepted because reason is a key already closed for event 14.
  *
- * ممنوعات الصف (R2): صفر تعديل tables.php/appointments.php/secret-store
- * (المستمع يستهلك hook الأسرار من الخارج بتوقيعه وحمولته الرباعية بلا
- * أي تغيير — G4 §6-11)؛ لا IP افتراضيًا (ip_enabled=false)؛ لا unschedule
- * عند الإيقاف؛ لا تصدير/توقيع صفوف؛ سياسة H1: لا فحص قبل kses (الفحص
- * على الحمولة المخزَّنة بعد wp_kses_post — wp_insert_post_data يُطبَّق
- * بعد sanitize_post، مرجع نواة 6.7.1 post.php:4761) ولا على post_title
- * ولا خارج نوع post.
+ * Row prohibitions (R2): zero modification of tables.php/appointments.php/secret-store
+ * (the listener consumes the secrets hook from the outside with its signature and its
+ * four-item payload without any change — G4 §6-11); no IP by default (ip_enabled=false); no unschedule
+ * on stop; no export/row signing; the H1 policy: no check before kses (the check
+ * runs on the stored payload after wp_kses_post — wp_insert_post_data is applied
+ * after sanitize_post, core reference 6.7.1 post.php:4761) nor on post_title
+ * nor outside the post type.
  * ══════════════════════════════════════════════════════════════
  */
 
 if ( ! function_exists( 'hossam_audit_log_table_definition' ) ) {
 	/**
-	 * تعريف جدول السجل — النقل الحرفي بايت-ببايت من G4 §2 (الكتلة E4
-	 * المختومة): الأعمدة العشرة بأسمائها وأنواعها وترتيبها + الفهارس
-	 * الخمسة + قواعد dbDelta (KEY لا INDEX، بلا backticks،
-	 * `PRIMARY KEY  (id)` بمسافتين — تقاليد schema.php النووية) +
-	 * ملاحظات الأعمدة الصامدة: user_login VARCHAR(60) لقطة هوية
-	 * تطابق wp_users.user_login؛ object_title VARCHAR(255) لقطة مقصوصة
-	 * غير مفهرسة؛ meta LONGTEXT JSON منقح بنمط input_data؛ ip VARCHAR(45)
-	 * يسع IPv6 وNULL افتراضيًا؛ object_id nullable؛ created_at DATETIME
-	 * DEFAULT CURRENT_TIMESTAMP بنمط الجداول الثلاثة والكتابة الفعلية
-	 * تمرر UTC صريحًا. الفرق عن A4 §1 حرفيًا: action→event_action
-	 * (C3-2 — ACTION محجوزة MySQL 8؛ إغلاق فشل 1064 الصامت) — لا شيء آخر.
+	 * The audit log table definition — the verbatim byte-by-byte port from G4 §2 (the sealed E4
+	 * block): the ten columns with their names, types and order + the five
+	 * indexes + the dbDelta rules (KEY not INDEX, no backticks,
+	 * `PRIMARY KEY  (id)` with two spaces — the core schema.php traditions) +
+	 * the resilient column notes: user_login VARCHAR(60) an identity snapshot
+	 * matching wp_users.user_login; object_title VARCHAR(255) a truncated
+	 * unindexed snapshot; meta LONGTEXT sanitized JSON in the input_data pattern; ip VARCHAR(45)
+	 * fits IPv6 and defaults to NULL; object_id nullable; created_at DATETIME
+	 * DEFAULT CURRENT_TIMESTAMP in the three-tables pattern and the actual write
+	 * passes explicit UTC. The difference from A4 §1 is literal: action→event_action
+	 * (C3-2 — ACTION is reserved in MySQL 8; closing the silent 1064 failure) — nothing else.
 	 *
-	 * الشكل مسطَّح (بلا غلاف 'audit_log' التوضيحي في كتلة G4) لأن نداء
-	 * init الحرفي ذاته يمرر قيمة هذه الدالة مباشرة إلى
-	 * hossam_dashboard_ensure_table — وكلا الشكلين من المختوم.
+	 * The shape is flattened (without the illustrative 'audit_log' wrapper in the G4 block) because the
+	 * literal init call itself passes this function's value directly to
+	 * hossam_dashboard_ensure_table — and both shapes are from the sealed document.
 	 *
 	 * @return array{table_suffix:string, version:string, option:string, columns:string[], indexes:string[], schema:callable(string,string):string}
 	 */
@@ -148,22 +148,22 @@ if ( ! function_exists( 'hossam_audit_log_table_definition' ) ) {
 	}
 }
 
-// نمط tables.php:200-219 حرفيًا (G4 §2 — الكتلة الحرفية): init بguard على
-// القيمة والوجود (لا حالة autoload — صياغة §6-1) وإفصاح error_log.
+// The tables.php:200-219 pattern literally (G4 §2 — the literal block): init with a guard on
+// the value and existence (no autoload state — the §6-1 wording) and an error_log disclosure.
 add_action( 'init', function (): void {
 	hossam_dashboard_ensure_table( hossam_audit_log_table_definition() );
 	if ( ! get_option( 'hossam_audit_log_db_version' ) ) {
-		error_log( 'HAL audit log: table ensure did not complete; init will retry.' ); // إفصاح الفشل الصامت (V4 §5-8) — يستمر فقط طالما الحالة مكسورة
+		error_log( 'HAL audit log: table ensure did not complete; init will retry.' ); // disclosure of the silent failure (V4 §5-8) — continues only as long as the state is broken
 	}
 } );
 
 if ( ! function_exists( 'hossam_audit_log_get_settings' ) ) {
 	/**
-	 * قراءة hossam_audit_log_settings — كسولية بmemo لكل طلب (Q4-1):
-	 * طلب بلا أحداث تدقيق = صفر استعلام على خيارات السجل بعد أول قراءة.
-	 * الافتراضيات في الكود: enabled=true، ip_enabled=false، days=90
-	 * (بclamp 1..365 عند القراءة — Q4-3). الوضع الافتراضي بلا صف options
-	 * مكتوب إطلاقًا — وهذا مقصود (Q4-1: الخيار يُنشأ عند أول كتابة فعلية).
+	 * Reading hossam_audit_log_settings — laziness with a per-request memo (Q4-1):
+	 * a request with no audit events = zero queries on the log options after the first read.
+	 * The defaults in code: enabled=true, ip_enabled=false, days=90
+	 * (with a clamp 1..365 at read time — Q4-3). The default state writes no options row
+	 * ever — and that is intentional (Q4-1: the option is created at the first actual write).
 	 *
 	 * @return array{enabled:bool, ip_enabled:bool, days:int}
 	 */
@@ -185,16 +185,16 @@ if ( ! function_exists( 'hossam_audit_log_get_settings' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_update_settings' ) ) {
 	/**
-	 * مسار كتابة الإعدادات الوحيد — بصمة C7 الصحيحة (Q4-1): أول كتابة
-	 * فعلية على خيار غائب = add_option(…, false) فحسب، وكل كتابة لاحقة
-	 * update_option(…, false) — الوسيط false حاضر دوومًا (أي كتابة بغيره
-	 * تعيد ضبط autoload 'auto-on' — option.php:1298+940). التطابق مع
-	 * المخزَّن لا يكتب (نمط B3-02: update_option يعيد false في الحالتين).
-	 * لا مستهلك في v1.1.0 (بلا UI) — مسار المالك/CLI/واجهة مستقبلية.
-	 * مفاتيح مغلقة حصرًا: enabled/ip_enabled/days (days بclamp 1..365).
+	 * The only settings write path — the correct C7 fingerprint (Q4-1): the first
+	 * actual write on an absent option = add_option(…, false) only, and every later write
+	 * is update_option(…, false) — the false argument present always (any write without it
+	 * resets autoload to 'auto-on' — option.php:1298+940). Equality with
+	 * the stored value writes nothing (the B3-02 pattern: update_option returns false in both cases).
+	 * No consumer in v1.1.0 (no UI) — the owner/CLI/future-UI path.
+	 * Closed keys only: enabled/ip_enabled/days (days with a clamp 1..365).
 	 *
-	 * @param array $settings قيم جزئية مسموحة.
-	 * @return bool نجاح الكتابة أو التطابق.
+	 * @param array $settings Allowed partial values.
+	 * @return bool Write success or equality.
 	 */
 	function hossam_audit_log_update_settings( array $settings ): bool {
 		$payload = [
@@ -209,7 +209,7 @@ if ( ! function_exists( 'hossam_audit_log_update_settings' ) ) {
 		}
 
 		if ( ! is_array( $current ) ) {
-			// أول كتابة فعلية — الوسيط false حاضر دوومًا (عقد كاتب الإعدادات).
+			// First actual write — the false argument present always (the settings-writer contract).
 			return (bool) add_option( 'hossam_audit_log_settings', $payload, false );
 		}
 
@@ -219,43 +219,43 @@ if ( ! function_exists( 'hossam_audit_log_update_settings' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_events' ) ) {
 	/**
-	 * القائمة المغلقة 20 حدثًا — الجدول المنقول من G4 §3-أ (أحداث 1-18
-	 * حرفيًا) + الدلتا الموسومة (الصفان 19/20 من قائمة v1.1.0 صف R2-ج).
-	 * بنية كل صف: object_type الثابت للحدث + مفاتيح meta المغلقة.
-	 * نجاحات فقط — مسارات 401/403/404/500 صفر صفوف؛ استبعاد read-state
-	 * للإشعارات (ضجيج بلا قيمة جنائية)؛ المواعيد مستبعدة (Q4-2).
+	 * The closed 20-event list — the table ported from G4 §3-a (events 1-18
+	 * verbatim) + the tagged delta (rows 19/20 from the v1.1.0 list, row R2-c).
+	 * Each row's structure: the event's fixed object_type + the closed meta keys.
+	 * Successes only — the 401/403/404/500 paths are zero rows; read-state excluded
+	 * for notifications (noise with no forensic value); appointments excluded (Q4-2).
 	 *
-	 * | #  | event_action           | object_type | object_id            | meta (مفاتيح مغلقة)                    | موضع النداء (G4 §3-أ — المرحلة 2)                     |
-	 * |----|------------------------|-------------|----------------------|----------------------------------------|--------------------------------------------------------|
-	 * | 1  | article_create         | article     | id المقال الجديد     | status, lang                           | posts.php:347 قبل wp_send_json_success — دلتا R8: lang |
-	 * | 2  | article_update         | article     | id المقال            | status                                 | posts.php:403 قبل wp_send_json_success                 |
-	 * | 3  | article_trash          | article     | id المقال            | —                                      | posts.php:433 قبل wp_send_json_success                 |
-	 * | 4  | article_restore        | article     | id المقال            | —                                      | posts.php:131 قبل wp_send_json_success                 |
-	 * | 5  | article_translate      | article     | id المقال المصدر     | new_post_id, lang                      | posts.php:287 فرع الإنشاء الجديد حصرًا                 |
-	 * | 6  | article_save_seo       | article     | id المقال            | fields (أسماء الحقول لا قيم)           | seo.php:92 قبل wp_send_json_success                    |
-	 * | 7  | file_upload            | file        | id المرفق            | mime                                   | uploads.php:154 قبل wp_send_json_success               |
-	 * | 8  | file_delete            | file        | id المرفق            | mime (يُلتقط قبل الحذف)                | uploads.php:133 (حذف قسري :129)                        |
-	 * | 9  | file_restore           | file        | id المرفق            | —                                      | uploads.php:108 بعد wp_untrash_post الناجح             |
-	 * | 10 | message_send           | message     | id الرسالة المدرجة   | receiver_id (لا نص الرسالة إطلاقًا)    | inbox.php:253 (الإدراج :238 — الإرسال إداري حصرًا)     |
-	 * | 11 | message_mark_read      | message     | id الرسالة           | —                                      | inbox.php:339 قبل wp_send_json_success                 |
-	 * | 12 | ai_submit              | ai_job      | id المهمة            | job_type, post_id, strategy_id         | ai.php بعد بوابة الخطأ :384-390 وقبل الجدولة :392-397  |
-	 * | 13 | ai_complete            | ai_job      | id المهمة            | job_type (لا result)                   | ai.php بعد UPDATE الاكتمال :513-526 بguard rows_affected |
-	 * | 14 | ai_fail                | ai_job      | id المهمة            | reason (sanitize_key مسبقًا :116/:146)  | موضعان: داخل hossam_ai_fail_job (:121) و…_if_outstanding (:152) |
-	 * | 15 | settings_save          | settings    | NULL                 | keys (أسماء المفاتيح المكتوبة لا قيم)  | class-admin-controller.php:219 بعد نجاح save() بguard  |
-	 * | 16 | ai_preference_set      | settings    | NULL                 | preference                             | ai.php:674 قبل wp_send_json_success                    |
-	 * | 17 | secret_set             | secret      | NULL                 | secret_id                              | المستمع المشترك أدناه (hook class-secret-store.php:313)|
-	 * | 18 | secret_delete          | secret      | NULL                 | secret_id                              | المستمع المشترك أدناه                                  |
-	 * | 19 | article_h1_normalized  | article     | id المقال (NULL جديد)| count                                  | معالج wp_insert_post_data أدناه (حسم Q5 — الدلتا)      |
-	 * | 20 | secret_key_mismatch    | secret      | NULL                 | secret_id                              | فرع 'key_mismatch' في المستمع (H7 §2-ج-4 — الدلتا)     |
+	 * | #  | event_action           | object_type | object_id               | meta (closed keys)                        | Call site (G4 §3-a — phase 2)                                            |
+	 * |----|------------------------|-------------|-------------------------|-------------------------------------------|--------------------------------------------------------------------------|
+	 * | 1  | article_create         | article     | the new article's id    | status, lang                              | posts.php:347 before wp_send_json_success — delta R8: lang               |
+	 * | 2  | article_update         | article     | the article's id        | status                                    | posts.php:403 before wp_send_json_success                                |
+	 * | 3  | article_trash          | article     | the article's id        | —                                         | posts.php:433 before wp_send_json_success                                |
+	 * | 4  | article_restore        | article     | the article's id        | —                                         | posts.php:131 before wp_send_json_success                                |
+	 * | 5  | article_translate      | article     | the source article's id | new_post_id, lang                         | posts.php:287 the new-creation branch exclusively                        |
+	 * | 6  | article_save_seo       | article     | the article's id        | fields (field names, not values)          | seo.php:92 before wp_send_json_success                                   |
+	 * | 7  | file_upload            | file        | the attachment's id     | mime                                      | uploads.php:154 before wp_send_json_success                              |
+	 * | 8  | file_delete            | file        | the attachment's id     | mime (captured before deletion)           | uploads.php:133 (forced delete :129)                                     |
+	 * | 9  | file_restore           | file        | the attachment's id     | —                                         | uploads.php:108 after a successful wp_untrash_post                       |
+	 * | 10 | message_send           | message     | the inserted message's id | receiver_id (no message text ever)      | inbox.php:253 (the insert :238 — sending is admin-only)                  |
+	 * | 11 | message_mark_read      | message     | the message's id        | —                                         | inbox.php:339 before wp_send_json_success                                |
+	 * | 12 | ai_submit              | ai_job      | the job's id            | job_type, post_id, strategy_id            | ai.php after the error gate :384-390 and before scheduling :392-397      |
+	 * | 13 | ai_complete            | ai_job      | the job's id            | job_type (no result)                      | ai.php after the completion UPDATE :513-526 with a rows_affected guard   |
+	 * | 14 | ai_fail                | ai_job      | the job's id            | reason (sanitize_key beforehand :116/:146) | two sites: inside hossam_ai_fail_job (:121) and …_if_outstanding (:152) |
+	 * | 15 | settings_save          | settings    | NULL                    | keys (the written key names, not values)  | class-admin-controller.php:219 after save() succeeds with a guard        |
+	 * | 16 | ai_preference_set      | settings    | NULL                    | preference                                | ai.php:674 before wp_send_json_success                                   |
+	 * | 17 | secret_set             | secret      | NULL                    | secret_id                                 | the shared listener below (hook class-secret-store.php:313)              |
+	 * | 18 | secret_delete          | secret      | NULL                    | secret_id                                 | the shared listener below                                                |
+	 * | 19 | article_h1_normalized  | article     | the article's id (NULL when new) | count                            | the wp_insert_post_data handler below (Q5 resolution — the delta)        |
+	 * | 20 | secret_key_mismatch    | secret      | NULL                    | secret_id                                 | the 'key_mismatch' branch in the listener (H7 §2-c-4 — the delta)        |
 	 *
-	 * الصفان 19/20: 19 بنفس بنية أحداث article؛ 20 بنفس بنية صفّي 17/18
-	 * (object_type='secret'، object_id=NULL، meta secret_id) حرفيًا.
+	 * Rows 19/20: 19 has the same structure as the article events; 20 has the same structure as rows 17/18
+	 * (object_type='secret', object_id=NULL, meta secret_id) literally.
 	 *
 	 * @return array<string, array{object_type:string, meta_keys:string[]}>
 	 */
 	function hossam_audit_log_events(): array {
 		return [
-			// [وسم دلتا R8 — v1.1.0]: meta يضيف lang بجانب status (العقد :148).
+			// [delta R8 tag — v1.1.0]: meta adds lang alongside status (the contract :148).
 			'article_create'       => [ 'object_type' => 'article', 'meta_keys' => [ 'status', 'lang' ] ],
 			'article_update'       => [ 'object_type' => 'article', 'meta_keys' => [ 'status' ] ],
 			'article_trash'        => [ 'object_type' => 'article', 'meta_keys' => [] ],
@@ -282,13 +282,13 @@ if ( ! function_exists( 'hossam_audit_log_events' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_sanitize_meta_value' ) ) {
 	/**
-	 * تنقيح قيمة meta — قيم scalar منقحة (G4 §3-أ الثابت): int/float/bool
-	 * كما هي، string عبر sanitize_text_field، ومصفوفة أسماء (للحدثين
-	 * 6/15: fields/keys — أسماء حقول/مفاتيح حصرًا لا قيم) كعناصر
-	 * strings/ints منقحة؛ أي نوع آخر يُسقط دفاعيًا (null).
+	 * Sanitizing a meta value — sanitized scalar values (the G4 §3-a constant): int/float/bool
+	 * as is, string via sanitize_text_field, and a names array (for events
+	 * 6/15: fields/keys — field/key names exclusively, not values) as sanitized
+	 * string/int elements; any other type is dropped defensively (null).
 	 *
-	 * @param mixed $value القيمة الخام.
-	 * @return mixed scalar منقح أو مصفوفة أسماء أو null عند الإسقاط.
+	 * @param mixed $value The raw value.
+	 * @return mixed A sanitized scalar or a names array or null on drop.
 	 */
 	function hossam_audit_log_sanitize_meta_value( $value ) {
 		if ( is_int( $value ) || is_float( $value ) || is_bool( $value ) ) {
@@ -316,25 +316,25 @@ if ( ! function_exists( 'hossam_audit_log_sanitize_meta_value' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log' ) ) {
 	/**
-	 * الدالة الموحدة لكتابة صف تدقيق واحد — العقد الثماني موثق في رأس
-	 * الملف (G4 §3-أ الثابت + Q4-1/Q4-5). مستوى النداء: بعد نجاح العملية
-	 * (أو بعد UPDATE أثّر فعلاً للحدثين 13/14 بguard rows_affected) وقبل
-	 * wp_send_json_success/redirect — وقيمة الإرجاع تُتجاهل عمدًا ولا
-	 * يغيّر أي نداء مسار الاستجابة (G4 §5).
+	 * The unified function for writing one audit row — the eight-item contract documented in the
+	 * file header (the G4 §3-a constant + Q4-1/Q4-5). The call-site level: after the operation succeeds
+	 * (or after an UPDATE that actually affected rows for events 13/14 with a rows_affected guard) and before
+	 * wp_send_json_success/redirect — and the return value is deliberately ignored and
+	 * no call changes the response path (G4 §5).
 	 *
-	 * سياق النداء (مفاتيح مفتوحة تُقبل، والمغاير يُتجاهل):
-	 *   object_id    => int|null (0/سالب/غائب ⇒ NULL — الصفر مزيف يلوّث الفهرس)
-	 *   object_title => string لقطة مقصوصة (sanitize + mb_substr 255)
-	 *   meta         => array يُنقّى على مفاتيح الحدث المغلقة حصرًا
+	 * The call context (open keys are accepted, and the foreign ones are ignored):
+	 *   object_id    => int|null (0/negative/absent ⇒ NULL — a fake zero pollutes the index)
+	 *   object_title => string a truncated snapshot (sanitize + mb_substr 255)
+	 *   meta         => array sanitized on the event's closed keys exclusively
 	 *
-	 * @param string $event_action اسم الحدث من القائمة المغلقة العشرين.
-	 * @param array  $context       سياق نداء اختياري.
-	 * @return bool نجاح الكتابة (أو true عند الإيقاف — بلا كتابة).
+	 * @param string $event_action The event name from the closed twenty-event list.
+	 * @param array  $context       An optional call context.
+	 * @return bool Write success (or true when stopped — with no write).
 	 */
 	function hossam_audit_log( string $event_action, array $context = [] ): bool {
 		global $wpdb;
 
-		// (7) مفتاح الإيقاف: enabled=false ⇒ بلا كتابة — true بلا مساس (Q4-5).
+		// (7) The kill switch: enabled=false ⇒ no write — true untouched (Q4-5).
 		$settings = hossam_audit_log_get_settings();
 		if ( ! $settings['enabled'] ) {
 			return true;
@@ -342,14 +342,14 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 
 		$events = hossam_audit_log_events();
 		if ( ! isset( $events[ $event_action ] ) ) {
-			// (8) خارج القائمة المغلقة — تجاهل دفاعي (بقية القائمة صامدة).
+			// (8) Outside the closed list — defensive ignore (the rest of the list stays intact).
 			error_log( 'HAL audit log: event_action outside the closed list ignored: ' . $event_action );
 
 			return false;
 		}
 		$event = $events[ $event_action ];
 
-		// (2) الهوية من الجلسة حصرًا — صفر superglobals في المسار كله.
+		// (2) Identity from the session exclusively — zero superglobals in the whole path.
 		$user_id    = (int) get_current_user_id();
 		$user       = $user_id > 0 ? get_userdata( $user_id ) : false;
 		$user_login = ( $user && ! empty( $user->user_login ) )
@@ -365,7 +365,7 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 			? mb_substr( sanitize_text_field( $context['object_title'] ), 0, 255 )
 			: '';
 
-		// (4) meta: مفاتيح مغلقة + قيم منقحة + JSON + سقف 64KB.
+		// (4) meta: closed keys + sanitized values + JSON + the 64KB cap.
 		$meta_raw = isset( $context['meta'] ) && is_array( $context['meta'] ) ? $context['meta'] : [];
 		$allowed  = array_fill_keys( $event['meta_keys'], true );
 		$meta     = [];
@@ -384,8 +384,8 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 			$meta_json = null;
 		}
 
-		// (2/استثناء ip): NULL افتراضيًا؛ عند التمكين REMOTE_ADDR حصرًا مع
-		// FILTER_VALIDATE_IP — رفض X-Forwarded-For نهائيًا (Q4-1).
+		// (2/ip exception): NULL by default; when enabled REMOTE_ADDR exclusively with
+		// FILTER_VALIDATE_IP — X-Forwarded-For refused definitively (Q4-1).
 		$ip = null;
 		if ( $settings['ip_enabled'] ) {
 			$remote = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
@@ -393,8 +393,8 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 			$ip     = false === $valid ? null : (string) $valid;
 		}
 
-		// (5) INSERT مُحضَّر واحد بNULL inline — أعمدة NULL تنقل حرفيًا في SQL
-		//     (نمط ai.php UPDATE مُجهَّز :99-103 — سلوك موحد عبر إصدارات wpdb).
+		// (5) One prepared INSERT with inline NULL — the NULL columns pass literally in SQL
+		//     (the ai.php prepared UPDATE pattern :99-103 — uniform behavior across wpdb versions).
 		$placeholders = '( %d, %s, %s, %s, '
 			. ( null === $object_id ? 'NULL' : '%d' ) . ', %s, '
 			. ( null === $meta_json ? 'NULL' : '%s' ) . ', '
@@ -410,7 +410,7 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 		if ( null !== $ip ) {
 			$args[] = $ip;
 		}
-		// (6) UTC صريح — مستقل عن timezone الموقع ومتسقًا مع cutoff بgmdate.
+		// (6) Explicit UTC — independent of the site's timezone and consistent with the gmdate cutoff.
 		$args[] = gmdate( 'Y-m-d H:i:s' );
 
 		$table = $wpdb->prefix . 'hossam_audit_log';
@@ -423,7 +423,7 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 			)
 		);
 
-		// (1) فشل الكتابة يُبتلع مع error_log ولا يغيّر سير المنادي إطلاقًا.
+		// (1) Write failure is swallowed with error_log and never changes the caller's flow at all.
 		if ( '' !== (string) $wpdb->last_error ) {
 			error_log( 'HAL audit log: insert failed for ' . $event_action . '.' );
 
@@ -436,17 +436,17 @@ if ( ! function_exists( 'hossam_audit_log' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_on_secret_audit' ) ) {
 	/**
-	 * المستمع الواحد لhook الأسرار hal_frontend_dashboard_secret_audit —
-	 * بتوقيعه وحمولته الرباعية (action/secret_id/actor/time) بلا أي تغيير
-	 * (G4 §6-11 — class-secret-store.php:313 يُستهلك من الخارج حصرًا).
-	 * التفريع: 'set'→secret_set، 'delete'→secret_delete،
-	 * 'key_mismatch'→secret_key_mismatch (الفرع الرابع — وسم دلتا H7
-	 * §2-ج-4)، وأي قيمة أخرى تُتجاهل دفاعيًا (بقية — كذلك قيمة
-	 * 'get_failed' الموثقة في docblock المخزن وغير المطلقة). actor/time
-	 * في الحمولة يستهلكهما السجل من الجلسة وgmdate ذاتهما — لا يُنقلان.
-	 * لا مستمع ثانٍ ولا hook عام (ممنوعات R2).
+	 * The single listener for the secrets hook hal_frontend_dashboard_secret_audit —
+	 * with its signature and its four-item payload (action/secret_id/actor/time) without any change
+	 * (G4 §6-11 — class-secret-store.php:313 consumed from the outside exclusively).
+	 * The branching: 'set'→secret_set, 'delete'→secret_delete,
+	 * 'key_mismatch'→secret_key_mismatch (the fourth branch — the delta tag H7
+	 * §2-c-4), and any other value is defensively ignored (the rest — also the
+	 * 'get_failed' value documented in the store's docblock and never dispatched). actor/time
+	 * in the payload are consumed by the log from the session and gmdate themselves — they are not carried over.
+	 * No second listener and no public hook (the R2 prohibitions).
 	 *
-	 * @param mixed $entry حمولة الhook الرباعية من المخزن.
+	 * @param mixed $entry The four-item hook payload from the store.
 	 * @return void
 	 */
 	function hossam_audit_log_on_secret_audit( $entry ): void {
@@ -480,9 +480,9 @@ add_action( 'hal_frontend_dashboard_secret_audit', 'hossam_audit_log_on_secret_a
 
 if ( ! function_exists( 'hossam_article_h1_policy' ) ) {
 	/**
-	 * سياسة H1 (ق1 — الافتراضي normalize: الصمام يعمل دومًا ما عدا off).
-	 * القيم المغلقة: normalize | reject | off — أي قيمة فلتر أخرى تعود
-	 * للافتراضي normalize (غير off يعمل). نقطة الضبط الوحيدة للمالك:
+	 * The H1 policy (q1 — the default is normalize: the valve works always except off).
+	 * The closed values: normalize | reject | off — any other filter value returns
+	 * to the default normalize (not-off means active). The owner's single tuning point:
 	 * add_filter( 'hossam_article_h1_policy', fn() => 'reject' | 'off' ).
 	 *
 	 * @return string normalize|reject|off.
@@ -496,12 +496,12 @@ if ( ! function_exists( 'hossam_article_h1_policy' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_content_has_h1' ) ) {
 	/**
-	 * كاشف وسم h1 في محتوى — الفحص على الحمولة المخزَّنة بعد wp_kses_post
-	 * حصرًا (h1 ضمن allowlist النواة فيجاوز kses — G6 §3-أ-2). يطابق
-	 * <h1> و<h1 > و<h1/> و<h1 attr> بأي حالة أحرف، ولا يطابق h10/h12.
+	 * An h1 tag detector in content — the check on the stored payload after wp_kses_post
+	 * exclusively (h1 is within the core allowlist so it passes kses — G6 §3-a-2). It matches
+	 * <h1> and <h1 > and <h1/> and <h1 attr> in any letter case, and does not match h10/h12.
 	 *
-	 * @param string $html محتوى HTML مخزَّن.
-	 * @return bool هل يحتوي وسم h1 افتتاحيًا.
+	 * @param string $html Stored HTML content.
+	 * @return bool Whether it contains an opening h1 tag.
 	 */
 	function hossam_audit_log_content_has_h1( string $html ): bool {
 		return (bool) preg_match( '/<h1[\s\/>]/i', $html );
@@ -510,15 +510,15 @@ if ( ! function_exists( 'hossam_audit_log_content_has_h1' ) ) {
 
 if ( ! function_exists( 'hossam_article_h1_should_reject' ) ) {
 	/**
-	 * دالة فحص الرفض النظيف (تُنادى لاحقًا من صف R14 —
-	 * runtime/adapters/wordpress-posts.php): true فقط عندما تكون السياسة
-	 * 'reject' والمحتوى يحوي h1 — النقطة التي يحوّلها المنادي إلى رفض 400
-	 * نظيف في مسار الحفظ. السياسة normalize/off ترفض لا شيء هنا.
-	 * الفحص على post_content المخزَّن بعد kses — لا قبل kses، ولا على
-	 * post_title، ولا خارج نوع post (المستدعي يضمن النوع).
+	 * The clean rejection check function (called later from the R14 row —
+	 * runtime/adapters/wordpress-posts.php): true only when the policy
+	 * is 'reject' and the content contains an h1 — the point the caller turns into a clean 400
+	 * rejection in the save path. The normalize/off policies reject nothing here.
+	 * The check on the post_content stored after kses — not before kses, not on
+	 * post_title, and not outside the post type (the caller guarantees the type).
 	 *
-	 * @param string $post_content محتوى المقال المخزَّن (بعد kses).
-	 * @return bool هل يُرفض المحتوى بسياسة reject.
+	 * @param string $post_content The article's stored content (after kses).
+	 * @return bool Whether the content is rejected by the reject policy.
 	 */
 	function hossam_article_h1_should_reject( string $post_content ): bool {
 		if ( 'reject' !== hossam_article_h1_policy() ) {
@@ -531,22 +531,22 @@ if ( ! function_exists( 'hossam_article_h1_should_reject' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_normalize_h1_post_data' ) ) {
 	/**
-	 * معالج سياسة H1 على wp_insert_post_data (دفاع G2 العميق — حسم Q5 /
-	 * الحدث 19): يحوّل <h1>→<h2> في post_content لنوع post حصرًا عند
-	 * السياسة normalize ويسجل article_h1_normalized عن كل تحويل (صف واحد
-	 * لكل حفظ تحوّل، meta.count = عدد وسوم h1 المحوَّلة). الفحص بعد kses:
-	 * الفلتر يُطبَّق بعد sanitize_post('db') الذي يمر wp_kses_post
-	 * (مرجع نواة 6.7.1 post.php:4761) — فلا فحص قبل kses ولا على
-	 * post_title ولا خارج نوع post (النسخ/الautosaves نوعها revision —
-	 * مستثناة بالنوع ذاته). off/reject: لا تحويل ولا تسجيل من هنا
-	 * (reject تُنفَّذ من نقطة R14 عبر hossam_article_h1_should_reject).
+	 * The H1 policy handler on wp_insert_post_data (the G2 deep defense — the Q5 resolution /
+	 * event 19): converts <h1>→<h2> in post_content for the post type exclusively when
+	 * the policy is normalize and logs article_h1_normalized for every conversion (one row
+	 * per save that converted, meta.count = the number of converted h1 tags). The check after kses:
+	 * the filter is applied after sanitize_post('db') which passes wp_kses_post
+	 * (core reference 6.7.1 post.php:4761) — so no check before kses nor on
+	 * post_title nor outside the post type (the copies/autosaves are of type revision —
+	 * excluded by the type itself). off/reject: no conversion and no logging from here
+	 * (reject is executed from the R14 point via hossam_article_h1_should_reject).
 	 *
-	 * بيانات الفلتر مشطوفة (slashed) بعقد النواة — الاستبدال لا يمس
-	 * backslashes فيبقى الشطف متسقًا؛ لقطة العنوان تُفكّ قبل التنقيح.
+	 * The filter data are slashed by the core contract — the replacement does not touch
+	 * backslashes so the slashing stays consistent; the title snapshot is unslashed before sanitizing.
 	 *
-	 * @param array $data    بيانات المقال المشطوفة قبيل الكتابة.
-	 * @param array $postarr المصفوفة الخام الواردة.
-	 * @return array البيانات بعد التطبيع أو كما هي.
+	 * @param array $data    The article's slashed data just before writing.
+	 * @param array $postarr The raw incoming array.
+	 * @return array The data after normalization or as is.
 	 */
 	function hossam_audit_log_normalize_h1_post_data( array $data, array $postarr ) {
 		unset( $postarr );
@@ -571,7 +571,7 @@ if ( ! function_exists( 'hossam_audit_log_normalize_h1_post_data' ) ) {
 		$content = preg_replace( '/<h1([\s\/>])/i', '<h2$1', $data['post_content'] );
 		$content = is_string( $content ) ? preg_replace( '/<\/h1\s*>/i', '</h2>', $content ) : null;
 		if ( ! is_string( $content ) ) {
-			// فشل preg — لا مساس بالمحتوى (fail-safe صامت).
+			// preg failure — no touching of the content (a silent fail-safe).
 			return $data;
 		}
 
@@ -596,14 +596,14 @@ add_filter( 'wp_insert_post_data', 'hossam_audit_log_normalize_h1_post_data', 10
 
 if ( ! function_exists( 'hossam_audit_log_retention_definitions' ) ) {
 	/**
-	 * سجل تعريفات محرك الاحتفاظ — أربعة جداول (Q4-8 الدمج المعتمد بقيم
-	 * ق3: 90/30/90/180): [key, table_suffix, date_column, days, batch].
-	 * أيام ai_jobs محسوبة على updated_at وterminal-only
-	 * (status IN ('completed','failed')) — عقد التكامل مع الزومبي في رأس
-	 * الملف. الفلاتر لكل جدول (معيار 1 — قابلة للتبديل سطر فلتر):
+	 * The retention engine's definitions registry — four tables (Q4-8, the sanctioned merge with the
+	 * q3 values: 90/30/90/180): [key, table_suffix, date_column, days, batch].
+	 * The ai_jobs days are computed on updated_at and terminal-only
+	 * (status IN ('completed','failed')) — the Zombie integration contract in the file
+	 * header. The filters per table (criterion 1 — swappable with a filter line):
 	 *   hossam_retention_days_audit_log | _ai_jobs | _notifications | _messages
 	 *   hossam_retention_batch_audit_log | _ai_jobs | _notifications | _messages
-	 * أضافة/إزالة جدول مستقبليًا = سطر في هذا السجل (G4 Q4-8).
+	 * Adding/removing a table in the future = a line in this registry (G4 Q4-8).
 	 *
 	 * @return array<int, array{key:string, table_suffix:string, date_column:string, days:int, batch:int, terminal_only:bool}>
 	 */
@@ -647,25 +647,25 @@ if ( ! function_exists( 'hossam_audit_log_retention_definitions' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_retention_sweep_table' ) ) {
 	/**
-	 * حصة جدول واحد داخل الكسح اليومي — DELETE مفهرس بالتاريخ بدفعات
-	 * ORDER BY id LIMIT {batch} حتى 20 دفعة (سقف 20×batch صفًا/تشغيل —
-	 * Q4-4)، والفائض يتعوضه تلقائيًا في الدورة التالية (cutoff تاريخي
-	 * فالعملية idempotent وتتسامح مع فوات wp-cron). صفر مدخل مستخدم في
-	 * أي DELETE: cutoff بgmdate من قيمة days المضبوطة، وbatch/days من
-	 * سجل التعريفات والفلاتر المعلنة (بclamp days 1..365)، وشرط
-	 * terminal-only ثابت مكتوب حرفيًا — لا شيء من الطلب أصلًا (cron داخلي).
+	 * One table's share inside the daily sweep — a date-indexed DELETE in batches
+	 * ORDER BY id LIMIT {batch} up to 20 batches (a cap of 20×batch rows/run —
+	 * Q4-4), and the surplus is compensated automatically in the next cycle (a historical
+	 * cutoff so the operation is idempotent and tolerates missed wp-cron runs). Zero user input in
+	 * any DELETE: the cutoff via gmdate from the tuned days value, and batch/days from
+	 * the definitions registry and the declared filters (with a days clamp 1..365), and the
+	 * terminal-only condition is a literal constant written out — nothing from the request at all (an internal cron).
 	 *
-	 * مفتاح الإيقاف: enabled=false يوقف حصة audit_log حصرًا (Q4-5) —
-	 * بلا unschedule؛ حصص الجداول الثلاثة الأخرى مستقلة عن المفتاح.
-	 * عزل الفشل: فشل DELETE ⇒ error_log + عودة — الدورة التالية تعيد
-	 * ولا تلف بيانات ممكنة؛ فشل جدول لا يوقف بقية الحصص (العزل عند
-	 * المستدعي).
+	 * The kill switch: enabled=false stops the audit_log share exclusively (Q4-5) —
+	 * no unschedule; the other three tables' shares are independent of the switch.
+	 * Failure isolation: a DELETE failure ⇒ error_log + return — the next cycle retries
+	 * and damages no possible data; one table's failure does not stop the rest of the shares (isolation at
+	 * the caller).
 	 *
-	 * @param wpdb  $wpdb            كائن قاعدة البيانات (بلا type-hint —
-	 *                               سلوك الكود القائم كله global $wpdb).
-	 * @param array $def             تعريف الجدول من سجل التعريفات.
-	 * @param bool  $audit_enabled   قيمة مفتاح enabled الحالي.
-	 * @return int عدد الصفوف المحذوفة من هذا الجدول.
+	 * @param wpdb  $wpdb            The database object (no type-hint —
+	 *                               the existing code's behavior is all global $wpdb).
+	 * @param array $def             The table definition from the definitions registry.
+	 * @param bool  $audit_enabled   The current value of the enabled switch.
+	 * @return int The number of rows deleted from this table.
 	 */
 	function hossam_audit_log_retention_sweep_table( $wpdb, array $def, bool $audit_enabled ): int {
 		if ( 'audit_log' === $def['key'] && ! $audit_enabled ) {
@@ -678,8 +678,9 @@ if ( ! function_exists( 'hossam_audit_log_retention_sweep_table' ) ) {
 
 		$where = $def['date_column'] . ' < %s';
 		if ( ! empty( $def['terminal_only'] ) ) {
-			// terminal-only — ثابت مكتوب حرفيًا (عقد التكامل مع الزومبي:
-			// الاحتفاظ terminal-only وإنتاج terminal مسؤولية آلة الحالة).
+			// terminal-only — written verbatim (the Zombie integration contract:
+			// retention is terminal-only and terminal production is the state
+			// machine's responsibility).
 			$where .= " AND status IN ('completed','failed')";
 		}
 
@@ -711,10 +712,11 @@ if ( ! function_exists( 'hossam_audit_log_retention_sweep_table' ) ) {
 
 if ( ! function_exists( 'hossam_audit_log_retention_sweep' ) ) {
 	/**
-	 * الكسح اليومي — الحدث الواحد hossam_dashboard_retention_sweep_event
-	 * يدور على سجل التعريفات بجدولة واحدة وحارس واحد (Q4-8). لكل جدول:
-	 * تنفيذ معزول — فشل جدول (بما فيه استثناء غير متوقع) يُسجل ولا يوقف
-	 * بقية الحصص (عزل فشل لكل جدول). المواعيد محسومة UTC بgmdate داخليًا.
+	 * The daily sweep — the single event hossam_dashboard_retention_sweep_event
+	 * runs over the definitions registry with one schedule and one guard (Q4-8).
+	 * Per table: isolated execution — a table failure (including an unexpected
+	 * exception) is logged and never stops the remaining quotas (per-table
+	 * failure isolation). Deadlines are settled in UTC with gmdate internally.
 	 *
 	 * @return void
 	 */
@@ -736,10 +738,11 @@ if ( ! function_exists( 'hossam_audit_log_retention_sweep' ) ) {
 
 add_action( 'hossam_dashboard_retention_sweep_event', 'hossam_audit_log_retention_sweep' );
 
-// الجدولة الذاتية بحارس idempotency — النمط الحرفي المجرَّب ai.php:535-540
-// (Q4-4): init بguard wp_next_scheduled، فاصل daily نووي بلا cron_schedules
-// جديد. إزالة الحدث عند إلغاء التفعيل = register_deactivation_hook واحد
-// في الحامل hal-frontend-dashboard.php (صف R4) — لا unschedule من هنا.
+// Self-scheduling with an idempotency guard — the proven verbatim pattern
+// ai.php:535-540 (Q4-4): init with a wp_next_scheduled guard, a daily
+// interval with no new cron_schedules. Removing the event on deactivation =
+// one register_deactivation_hook in the carrier hal-frontend-dashboard.php
+// (row R4) — no unschedule from here.
 add_action( 'init', function (): void {
 	if ( wp_next_scheduled( 'hossam_dashboard_retention_sweep_event' ) ) {
 		return;

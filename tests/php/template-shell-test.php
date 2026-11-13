@@ -1556,10 +1556,11 @@ function b7_mode_gates( string $project ): void {
 		&& ( $GLOBALS['B7_META_CALLS'][5]['rank_math_seo_score'] ?? 0 ) > 0,
 		'rank_math_seo enabled with data → the row reads and shows the real seo score',
 		'seo value missing' );
-	b7_check( 'G-TRANSLATE-BUTTONS', false !== strpos( $seo_on_html, 'js-translate-article' )
+	b7_check( 'G-TRANSLATE-BUTTONS', false !== strpos( $seo_on_html, 'hossam-lang-chip' )
+		&& false === strpos( $seo_on_html, 'js-translate-article' )
 		&& ( $GLOBALS['B7_FILTER_CALLS']['wpml_post_language_details'] ?? 0 ) > 0,
-		'wpml_translations enabled with languages → per-row translate buttons render',
-		'translate buttons missing' );
+		'wpml_translations enabled with languages → the compact language-chips column renders and the actions cell carries no per-row translate buttons (v1.1.3 W8 T-09 — value update, not strictness)',
+		'translate chips missing or duplicated buttons remain' );
 	b7_set_features( array( 'rank_math_seo' => false ) );
 	$GLOBALS['B7_META_CALLS'] = array();
 	$GLOBALS['B7_QUERY_POSTS'] = array(

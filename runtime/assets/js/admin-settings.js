@@ -1,17 +1,20 @@
 /**
- * runtime/assets/js/admin-settings.js — واجهة Backend (الدفعة 3).
+ * runtime/assets/js/admin-settings.js — Backend UI (batch 3).
  *
- * العقد (معمارية §14):
- *   - اختيار الشعار عبر WordPress Media modal فقط (wp.media)، وضبط
- *     attachment id في الحقل المخفي — لا مسارات ملفات ولا URLs حرة.
- *   - تبعيات المميزات: عناصر [data-requires-feature] تُعطَّل عندما
- *     يكون المميزة الموافقة غير مفعلة (تنبيه واجهة فقط؛ التحقق
- *     الخادمي هو الحاكم).
- *   - إخفاء قيم الأسرار: حقول password بلا قيمة أولية من الخادم —
- *     لا يُقرأ أي secret من أي استجابة ولا يُكتب في DOM نصيًا.
- *   - منع الإرسال المكرر: أول submit يعطّل الأزرار (aria-busy) حتى
- *     مغادرة الصفحة.
- *   - حالات الخطأ: غياب wp.media يظهر رسالة منقحة (بلا تفاصيل).
+ * The contract (architecture §14):
+ *   - Logo selection via the WordPress Media modal only (wp.media), and
+ *     setting the attachment id in the hidden field — no file paths and
+ *     no free-form URLs.
+ *   - Feature dependencies: [data-requires-feature] elements are disabled
+ *     when the corresponding feature is not enabled (a UI warning only;
+ *     server-side validation is the ruling authority).
+ *   - Hiding secret values: password fields with no initial value from
+ *     the server — no secret is read from any response nor written into
+ *     the DOM as text.
+ *   - Preventing duplicate submission: the first submit disables the
+ *     buttons (aria-busy) until the page is left.
+ *   - Error states: a missing wp.media shows a sanitized message (no
+ *     details).
  */
 (function () {
 	'use strict';
@@ -28,7 +31,7 @@
 			note.setAttribute('data-hal-js-error', '');
 			container.appendChild(note);
 		}
-		// نص منقح من التوطين فقط — لا يُدرج فيه أي محتوى خارجي.
+		// Text is sanitized and comes from localization only — no external content is inserted into it.
 		note.textContent = message;
 	}
 
@@ -53,9 +56,9 @@
 					library: { type: 'image' },
 					multiple: false
 				};
-				// §7.6: رفع Media جديد يحتاج upload_files — القيود الخادمية
-				// لووردبريس نفسه؛ بلا هذه الصلاحية تُفتح نافذة اختيار فقط
-				// (uploader مخفي)، والاختيار من الموجود يبقى متاحًا.
+				// §7.6: uploading new Media requires upload_files — a server-side restriction
+				// of WordPress itself; without this capability the window opens for selection
+				// only (uploader hidden), and choosing from existing items remains available.
 				if (strings.canUploadFiles === false) {
 					options.uploader = false;
 				}
@@ -133,7 +136,7 @@
 		initSubmitGuard(root);
 	}
 
-	// نافذة واجهة للاختبار المعزول والتهيئة عند التحميل.
+	// UI surface for isolated testing and initialization on load.
 	window.HALFrontendDashboardAdminSettings = {
 		init: init
 	};

@@ -1,23 +1,23 @@
 <?php
 /**
- * runtime/adapters/wordpress-uploads.php (الدفعة 4)
+ * runtime/adapters/wordpress-uploads.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: رفع ملفات أصلي عبر WordPress Core (media_handle_upload).
+ * Role: native file upload through WordPress Core (media_handle_upload).
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * wordpress-uploads.php (الدفعة 4 من HAL Frontend Dashboard) — صفر
- * تعديل في العقود.
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/adapters/
+ * wordpress-uploads.php (Batch 4 of HAL Frontend Dashboard) — zero
+ * changes to contracts.
  *
- * العقد المنقول كما هو (ملخَّص من رأس المصدر):
- *   - require الثلاثة wp-admin/includes (file/image/media) قبل
- *     media_handle_upload() — ملف تعريف الدالة نفسه غير محمل خارج
- *     wp-admin إلا بهذا الطلب الصريح.
- *   - media_handle_upload( 'file', 0 ) — 0 = غير مرتبط بمقال؛ اسم حقل
- *     $_FILES ثابت 'file' (وحدة uploads.js تسمّي الحقل بنفس الاسم —
- *     الدفعة 9).
- *   - allow-list امتدادات/MIME: سياسة WordPress الفعلية للمستخدم هي
- *     الحد الأعلى؛ الفلتر hossam_uploads_allowed_mimes يضيّقها فقط —
- *     التقاطع يمنع إعادة تمكين نوع عطله الموقع أو فلتر سابق.
+ * The contract as carried over (summarized from the source header):
+ *   - require the three wp-admin/includes files (file/image/media) before
+ *     media_handle_upload() — the function's own definition file is not loaded outside
+ *     wp-admin except through this explicit require.
+ *   - media_handle_upload( 'file', 0 ) — 0 = unattached to a post; the $_FILES field
+ *     name is fixed as 'file' (the uploads.js unit names the field with the same name —
+ *     Batch 9).
+ *   - extension/MIME allow-list: the user's actual WordPress policy is
+ *     the upper bound; the hossam_uploads_allowed_mimes filter only narrows it —
+ *     the intersection prevents re-enabling a type disabled by the site or an earlier filter.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -52,7 +52,7 @@ if ( ! function_exists( 'hossam_upload_file' ) ) {
 	 */
 	function hossam_upload_file() {
 		if ( ! current_user_can( 'upload_files' ) ) {
-			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to upload files.', 'astra-child' ) );
+			return new WP_Error( 'hossam_forbidden', __( 'You do not have permission to upload files.', 'hal-frontend-dashboard' ) );
 		}
 
 		$field = 'file';
@@ -61,14 +61,14 @@ if ( ! function_exists( 'hossam_upload_file' ) ) {
 			|| ! isset( $_FILES[ $field ]['name'] )
 			|| ! is_string( $_FILES[ $field ]['name'] )
 			|| '' === $_FILES[ $field ]['name'] ) {
-			return new WP_Error( 'hossam_no_file', __( 'No file was received.', 'astra-child' ) );
+			return new WP_Error( 'hossam_no_file', __( 'No file was received.', 'hal-frontend-dashboard' ) );
 		}
 
 		$allowed_mimes = hossam_get_allowed_upload_mimes();
 		$file_name     = sanitize_file_name( wp_unslash( $_FILES[ $field ]['name'] ) );
 		$filetype      = wp_check_filetype( $file_name, $allowed_mimes );
 		if ( ! $filetype['ext'] || ! $filetype['type'] ) {
-			return new WP_Error( 'hossam_invalid_file_type', __( 'This file type is not allowed.', 'astra-child' ) );
+			return new WP_Error( 'hossam_invalid_file_type', __( 'This file type is not allowed.', 'hal-frontend-dashboard' ) );
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/file.php';

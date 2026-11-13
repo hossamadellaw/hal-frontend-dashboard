@@ -1,20 +1,22 @@
 <?php
 /**
- * runtime/integrations/class-integration-settings-registry.php (الدفعة 3)
+ * runtime/integrations/class-integration-settings-registry.php (batch 3)
  * ══════════════════════════════════════════════════════════════
- * العقد (معمارية §14): allowlist واحدة لتعريف settings/secrets/health
- * consumers لكل تكامل — لا key names حرة ولا provider URLs من input.
- * معرفات الأسرار المسموحة هنا حصرًا يمررها المتحكم إلى Secret Store،
- * وhealth consumers معرفات مجردة تستهلكها الدفعة 4/المراقب — لا URLs
- * هنا إطلاقًا.
+ * Contract (architecture §14): a single allowlist defining the settings/
+ * secrets/health consumers of every integration — no free-form key names
+ * and no provider URLs from input. The approved secret ids here alone are
+ * what the controller passes to the Secret Store, and health consumers are
+ * abstract identifiers consumed by batch 4/the monitor — no URLs here at
+ * all.
  *
- * التكاملات السبعة المطابقة لسجل قدرات core/setup.php: amelia وwpml و
- * rank_math وwoocommerce وultimate_member وfrontend_admin وai.
+ * The seven integrations matching the capability register of
+ * core/setup.php: amelia, wpml, rank_math, woocommerce, ultimate_member,
+ * frontend_admin and ai.
  *
- * AI: تفضيل الاستراتيجية enum مغلق (المرجع الموحد §7.4)؛ أما allowlist
- * المزود/النموذج لـdirect_key فملك adapters/ai.php في الدفعة 4 عبر
- * apply_filters('hossam_ai_strategies') من PHP موثوق فقط — لا تُعاد
- * هنا ولا تُقبل من input.
+ * AI: the strategy preference is a closed enum (unified reference §7.4);
+ * the provider/model allowlist for direct_key is owned by adapters/ai.php
+ * in batch 4 via apply_filters('hossam_ai_strategies') from trusted PHP
+ * only — it is not returned here and not accepted from input.
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -23,10 +25,11 @@ defined( 'ABSPATH' ) || exit;
 final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 
 	/**
-	 * تعريف التكاملات: label للعرض، secrets المعرفات المسموحة
-	 * (optional = السر اختياري وتكامله يبقى unavailable بغيابه)،
-	 * settings مفاتيح Settings Repository المخصصة للتكامل، وhealth
-	 * consumers معرفات مجردة يفحصها مراقب الصحة.
+	 * Integration definitions: label for display, secrets as the allowed
+	 * ids (optional = the secret is optional and its integration stays
+	 * unavailable in its absence), settings as the Settings Repository keys
+	 * assigned to the integration, and health consumers as abstract
+	 * identifiers examined by the health monitor.
 	 *
 	 * @return array<string, array{label:string, secrets:array<int, array{id:string, label:string, optional:bool}>, settings:string[], health:string[]}>
 	 */
@@ -39,8 +42,9 @@ final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 						'id'            => 'amelia_elite_api_key',
 						'label'         => 'Amelia Elite API key',
 						'optional'      => true,
-						// العقد التاريخي الموثق في core/setup.php: ثابت خارج
-						// المستودع HOSSAM_AMELIA_API_KEY (لا env name موثق).
+						// The historical contract documented in core/setup.php:
+						// a constant outside the repository
+						// HOSSAM_AMELIA_API_KEY (no documented env name).
 						'constant_name' => 'HOSSAM_AMELIA_API_KEY',
 						'env_name'      => '',
 					),
@@ -94,7 +98,7 @@ final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 	}
 
 	/**
-	 * @return string[] كل معرفات الأسرار المسموحة عبر التكاملات.
+	 * @return string[] every approved secret id across the integrations.
 	 */
 	public static function secret_ids(): array {
 		$ids = array();
@@ -107,15 +111,16 @@ final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 	}
 
 	/**
-	 * هل معرف السر ضمن الallowlist؟ (لا key names حرة من input).
+	 * Is the secret id within the allowlist? (no free-form key names from
+	 * input).
 	 */
 	public static function is_valid_secret_id( string $secret_id ): bool {
 		return in_array( $secret_id, self::secret_ids(), true );
 	}
 
 	/**
-	 * مفتاح السر المناظر لأحد إعدادات Settings Repository (العقد
-	 * المشترك مع التكاملات اللاحقة).
+	 * The secret key corresponding to one of the Settings Repository
+	 * settings (the shared contract with the later integrations).
 	 */
 	public static function integration_settings( string $integration ): array {
 		$definition = self::integrations()[ $integration ] ?? null;
@@ -123,7 +128,8 @@ final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 	}
 
 	/**
-	 * معرفات health consumers لتكامل — يستهلكها مراقب الصحة فقط.
+	 * The health consumer ids of an integration — consumed by the health
+	 * monitor only.
 	 */
 	public static function integration_health_consumers( string $integration ): array {
 		$definition = self::integrations()[ $integration ] ?? null;
@@ -131,12 +137,13 @@ final class HAL_Frontend_Dashboard_Integration_Settings_Registry {
 	}
 
 	/**
-	 * B3-credential-status: مصدر credential الفعلي لسر معرف، وفق ترتيب
-	 * قرار المالك §2.4 فيما تملكه هذه الطبقة: environment ثم constant
-	 * ثم HAL encrypted fallback ثم none. المصدر 1 (credential رسمي بلا
-	 * نسخ) والمصدر 5 (Connector DB بتحذيره) يملكهما adapter/الـAI
-	 * Client في الدفعتين 4+ ويبقيان خارج هذا العقد. HAL plaintext
-	 * ممنوع ولا يظهر هنا إطلاقًا.
+	 * B3-credential-status: the actual credential source of a given secret,
+	 * in the order of owner decision §2.4 for what this layer owns:
+	 * environment, then constant, then HAL encrypted fallback, then none.
+	 * Source 1 (an official credential with no copy) and source 5 (the
+	 * Connector DB with its warning) are owned by the adapter/the AI Client
+	 * in batches 4+ and stay outside this contract. HAL plaintext is
+	 * forbidden and never appears here.
 	 *
 	 * @return string environment|constant|hal_encrypted|none
 	 */

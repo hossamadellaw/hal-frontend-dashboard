@@ -1,28 +1,28 @@
 <?php
 /**
- * runtime/adapters/wpml.php (الدفعة 4)
+ * runtime/adapters/wpml.php (Batch 4)
  * ══════════════════════════════════════════════════════════════
- * الدور: كل تكامل WPML الرسمي — URL helpers + حالة الترجمة عبر
- * الفلاتر الرسمية الموثقة فقط.
+ * Role: the whole official WPML integration — URL helpers + translation state through
+ * the documented official filters only.
  *
- * المصدر: نقل حرفي 1:1 من legacy mu-plugins/hossam-dashboard/adapters/
- * wpml.php (الدفعة 4 من HAL Frontend Dashboard) — صفر تعديل في العقود.
+ * Source: verbatim 1:1 port from legacy mu-plugins/hossam-dashboard/adapters/
+ * wpml.php (Batch 4 of HAL Frontend Dashboard) — zero changes to contracts.
  *
- * العقد المنقول كما هو (ملخَّص من رأس المصدر):
- *   - كل النداءات عبر فلاتر WPML الرسمية (wpml_permalink/
+ * The contract as carried over (summarized from the source header):
+ *   - All calls go through the official WPML filters (wpml_permalink/
  *     wpml_active_languages/wpml_object_id/wpml_element_trid/…)
- *     مع حراسة ICL_SITEPRESS_VERSION — غياب WPML يعيد fallbacks آمنة
- *     (لا SQL ولا تخمين مفاتيح داخلية).
- *   - مستهلكو core محميون: setup.php/notifications.php يستدعون
+ *     guarded by ICL_SITEPRESS_VERSION — WPML's absence returns safe fallbacks
+ *     (no SQL and no guessing of internal keys).
+ *   - Protected core consumers: setup.php/notifications.php call
  *     hossam_wpml_all_paths()/hossam_dashboard_url()/hossam_wpml_is_rtl()
- *     داخل callbacks وقت الطلب أو بحارس function_exists — الترتيب
- *     Core→Adapters في bootstrap يضمن التعريف وقت النداء.
- *   - T-29/T-30 (سويتشر لغة مخصص واستبدال [wpml_language_switcher])
- *     مؤجلة بقرار صاحب المشروع إلى بوابة إغلاق المشروع (اختبار حي
- *     ومقارنة shortcode) — لا تنفيذ هنا.
- *   - hossam_get_translation_status(): مستهلكها الفعلي translations.php
- *     (v1.0.6 §14 — جدول حالات الترجمة، استدعاء :152-154)؛ أي مسار إضافي
- *     يحتاج تفويضًا صريحًا + بند تحقق حي معلق (غير ملغى، مؤجل فقط).
+ *     inside request-time callbacks or behind a function_exists guard — the
+ *     Core→Adapters ordering in bootstrap guarantees definition at call time.
+ *   - T-29/T-30 (a custom language switcher and replacing [wpml_language_switcher])
+ *     are deferred by the project owner's decision to the project-closing gate (live
+ *     testing and shortcode comparison) — no implementation here.
+ *   - hossam_get_translation_status(): its actual consumer is translations.php
+ *     (v1.0.6 §14 — translation status table, call at :152-154); any additional
+ *     path requires (Delegated explicitly; live-verification clause pending (deferred, not cancelled)).
  * ══════════════════════════════════════════════════════════════
  */
 
@@ -70,10 +70,10 @@ if ( ! function_exists('hossam_login_url') ) {
 }
 if ( ! function_exists('hossam_dashboard_url') ) {
     /**
-     * B7-02 (معمارية §7.5): الرابط من permalink الصفحة المملوكة
-     * (option hal_frontend_dashboard_page_id — الكاتب الوحيد Installer)
-     * ثم عبر adapter الترجمة (wpml_permalink). غياب هوية صالحة
-     * يعيد جذر الموقع الآمن، دون البحث عن صفحة بالـslug.
+     * B7-02 (architecture §7.5): the URL comes from the permalink of the owned
+     * page (option hal_frontend_dashboard_page_id — the sole writer is the Installer)
+     * then through the translation adapter (wpml_permalink). Absence of a valid
+     * identity returns the safe site root, without searching for a page by slug.
      */
     function hossam_dashboard_url(): string {
         static $cache = [];
@@ -310,17 +310,18 @@ if ( ! function_exists( 'hossam_wpml_set_element_language' ) ) {
 
 if ( ! function_exists( 'hossam_wpml_stamp_post_language' ) ) {
 	/**
-	 * v1.1.0 صف R34 (H4 §1) — ختم لغة مقال منشأ لحظيًا عبر الواجهات الرسمية
-	 * حصرًا (لا SQL ولا قراءة cookie ولا إعادة تفاوض لغة). الحراسة:
-	 * بلا WPML، أو بلا واجهة الربط المسجلة (نفس فحص التأهيل
-	 * wordpress-posts.php:421-424)، أو بلا trid طازج يعيد false بلا أي
-	 * كتابة — لا يُمرَّر trid=0 أبدًا (دلالة التفريع :274-278)؛
-	 * source_language='' لأن المقال أصلي جديد بلا مصدر (verify يتخطى فحص
-	 * المصدر — :236/:260) ومسار Edit path الداخلي (:284-298) يجعل التطابق
-	 * المسبق قراءة-تحقق. عهدة الأمان: الاستدعاء مقصور على مقالات منشأة
-	 * لحظيًا (مجموعة trid طازجة ذات عنصر واحد) — لا يُنادى على مقال قائم
-	 * ولا في مسار التحديث (المستدعي الموحد: hossam_create_article — صف
-	 * R14). الفشل مسؤولية المنادي (سطر log والاستمرار — H4 §1.5-A4).
+	 * v1.1.0 row R34 (H4 §1) — stamp the language of a freshly created article through
+	 * the official interfaces exclusively (no SQL, no cookie reading, no language
+	 * renegotiation). Guards: without WPML, or without the registered link
+	 * interface (the same eligibility check as
+	 * wordpress-posts.php:421-424), or without a fresh trid, it returns false with no
+	 * writing at all — trid=0 is never passed (forking semantics :274-278);
+	 * source_language='' because the article is a new original with no source (verify skips
+	 * the source check — :236/:260) and the internal Edit path (:284-298) turns a prior
+	 * match into read-and-verify. Safety covenant: the call is restricted to articles created
+	 * freshly (a fresh trid set with a single element) — it is never called on an existing
+	 * article nor on the update path (the unified caller: hossam_create_article — row
+	 * R14). Failure is the caller's responsibility (a log line and continue — H4 §1.5-A4).
 	 */
 	function hossam_wpml_stamp_post_language( int $post_id, string $language_code ): bool {
 		if ( $post_id < 1 || '' === $language_code || ! defined( 'ICL_SITEPRESS_VERSION' ) ) {
@@ -404,14 +405,14 @@ if ( ! function_exists('hossam_resolve_site_section') ) {
 
 if ( ! function_exists( 'hossam_get_translation_status' ) ) {
 	/**
-	 * حالة الترجمة الكاملة لمقال عبر كل اللغات النشطة — رسمي 100%، عبر
-	 * apply_filters('wpml_get_element_translations', ...) الموثَّقة رسميًا.
-	 * لا استعلام SQL، لا API خارجي إضافي.
+	 * Full translation status of an article across all active languages — 100% official, through
+	 * the officially documented apply_filters('wpml_get_element_translations', ...).
+	 * No SQL query, no additional external API.
 	 *
 	 * @param int $post_id
-	 * @return array<string,array> مفتاحه كود اللغة؛ كل عنصر يحتوي
+	 * @return array<string,array> keyed by language code; each element contains
 	 *   translation_id, language_code, element_id, source_language_code,
-	 *   original (bool), post_title, post_status — كما توثِّقه wpml.org رسميًا.
+	 *   original (bool), post_title, post_status — as officially documented by wpml.org.
 	 */
 	function hossam_get_translation_status( int $post_id ): array {
 		if ( ! defined( 'ICL_SITEPRESS_VERSION' ) ) {

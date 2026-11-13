@@ -1,26 +1,29 @@
 <?php
 /**
- * runtime/templates/dashboard/profile-links.php — نقطة تمديد روابط «ملفي»
+ * runtime/templates/dashboard/profile-links.php — «My Profile» links extension point
  * ══════════════════════════════════════════════════════════════
- * Change Request: CR-2026-09-25-PROFILE-LINKS (طلب المالك الحالي؛ §15.35).
- * فلتر معلن: `hal_frontend_dashboard_profile_links`.
+ * Change Request: CR-2026-09-25-PROFILE-LINKS (the owner's current request; §15.35).
+ * Declared filter: `hal_frontend_dashboard_profile_links`.
  *
- * العقد:
- *   - يُستدعى وقت العرض (من بانل profile.php بعد بوابة الميزة)، بعد
- *     تحميل الإضافات — لا أثناء Bootstrap ولا في مسار مبكر.
- *   - يستقبل: array فارغًا افتراضيًا + معرّف المستخدم الحالي من
- *     get_current_user_id() (لا من مدخلات الطلب).
- *   - كل عنصر صالح: id نصي ثابت فريد (الأول يفوز) + label نصي غير فارغ
- *     بلا HTML + url مطلق http/https بمضيف بلا مسافات + eligible === true حرفيًا +
- *     order صحيح اختياري (الغائب وحده = 100؛ الموجود غير الصحيح، بما فيه
- *     null، يُتخطى ولا يُعوَّض؛ الأصغر أولًا، وثبات الإدخال عند التساوي).
- *   - ناتج غير مصفوفة = قائمة فارغة. المخالف يُتخطى وحده.
- *   - ظهور الرابط لا يمنح صلاحية: الصفحة الهدف تتحقق بنفسها.
- *   - الحدود: روابط فقط في هذا الموضع — لا panels ولا نماذج ولا حفظ
- *     ولا أسرار ولا بيانات مستخدمين آخرين. لا HTML/JS من المزود، ولا
- *     جلب أو تخزين لمحتوى الروابط.
+ * The contract:
+ *   - Invoked at render time (from the profile.php panel after the feature
+ *     gate), after plugins are loaded — not during Bootstrap and not on an
+ *     early path.
+ *   - Receives: an empty array by default + the current user ID from
+ *     get_current_user_id() (not from request input).
+ *   - Each valid item: a unique fixed string id (first wins) + a non-empty
+ *     string label without HTML + an absolute http/https url with a space-free
+ *     host + eligible === true literally + an optional integer order
+ *     (absent alone = 100; present-but-invalid, including null, is skipped and
+ *     never defaulted; smaller first, and input order on ties).
+ *   - A non-array result = an empty list. An invalid item is skipped alone.
+ *   - The link appearing grants no capability: the target page enforces
+ *     access itself.
+ *   - Boundaries: links only in this position — no panels, no forms, no
+ *     saving, no secrets and no other users' data. No HTML/JS from the
+ *     provider, and no fetching or storing of link content.
  *
- * مثال مزوّد مستقل (في إضافة المقدِّمة، لا هنا):
+ * Example standalone provider (in the providing plugin, not here):
  *
  *   add_filter( 'hal_frontend_dashboard_profile_links', function ( $links, $user_id ) {
  *       $links[] = array(
@@ -41,7 +44,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'hossam_profile_link_url_allowed' ) ) {
 	/**
-	 * يقبل URL مطلقًا ببروتوكول HTTP/HTTPS ومضيف غير فارغ فقط.
+	 * Accepts only an absolute URL with an HTTP/HTTPS protocol and a non-empty host.
 	 */
 	function hossam_profile_link_url_allowed( $url ): bool {
 		if ( ! is_string( $url ) || '' === $url ) {
@@ -65,9 +68,9 @@ if ( ! function_exists( 'hossam_profile_link_url_allowed' ) ) {
 
 if ( ! function_exists( 'hossam_profile_links' ) ) {
 	/**
-	 * يجمع روابط «ملفي» من الفلتر المعلن ويعيد المقبولة مرتبة فقط.
+	 * Collects «My Profile» links from the declared filter and returns only the accepted ones, sorted.
 	 *
-	 * @return array[] كل عنصر: id/label/url/order (مرتب، بلا مفاتيح مؤقتة).
+	 * @return array[] Each item: id/label/url/order (sorted, without temporary keys).
 	 */
 	function hossam_profile_links(): array {
 		$user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
@@ -136,9 +139,10 @@ if ( ! function_exists( 'hossam_profile_links' ) ) {
 
 if ( ! function_exists( 'hossam_render_profile_links_section' ) ) {
 	/**
-	 * يعرض قسم «روابط إضافية» بتنسيق Dashboard بعد بطاقات الملف
-	 * والإعدادات والأمان. لا شيء عند غياب روابط مقبولة. روابط تنقل
-	 * عادية بمخرجات مهرّبة (esc_url/esc_html) فقط.
+	 * Renders the «Additional Links» section in Dashboard styling after the
+	 * Profile, Settings and Security cards. Nothing when there are no accepted
+	 * links. Ordinary navigation links with escaped output (esc_url/esc_html)
+	 * only.
 	 */
 	function hossam_render_profile_links_section(): void {
 		$links = hossam_profile_links();

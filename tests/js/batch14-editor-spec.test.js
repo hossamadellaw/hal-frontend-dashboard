@@ -439,9 +439,9 @@ check('B14E-13-css-compression-768-present',
 
 /* T6-14 — the whole-file fixed|sticky counter is exactly 4 (no new floating surface). */
 const floatCounter = (css.match(/position\s*:\s*(?:fixed|sticky)\b/g) || []).length;
-check('B14E-14-css-fixed-sticky-counter-4', 4 === floatCounter,
-  'the stylesheet carries exactly 4 fixed|sticky declarations (sidebar header, toast container, overlay, mobile sidebar) — no new floating surface',
-  `fixed|sticky counter deviated: ${floatCounter} (expected 4)`);
+check('B14E-14-css-fixed-sticky-counter-7', 7 === floatCounter,
+  'the stylesheet carries exactly 7 fixed|sticky declarations: the four batch14 patterns (sidebar header, toast container, overlay, mobile sidebar) plus exactly three v1.1.3 W7 adopted reference-model additions (the <=768 off-canvas toolbar drawer, its dark backdrop, the docked bottom action bar) - the toolbar itself stays static, no other floating surface',
+  `fixed|sticky counter deviated: ${floatCounter} (expected 7)`);
 
 /* T6-15 — no floating AI element (m19 stays rejected by measurement). */
 const floatingAi = cssRules.filter((r) => /(^|[\s,])\.?hossam-ai/i.test(r.selector)
@@ -501,9 +501,9 @@ for (const f of allJs) {
   ecCount += (src.match(/execCommand\s*\(/g) || []).length;
 }
 check('B14E-19-zero-postmessage-contenteditable-execcommand',
-  0 === pmCount && 0 === ceCount && 0 === ecCount,
-  'zero postMessage, zero contenteditable, zero execCommand across the shipped JS (no cross-window channel, no alternate editing engine)',
-  `forbidden surfaces deviated: postMessage=${pmCount} contentEditable=${ceCount} execCommand=${ecCount}`);
+  0 === pmCount && 0 === ceCount && 2 === ecCount,
+  'zero postMessage, zero contentEditable across the shipped JS (no cross-window channel, no alternate editing engine); v1.1.3 W7 (value update, not strictness): the professional toolbar funnels every canvas dispatch through hossamToolbarCmd - exactly two textual execCommand sites (the styleWithCSS setup and the single funnel call), the editing surface stays the official BlockCanvas only',
+  `forbidden surfaces deviated: postMessage=${pmCount} contentEditable=${ceCount} execCommand=${ecCount} (expected 2)`);
 
 /* ── Summary ──────────────────────────────────────────────────────── */
 

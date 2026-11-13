@@ -1,22 +1,22 @@
 <?php
 /**
- * runtime/templates/dashboard/members.php — بانل الأعضاء (الدفعة 8)
+ * runtime/templates/dashboard/members.php — Members panel (batch 8)
  * ══════════════════════════════════════════════════════════════
- * المصدر: legacy theme/template-parts/dashboard/members.php (بصمة
- * المصدر بالبايت مثبتة في inventory الدفعة 8 — snapshot 5CD55D5D…).
+ * Source: legacy theme/template-parts/dashboard/members.php (byte-level
+ * source fingerprint pinned in the batch 8 inventory — snapshot 5CD55D5D…).
  *
- * الدلتا المصرَّح بها الوحيدة (قرار المالك B3-08 — الخيار أ؛ عقد
- * §19 صف members.php «manage_options guard مزدوج»): حارسان داخليان
- * بعد حارس ABSPATH — current_user_can('manage_options') (القدرة
- * الحقيقية لا الـboolean الممرر) ثم بوابة المالك
- * is_feature_enabled('members') — return مبكر لكل منهما؛ شرط
- * المصدر if ( $is_admin ) باقٍ بالجسم كما هو (طبقة الـshell)
- * فيكتمل الحرس المزدوج. جدول Roles من $role_display_map
- * والتبويبان باقيان كما هما.
+ * The sole authorized delta (owner decision B3-08 — option a; contract
+ * §19 row members.php «double manage_options guard»): two internal guards
+ * after the ABSPATH guard — current_user_can('manage_options') (the real
+ * capability, not the passed boolean) then the owner gate
+ * is_feature_enabled('members') — each with an early return; the source
+ * condition if ( $is_admin ) stays in the body as-is (the shell layer),
+ * so the double guard is completed. The Roles table from
+ * $role_display_map and the two tabs remain as they are.
  *
- * args صريحة: يستهلك من الـshell $is_admin (شرط المصدر) و
- * $role_display_map (جدول Roles) — يُستدعى من render_part بقائمة
- * args الموثقة.
+ * Explicit args: it consumes $is_admin (the source condition) and
+ * $role_display_map (the Roles table) from the shell — it is called from
+ * render_part with the documented args list.
  *
  */
 
