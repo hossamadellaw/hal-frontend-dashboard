@@ -27,6 +27,10 @@
 
 const HOSSAM_AI_POLL_INTERVAL_MS = 2000;
 const HOSSAM_AI_MAX_POLL_ATTEMPTS = 60; // ~120 seconds upper cap — prevents endless polling if a job stalls
+/* v1.1.4 fixes contract item 1 part three: per-run token — the waiting state
+   of a clicked button is owned by its run, so a superseding click re-owns the
+   button and a settling earlier attempt never clears the newer waiting state. */
+let hossamAiRunSequence = 0;
 
 /**
  * The single entry point required from the posts.php UI — it handles
@@ -190,6 +194,12 @@ function hossamAiRenderResult(resultEl, result) {
  * decides no permission locally: the buttons themselves are rendered
  * server-side after the capability and permission are proven, and the
  * endpoint re-verifies.
+ *
+ * v1.1.4 fixes contract item 1 part three: the waiting state — the clicked
+ * button is disabled with aria-busy and a pinned min-width (the box cannot
+ * collapse mid-call), and it is restored the moment its run settles; the
+ * failure and success cards keep rendering inside the existing result
+ * holder, and no new element is introduced.
  */
 document.addEventListener('click', function (e) {
   const btn = e.target.closest('.js-ai-run');
@@ -213,5 +223,19 @@ document.addEventListener('click', function (e) {
     if (pid > 0) data.post_id = pid;
   }
 
-  hossamAiRun(btn.dataset.jobType, data, btn.dataset.result);
+  const runToken = ++hossamAiRunSequence;
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.classList.add('hossam-ai-busy');
+  btn.style.minWidth = btn.offsetWidth + 'px';
+
+  const runPromise = hossamAiRun(btn.dataset.jobType, data, btn.dataset.result);
+  btn._hossamAiBusyRun = runToken;
+  Promise.resolve(runPromise).finally(() => {
+    if (btn._hossamAiBusyRun !== runToken) return; // a newer attempt owns the button now
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.classList.remove('hossam-ai-busy');
+    btn.style.minWidth = '';
+  });
 });

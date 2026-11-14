@@ -177,6 +177,21 @@ if ( ! function_exists( 'wp_unslash' ) ) {
 		return $value;
 	}
 }
+// v1.1.4 fixes contract item 1-(d): the monitor's provider_live probe issues
+// one free GET /v1beta/models call when direct_key is the chosen strategy —
+// the fixture answers HTTP 200 (a live list) unless a scenario overrides the
+// result, so the dual configured + live verdict is exercisable here.
+if ( ! function_exists( 'wp_remote_get' ) ) {
+	function wp_remote_get( string $url, array $args = array() ) {
+		$GLOBALS['B2S_REMOTE_CALLS'][] = array( 'url' => $url, 'args' => $args );
+		return $GLOBALS['B2S_REMOTE_RESULT'] ?? array( 'response' => array( 'code' => 200 ), 'body' => '{"models":[]}' );
+	}
+}
+if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
+	function wp_remote_retrieve_response_code( $response ): int {
+		return is_array( $response ) ? (int) ( $response['response']['code'] ?? 0 ) : 0;
+	}
+}
 if ( ! function_exists( 'absint' ) ) {
 	function absint( $value ): int {
 		return abs( (int) $value );
@@ -1218,6 +1233,13 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 			if ( in_array( $case, array( 'amelia-credential-ok', 'amelia-constant-corrupt-fallback', 'amelia-constant-no-hal-key' ), true ) ) {
 				define( 'HOSSAM_AMELIA_API_KEY', 'synthetic-credential' );
 			}
+			// v1.1.4 fixes contract item 1-(d): the direct_key dual-verdict
+			// scenarios exercise the provider_live probe — the fixture defines
+			// the documented provider constant so the probe's config read
+			// resolves, and the remote stub above answers HTTP 200.
+			if ( in_array( $case, array( 'direct-key-ok', 'direct-key-no-wp-client', 'direct-key-client-unsupported' ), true ) ) {
+				define( 'HOSSAM_AI_PROVIDER', 'gemini' );
+			}
 			$GLOBALS['B2S_CAN_MANAGE'] = true;
 			if ( 'never-run' === $case ) {
 				$site = HAL_Frontend_Dashboard_Integration_Health_Monitor::site_health_test();
@@ -1243,8 +1265,10 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 					b2s_check( 'HC4', in_array( 'direct_key_secret_missing', $ai_codes, true ), 'a direct_key strategy without its credential is blocked (credential gate)', 'credential code missing' );
 					break;
 				case 'direct-key-ok':
+					b2s_check( 'HC5', array( 'provider_live_ok' ) === $ai_codes && 'ok' === $status['ai']['status'], 'the valid direct_key contract is healthy with the dual configured + live verdict — the provider_live probe returns ok', 'direct-key-ok mismatch: ' . json_encode( $ai_codes ) );
+					break;
 				case 'recovery':
-					b2s_check( 'HC5', array() === $ai_codes && 'ok' === $status['ai']['status'], 'the full valid contract (supported client + valid strategy + configured secret) is healthy — recovery clears the codes', 'recovery mismatch: ' . json_encode( $ai_codes ) );
+					b2s_check( 'HC5', array() === $ai_codes && 'ok' === $status['ai']['status'], 'the full valid contract with a supported client is healthy and recovery clears the codes — the provider_live level is not required for a wp_ai_client strategy and never fires there', 'recovery mismatch: ' . json_encode( $ai_codes ) );
 					break;
 				case 'amelia-credential-missing':
 					b2s_check( 'HC6', in_array( 'amelia_credential_missing', $status['amelia']['codes'] ?? array(), true ), 'no credential source at all is a distinct sanitized code', 'credential-missing code missing' );
@@ -1257,10 +1281,10 @@ function b2s_mode( string $mode, array $args, string $project ): void {
 					b2s_check( 'HC7', ! in_array( 'amelia_credential_missing', $status['amelia']['codes'] ?? array(), true ) && array() === ( $status['amelia']['codes'] ?? array( 'x' ) ) && 'ok' === ( $status['amelia']['status'] ?? '' ), 'defining the documented credential constant with the loaded batch-4 adapter leaves amelia unblocked (source precedence consumed)', 'credential-ok mismatch: ' . json_encode( $status['amelia'] ?? array() ) );
 					break;
 				case 'direct-key-no-wp-client':
-					b2s_check( 'HC9', array() === $ai_codes && 'ok' === ( $status['ai']['status'] ?? '' ), 'B3-06-A: a valid direct_key strategy is healthy while the WP AI Client is absent entirely (an unused strategy never blocks the chosen one)', 'direct_key blocked by absent WP AI Client: ' . json_encode( $ai_codes ) );
+					b2s_check( 'HC9', array( 'provider_live_ok' ) === $ai_codes && 'ok' === ( $status['ai']['status'] ?? '' ), 'B3-06-A: a valid direct_key strategy is healthy while the WP AI Client is absent entirely (an unused strategy never blocks the chosen one) — the dual configured + live verdict is green', 'direct_key blocked by absent WP AI Client: ' . json_encode( $ai_codes ) );
 					break;
 				case 'direct-key-client-unsupported':
-					b2s_check( 'HC10', array() === $ai_codes && 'ok' === ( $status['ai']['status'] ?? '' ), 'B3-06-A: a present-but-unsupported WP AI Client does not block a chosen direct_key strategy', 'unsupported client blocked direct_key: ' . json_encode( $ai_codes ) );
+					b2s_check( 'HC10', array( 'provider_live_ok' ) === $ai_codes && 'ok' === ( $status['ai']['status'] ?? '' ), 'B3-06-A: a present-but-unsupported WP AI Client does not block a chosen direct_key strategy — the dual configured + live verdict is green', 'unsupported client blocked direct_key: ' . json_encode( $ai_codes ) );
 					break;
 				case 'amelia-constant-corrupt-fallback':
 					b2s_check(

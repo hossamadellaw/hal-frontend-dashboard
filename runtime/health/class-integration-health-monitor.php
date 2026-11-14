@@ -8,6 +8,15 @@
  *     failure disables that integration alone and alerts the admin — no
  *     rollback of the Runtime ever (Deployment/Boot Health in
  *     class-health-check.php is separate).
+ *   - v1.1.4 fixes contract item 1-(d): when the direct_key strategy is the
+ *     chosen one, this job also runs the provider_live probe — one free
+ *     GET /v1beta/models call (no text generation; the key is read at call
+ *     time and dropped immediately). The dual verdict: the AI integration
+ *     announces full health only when the configured level and the live level
+ *     agree. With wp_ai_client chosen (or no settled strategy) the
+ *     provider_live level is not required and never counts as a blocker.
+ *     There is no generation path from health and no new endpoint — the one
+ *     free read call is confined to this cron job.
  *   - It does not read/decrypt secrets inside a page render: the check is
  *     a bounded job (a cron hook or an admin POST) and the results are
  *     stored as sanitized status codes only in a separate option — no
@@ -55,8 +64,12 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 	 * The actual check (a bounded job): for every secret in the allowlist —
 	 * availability, key source, and decryptability (decrypted and discarded
 	 * immediately; no value is stored); and the provider capability for AI
-	 * with a local check and no API call. It stores sanitized codes only
-	 * and returns the same state.
+	 * with a local check. Since the v1.1.4 fixes contract item 1-(d) — only
+	 * when the direct_key strategy is the chosen one — the job additionally
+	 * runs one free provider_live probe call (GET /v1beta/models, no text
+	 * generation; the key is read at call time and dropped immediately). No
+	 * other API call exists in this job and there is no generation path from
+	 * health. It stores sanitized codes only and returns the same state.
 	 *
 	 * @return array<string, array{status:string, codes:string[]}>
 	 */
@@ -129,6 +142,26 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 				'status' => array() === $codes ? self::STATUS_OK : self::STATUS_BLOCKED,
 				'codes'  => $codes,
 			);
+		}
+
+		// v1.1.4 fixes contract item 1-(d): the dual configured + live verdict —
+		// only when direct_key is the chosen strategy, one free provider_live
+		// probe call (GET /v1beta/models, no text generation; the key is read at
+		// call time and dropped immediately by the probe itself). With
+		// wp_ai_client chosen (or no settled strategy) the provider_live level
+		// is not required and never counts as a blocker — the configured check
+		// alone governs. The result is a sanitized code appended to the ai
+		// integration's codes (provider_live_ok / provider_live_http_<status> /
+		// provider_live_network).
+		if ( 'direct_key' === $ai_strategy && isset( $status['ai'] ) ) {
+			$probe_code = function_exists( 'hossam_ai_probe_direct_key' )
+				? hossam_ai_probe_direct_key()
+				: 'provider_live_network';
+			$status['ai']['codes'][] = $probe_code;
+			$probe_failed            = 'provider_live_ok' !== $probe_code;
+			$status['ai']['status']  = ( self::STATUS_BLOCKED === $status['ai']['status'] || $probe_failed )
+				? self::STATUS_BLOCKED
+				: self::STATUS_OK;
 		}
 
 		$status['_meta'] = array(

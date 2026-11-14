@@ -358,8 +358,15 @@ function testCssCoversFragments(renderedJson) {
   const u3Start = u3Mark >= 0 ? runtimeCss.lastIndexOf('/*', u3Mark) - 1 : -1;
   // v1.0.6: [B9-U3] is the last block in the file (rich-editor styles to EOF).
   const u3Block = u3Start >= 0 ? runtimeCss.slice(u3Start) : '';
+  const u4Mark = runtimeCss.indexOf('[B9-U4]');
+  const u4Start = u4Mark >= 0 ? runtimeCss.lastIndexOf('/*', u4Mark) - 1 : -1;
+  // v1.1.4: [B9-U4] is the AI waiting-state block between the button styles
+  // and .btn-icon; the strip consumes its closing brace exactly.
+  const u4Anchor = '.hossam-ai-busy{\n  opacity:.7;cursor:progress;pointer-events:none;\n}';
+  const u4End = runtimeCss.indexOf(u4Anchor) + u4Anchor.length;
+  const u4Block = (u4Start >= 0 && u4End > u4Start) ? runtimeCss.slice(u4Start, u4End) : '';
   let remainder = runtimeCss;
-  for (const block of [u1Block, u2Block, u3Block]) {
+  for (const block of [u1Block, u2Block, u3Block, u4Block]) {
     if (block !== '') { remainder = remainder.replace(block, ''); }
   }
   // v1.1.3: the remainder comparison goes canonical — comments stripped by
@@ -376,14 +383,16 @@ function testCssCoversFragments(renderedJson) {
       && runtimeCss.includes('[B9-U1]')
       && runtimeCss.includes('[B9-U2]')
       && runtimeCss.includes('[B9-U3]')
+      && runtimeCss.includes('[B9-U4]')
       && runtimeCss.includes('.hossam-post-success-card')
       && runtimeCss.includes('.hossam-rich-editor')
       && !legacyCss.includes('.text-center')
       && !legacyCss.includes('[B9-U2]')
       && !legacyCss.includes('[B9-U3]')
+      && !legacyCss.includes('[B9-U4]')
       && remainderCanonical === legacyCanonical,
-    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
-    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3] blocks and the v1.1.3 comments batch');
+    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3]+[B9-U4] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
+    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3]/[B9-U4] blocks and the v1.1.3 comments batch');
 
   testCssUrlsOnly();
   testCssClassCoverage(renderedJson, runtimeCss);

@@ -453,6 +453,12 @@ tr:hover td{background:rgba(0,0,0,.012)}
 .btn-sm{padding:5px 10px;font-size:11px}
 .btn-danger{border-color:var(--danger);color:var(--danger)}
 .btn-danger:hover{background:var(--danger-bg)}
+/* [B9-U4] v1.1.4 fixes contract item 1 part three: the AI waiting state — the clicked
+   button keeps its rendered width (pinned inline by ai.js so the box cannot
+   collapse mid-call) and shows the busy affordance until the run settles. */
+.hossam-ai-busy{
+  opacity:.7;cursor:progress;pointer-events:none;
+}
 .btn-icon{padding:6px;width:30px;height:30px;justify-content:center}
 .btn-outline{background:transparent;border-color:var(--gold);color:var(--gold)}
 .btn-outline:hover{background:var(--gold-glow)}
