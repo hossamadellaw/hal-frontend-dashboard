@@ -351,9 +351,15 @@ const V106_POSTS_DELTA = {
     'hossam-rich-editor-edit', 'hossam-rich-editor-new',
     // v1.1.3 W6: the three side-column holder ids + the languages card.
     'hossam-publishing-holder', 'hossam-metadata-holder', 'hossam-tags-holder', 'hossam-languages-card',
+    // v1.1.4 item 5: the two write-column availability cards (the Translations
+    // Hub and the SEO & SERP holders) — the model order after Tags.
+    'hossam-translations-holder', 'hossam-seo-holder',
   ],
   idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
-  dataGained: ['oeb-post', 'role', 'textarea'],
+  dataGained: ['oeb-post', 'role', 'textarea',
+    // v1.1.4 item 5: the availability state attribute flipping through the
+    // existing saved-state wave.
+    'hossam-card-state'],
   dataLost: [],
   stylesGained: [
     "display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;",

@@ -131,9 +131,10 @@ b16t_check(
 );
 b16t_check(
 	'B16T-W4-write-editor-only',
-	false !== strpos( $block, "containerId==='hossam-rich-editor-new'" ),
-	'the bottom action bar attaches to the write editor only (the model scope)',
-	'the bottom bar attaches outside the write editor'
+	false !== strpos( $block, "containerId==='hossam-rich-editor-new'" )
+		&& false !== strpos( $block, "containerId==='hossam-rich-editor-edit'" ),
+	'the bottom action bar attaches to both editor contexts (v1.1.4 item 6: one render path — write serves the create form, edit serves the update form)',
+	'the bottom bar misses an editor context'
 );
 
 /* ── CHANNEL: the dynamic value<->fallback match (annex 10-a) ── */

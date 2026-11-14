@@ -365,8 +365,15 @@ function testCssCoversFragments(renderedJson) {
   const u4Anchor = '.hossam-ai-busy{\n  opacity:.7;cursor:progress;pointer-events:none;\n}';
   const u4End = runtimeCss.indexOf(u4Anchor) + u4Anchor.length;
   const u4Block = (u4Start >= 0 && u4End > u4Start) ? runtimeCss.slice(u4Start, u4End) : '';
+  const u5Mark = runtimeCss.indexOf('[B9-U5]');
+  const u5Start = u5Mark >= 0 ? runtimeCss.lastIndexOf('/*', u5Mark) - 1 : -1;
+  // v1.1.4: [B9-U5] is the write-column availability-card tag state block; the
+  // strip consumes its closing brace exactly.
+  const u5Anchor = '.hossam-write-aside-holder[data-hossam-card-state="pending-save"] .hossam-write-card-tag{\n  background:var(--cream);color:var(--txt-3);\n}';
+  const u5End = runtimeCss.indexOf(u5Anchor) + u5Anchor.length;
+  const u5Block = (u5Start >= 0 && u5End > u5Start) ? runtimeCss.slice(u5Start, u5End) : '';
   let remainder = runtimeCss;
-  for (const block of [u1Block, u2Block, u3Block, u4Block]) {
+  for (const block of [u1Block, u2Block, u3Block, u4Block, u5Block]) {
     if (block !== '') { remainder = remainder.replace(block, ''); }
   }
   // v1.1.3: the remainder comparison goes canonical — comments stripped by
@@ -384,15 +391,17 @@ function testCssCoversFragments(renderedJson) {
       && runtimeCss.includes('[B9-U2]')
       && runtimeCss.includes('[B9-U3]')
       && runtimeCss.includes('[B9-U4]')
+      && runtimeCss.includes('[B9-U5]')
       && runtimeCss.includes('.hossam-post-success-card')
       && runtimeCss.includes('.hossam-rich-editor')
       && !legacyCss.includes('.text-center')
       && !legacyCss.includes('[B9-U2]')
       && !legacyCss.includes('[B9-U3]')
       && !legacyCss.includes('[B9-U4]')
+      && !legacyCss.includes('[B9-U5]')
       && remainderCanonical === legacyCanonical,
-    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3]+[B9-U4] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
-    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3]/[B9-U4] blocks and the v1.1.3 comments batch');
+    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3]+[B9-U4]+[B9-U5] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
+    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3]/[B9-U4]/[B9-U5] blocks and the v1.1.3 comments batch');
 
   testCssUrlsOnly();
   testCssClassCoverage(renderedJson, runtimeCss);

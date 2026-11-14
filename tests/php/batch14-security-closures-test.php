@@ -860,10 +860,12 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // v1.1.4 fixes contract items 3+4 (renewal in the same commit — raw+LF coincide:
 // posts.js ships LF): the adminExtend-gated More fold, the external drawer
 // trigger with the Escape/backdrop close, and the capability-scoped fold CSS.
+// items 5+6+7 renewal: the write-column availability cards, the bottom-bar
+// context unification, and the model card order.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'2f3f0525921a65a3e278748df0a542e578e05a57638155b7c5b64700a4cb962e' === $posts_js_lf_hash
-		&& '2f3f0525921a65a3e278748df0a542e578e05a57638155b7c5b64700a4cb962e' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), and the v1.1.4 items 3+4 drawer surfaces',
+	'cd4f7c36844e1e6867add8e4ff92b2bc41c3f484389ce995d934cfb961ef87fd' === $posts_js_lf_hash
+		&& 'cd4f7c36844e1e6867add8e4ff92b2bc41c3f484389ce995d934cfb961ef87fd' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, and the v1.1.4 items 5+6+7 card and context unification',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════

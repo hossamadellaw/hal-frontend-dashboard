@@ -303,6 +303,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <div class="card hossam-write-aside-holder" id="hossam-metadata-holder">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <div class="hossam-aside-row">
             <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
@@ -316,10 +317,39 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <div class="card hossam-write-aside-holder" id="hossam-tags-holder">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <div class="hossam-aside-chips" aria-hidden="true"></div>
           <p class="form-hint hossam-aside-empty"><?php echo esc_html( hossam_t( 'No tags yet.' ) ); ?></p>
           <p class="form-hint"><?php echo esc_html( hossam_t( 'Tags power related-article linking — keep them short and specific.' ) ); ?></p>
+        </div>
+        <!-- [W6] v1.1.4 item 5: the Translations Hub lands in the write column in
+             its declared availability state (the model order: after Tags). The
+             detection contract governs the saved context (the edit panel's card
+             reads WPML); a draft without an id creates nothing here — the card
+             flips through the existing saved-state wave only. Detection scope
+             per the owner's narrowing: read-only, zero WPML writes. -->
+        <div class="card hossam-write-aside-holder" id="hossam-translations-holder" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🌐</span><?php echo esc_html( hossam_t( 'Translations Hub' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'Language rows appear here after the first save — detection only.' ) ); ?></p>
+        </div>
+        <!-- [W6] v1.1.4 item 5: the SEO & SERP card in its declared availability
+             state (the model order: last). Rank Math stays the only score source;
+             the fields and score activate with the saved-state wave after the
+             first save. -->
+        <div class="card hossam-write-aside-holder" id="hossam-seo-holder" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🔍</span><?php echo esc_html( hossam_t( 'SEO & SERP' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'SEO score' ) ); ?></span>
+            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Not calculated yet.' ) ); ?></span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'SEO fields and the score appear after the first save.' ) ); ?></p>
         </div>
         </div><!-- /hossam-write-side-stack -->
       </div><!-- /hossam-write-workspace -->

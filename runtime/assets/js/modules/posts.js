@@ -283,6 +283,17 @@ function hossamSeoPanelUrl(d){
 function hossamShowPostSuccessCard(form,d,message){
   if(!form||!form.querySelector) return;
   try{hossamSetEditorState(document.getElementById(form.id==='hossam-post-edit-form'?'hossam-rich-editor-edit':'hossam-rich-editor-new'),'saved');}catch(eS){}
+  /* [W8] v1.1.4 item 5: the two write-column availability cards flip through
+     the existing saved-state wave — no new state machine, no new endpoint;
+     the declared pending-save state ends at the first save. */
+  try{
+    if(form.id==='hossam-post-create-form'){
+      ['hossam-translations-holder','hossam-seo-holder'].forEach(function(hcId){
+        var hcEl=document.getElementById(hcId);
+        if(hcEl&&hcEl.setAttribute) hcEl.setAttribute('data-hossam-card-state','saved');
+      });
+    }
+  }catch(eCard){}
   const old=form.querySelector('.hossam-post-success-card');
   if(old) old.remove();
   const card=document.createElement('div');
@@ -1434,10 +1445,16 @@ function hossamToolbarBuild(containerId,container,cfg){
   root.appendChild(g10);
   return root;
 }
-/* [W7] the static bottom action bar (the model :2337-2349) — the write
-   editor only; every button serves the EXISTING create-form contract. */
-function hossamToolbarBuildActionBar(container){
+/* [W7] the static bottom action bar (the model :2337-2349) — one render path
+   for both editor contexts: context=write serves the EXISTING create-form
+   contract, context=edit serves the EXISTING update-form contract (the edit
+   save model posts.php:586 with its actions) — no third path, no duplicated
+   logic. [W8] v1.1.4 item 6: the bar is mounted for both contexts. */
+function hossamToolbarBuildActionBar(container,context){
   var doc=document;
+  context=(context==='edit')?'edit':'write';
+  var editorId=context==='edit'?'hossam-rich-editor-edit':'hossam-rich-editor-new';
+  var textareaId=context==='edit'?'hossam-edit-content':'hossam-new-content';
   function mk(labelKey,labelText,cls,fn){
     var b=doc.createElement('button');
     b.type='button'; b.className=cls; b.textContent=t(labelKey,labelText);
@@ -1447,14 +1464,22 @@ function hossamToolbarBuildActionBar(container){
   var bar=doc.createElement('div');
   bar.className='action-bottom-bar';
   bar.setAttribute('data-hossam-bottom-bar','');
+  bar.setAttribute('data-hossam-bar-context',context);
   var left=doc.createElement('div'); left.className='hossam-bar-left';
   var canPublish=false;
   try{
-    var st=doc.getElementById('hossam-new-status');
+    var st=doc.getElementById('hossam-'+(context==='edit'?'edit':'new')+'-status');
     canPublish=!!(st&&st.querySelector('option[value="publish"]'));
   }catch(e){}
   function submitWith(status){
     try{
+      if(context==='edit'){
+        var stE=doc.getElementById('hossam-edit-status');
+        if(stE&&status) stE.value=status;
+        var fe=doc.getElementById('hossam-post-edit-form');
+        if(fe&&typeof hossamUpdateArticle==='function') hossamUpdateArticle(fe);
+        return;
+      }
       var st=doc.getElementById('hossam-new-status');
       if(st&&status) st.value=status;
       var f=doc.getElementById('hossam-post-create-form');
@@ -1468,8 +1493,8 @@ function hossamToolbarBuildActionBar(container){
   bar.appendChild(left);
   bar.appendChild(mk('w7Discard','Discard Changes','btn btn-outline hossam-bar-discard',function(){
     try{
-      var ta=doc.getElementById('hossam-new-content');
-      var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited['hossam-rich-editor-new']:null;
+      var ta=doc.getElementById(textareaId);
+      var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited[editorId]:null;
       var wp0=(typeof window!=='undefined')?window.wp:null;
       if(rec&&rec.api&&typeof rec.api.reparse==='function'){
         rec.api.reparse();
@@ -1541,8 +1566,11 @@ function hossamToolbarMount(containerId,container){
     });
     host.insertBefore(backdrop,host.firstChild);
     host.insertBefore(trigger,backdrop.nextSibling);
-    if(containerId==='hossam-rich-editor-new'){
-      container.appendChild(hossamToolbarBuildActionBar(container));
+    /* [W8] v1.1.4 item 6: the bottom bar mounts for both contexts — one render
+       path (context=write|edit) targeting each context's existing save
+       contract. */
+    if(containerId==='hossam-rich-editor-new'||containerId==='hossam-rich-editor-edit'){
+      container.appendChild(hossamToolbarBuildActionBar(container,containerId==='hossam-rich-editor-edit'?'edit':'write'));
     }
   }catch(e){}
 }

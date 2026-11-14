@@ -459,6 +459,12 @@ tr:hover td{background:rgba(0,0,0,.012)}
 .hossam-ai-busy{
   opacity:.7;cursor:progress;pointer-events:none;
 }
+/* [B9-U5] v1.1.4 fixes contract item 5: the write-column availability cards —
+   the declared pending-save tag state and its flip through the existing
+   saved-state wave (data-hossam-card-state). */
+.hossam-write-aside-holder[data-hossam-card-state="pending-save"] .hossam-write-card-tag{
+  background:var(--cream);color:var(--txt-3);
+}
 .btn-icon{padding:6px;width:30px;height:30px;justify-content:center}
 .btn-outline{background:transparent;border-color:var(--gold);color:var(--gold)}
 .btn-outline:hover{background:var(--gold-glow)}
