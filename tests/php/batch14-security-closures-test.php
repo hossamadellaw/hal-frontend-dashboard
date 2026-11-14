@@ -857,10 +857,13 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // تفويض المالك #1 (2026-11-02): R38/H1 §7-1 رابط OEB ببطاقة النجاح — تحديث قيمة لا صرامة
 // ESC-4 — تصويب تثبيت منصعي، قيمة لا صرامة: التثبيت بالصيغة الكانونية (LF) حصرًا
 // + اتفاق الblob المُودَع — نصف raw كان سياسة checkout لا محتوى (فشل CI 41704072466).
+// v1.1.4 fixes contract items 3+4 (renewal in the same commit — raw+LF coincide:
+// posts.js ships LF): the adminExtend-gated More fold, the external drawer
+// trigger with the Escape/backdrop close, and the capability-scoped fold CSS.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'07edd3bf149f58e311538c3d5889af3a969f5efc8609efd751139b812ac4bd33' === $posts_js_lf_hash
-		&& '07edd3bf149f58e311538c3d5889af3a969f5efc8609efd751139b812ac4bd33' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, and the W7-A1 correction (prefixes, zen target, swatch-name keys)',
+	'2f3f0525921a65a3e278748df0a542e578e05a57638155b7c5b64700a4cb962e' === $posts_js_lf_hash
+		&& '2f3f0525921a65a3e278748df0a542e578e05a57638155b7c5b64700a4cb962e' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), and the v1.1.4 items 3+4 drawer surfaces',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════

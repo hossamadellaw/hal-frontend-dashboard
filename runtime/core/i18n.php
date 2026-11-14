@@ -605,6 +605,7 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'w7Divider' => hossam_t('Divider line'),
             'w7More' => hossam_t('More'),
             'w7MoreTitle' => hossam_t('More tools'),
+            'w7DrawerTools' => hossam_t('Tools'),
             'w7Undo' => hossam_t('Undo (Ctrl+Z)'),
             'w7Redo' => hossam_t('Redo (Ctrl+Y)'),
             'w7Zen' => hossam_t('Focus mode'),

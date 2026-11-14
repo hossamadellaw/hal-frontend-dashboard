@@ -80,9 +80,12 @@ b16r_check(
 b16r_check(
 	'B16R-T2-more-fold',
 	false !== strpos( $w7_css, '.hossam-pt-more-toggle { display: none; }' )
-		&& false !== strpos( $w7_css, '.hossam-pt-group.hossam-pt-extra { display: none; }' )
-		&& false !== strpos( $w7_css, '.hossam-pro-toolbar-container.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }' ),
-	'the hossam-pt-extra groups fold behind the More toggle until hossam-pt-more-open',
+		&& false !== strpos( $w7_css, '.hossam-pro-toolbar-container.hossam-pt-more-capable .hossam-pt-group.hossam-pt-extra { display: none; }' )
+		&& false !== strpos( $w7_css, '.hossam-pro-toolbar-container.hossam-pt-more-capable.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }' )
+		&& false !== strpos( $w7_css, '.hossam-pt-drawer-trigger { display: none; }' )
+		&& false !== strpos( $w7_css, '.hossam-pt-drawer-backdrop { display: none; }' )
+		&& false !== strpos( $w7_css, '.hossam-pt-drawer-backdrop.hossam-pt-open' ),
+	'the hossam-pt-extra groups fold behind the More toggle until hossam-pt-more-open — the fold is capability-scoped (OP-2: admins only) and the phone drawer carries its external trigger and clickable backdrop',
 	'the More fold rules are missing or inverted'
 );
 

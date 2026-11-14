@@ -204,8 +204,8 @@ foreach ( $b16t_tokens as $tok ) {
 }
 b16t_check(
 	'B16T-I1-css-js-intersection',
-	[] !== $b16t_tokens && 16 === count( $b16t_tokens ) && [] === $b16t_missing_sel,
-	'every W7 class token used in posts.js carries a dashboard.css selector (16 tokens: the toolbar family plus the container, composed strings included)',
+	[] !== $b16t_tokens && 21 === count( $b16t_tokens ) && [] === $b16t_missing_sel,
+	'every W7 class token used in posts.js carries a dashboard.css selector (21 tokens: the toolbar family plus the container, the drawer trigger/backdrop surfaces, and the fold-capable state — composed strings included)',
 	'tokens=' . count( $b16t_tokens ) . ' without a selector: ' . implode( ' | ', $b16t_missing_sel )
 );
 

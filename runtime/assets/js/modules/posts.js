@@ -1403,16 +1403,23 @@ function hossamToolbarBuild(containerId,container,cfg){
   }));
   g9.appendChild(btn('—',['w7Divider','Divider line'],function(){hossamToolbarCmd(container,'insertHorizontalRule');}));
   root.appendChild(g9);
-  /* More toggle — folds the hossam-pt-extra groups (tablet/phone) */
-  var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
-  moreBtn.type='button';
-  moreBtn.title=t('w7MoreTitle','More tools');
-  moreBtn.appendChild(el('span',undefined,t('w7More','More')));
-  moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
-  moreBtn.addEventListener('click',function(ev){
-    try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
-  });
-  root.appendChild(moreBtn);
+  /* [W8] v1.1.4 item 3 (OP-2): the More fold is admin-only — the server-side
+     adminExtend flag (computed in setup.php, consumed here from cfg) gates the
+     toggle and adds the fold-capable display class; every other role keeps its
+     allowed groups visible in the scrollable row with no missing fold. Display
+     gate only — the endpoint re-verifies server-side on every save. */
+  if(cfg&&cfg.adminExtend){
+    var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
+    moreBtn.type='button';
+    moreBtn.title=t('w7MoreTitle','More tools');
+    moreBtn.appendChild(el('span',undefined,t('w7More','More')));
+    moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
+    moreBtn.addEventListener('click',function(ev){
+      try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
+    });
+    root.appendChild(moreBtn);
+    root.classList.add('hossam-pt-more-capable');
+  }
   root.appendChild(divider());
   /* G10 — history & focus */
   var g10=group();
@@ -1475,7 +1482,13 @@ function hossamToolbarBuildActionBar(container){
 }
 /* [W7] mount point: the pro toolbar prepends into the toolbar role (above
    the official context toolbar) and the bottom bar appends to the editor
-   container (the write editor only). Called once per successful init. */
+   container (the write editor only). Called once per successful init.
+   [W8] v1.1.4 item 4: the external drawer trigger — the drawer's only key
+   used to live inside the sliding container itself, so it vanished with the
+   drawer closed. A trigger OUTSIDE the sliding container toggles
+   hossam-pt-more-open for every role; Escape and the clickable backdrop close
+   it and restore focus to the trigger. Display gate only — the endpoint
+   re-verifies server-side on every save (OP-2/OP-3). */
 function hossamToolbarMount(containerId,container){
   try{
     if(!container||container.querySelector('.hossam-pro-toolbar-container')) return;
@@ -1484,6 +1497,50 @@ function hossamToolbarMount(containerId,container){
     var mount=container.querySelector('[data-role="toolbar"]');
     if(mount&&mount.insertBefore) mount.insertBefore(bar,mount.firstChild);
     else container.insertBefore(bar,container.firstChild);
+    var host=mount||container;
+    var backdrop=document.createElement('div');
+    backdrop.className='hossam-pt-drawer-backdrop';
+    var trigger=document.createElement('button');
+    trigger.type='button';
+    trigger.className='hossam-pt-drawer-trigger';
+    trigger.setAttribute('aria-expanded','false');
+    var drawerId='hossam-pt-drawer-'+(containerId||'editor');
+    bar.id=drawerId;
+    trigger.setAttribute('aria-controls',drawerId);
+    var trigLabel=document.createElement('span');
+    trigLabel.setAttribute('aria-hidden','true');
+    trigLabel.textContent='☰';
+    trigger.appendChild(trigLabel);
+    var trigText=document.createElement('span');
+    trigText.textContent=t('w7DrawerTools','Tools');
+    trigger.appendChild(trigText);
+    var drawerClose=function(refocus){
+      try{
+        bar.classList.remove('hossam-pt-more-open');
+        backdrop.classList.remove('hossam-pt-open');
+        trigger.setAttribute('aria-expanded','false');
+        if(refocus&&trigger.focus) trigger.focus();
+      }catch(e){}
+    };
+    trigger.addEventListener('click',function(ev){
+      try{
+        ev.preventDefault();
+        var open=!bar.classList.contains('hossam-pt-more-open');
+        bar.classList.toggle('hossam-pt-more-open',open);
+        backdrop.classList.toggle('hossam-pt-open',open);
+        trigger.setAttribute('aria-expanded',open?'true':'false');
+      }catch(e){}
+    });
+    backdrop.addEventListener('click',function(){try{drawerClose(true);}catch(e){}});
+    document.addEventListener('keydown',function(ev){
+      try{
+        if((ev.key||'')!=='Escape') return;
+        if(!bar.classList.contains('hossam-pt-more-open')) return;
+        drawerClose(true);
+      }catch(e){}
+    });
+    host.insertBefore(backdrop,host.firstChild);
+    host.insertBefore(trigger,backdrop.nextSibling);
     if(containerId==='hossam-rich-editor-new'){
       container.appendChild(hossamToolbarBuildActionBar(container));
     }
