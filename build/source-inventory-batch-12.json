@@ -4,7 +4,7 @@
     "purpose": "Batch-12 (§23 cutover/de-duplication) final re-verification: live re-read of all 49 baseline sources from the exclusive legacy root plus the legacy->runtime coverage map. CURRENT-STATE EVIDENCE ONLY — not historical provenance.",
     "generated_utc": "2026-09-26T11:32:00Z",
     "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
-    "snapshot_id": "f69e3f9a495273cd6e1226376b797c6acaed898bd7c6cfcb5ec09abc05f6e88c",
+    "snapshot_id": "a7c06f3ff693cdf5b3555e70ec0aae5ed3b3d5400b06615427d501802e4ffcbd",
     "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in path-sorted order: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
     "counts": {
         "mu": 23,
@@ -54,8 +54,8 @@
         },
         {
             "path": "mu-plugins/hossam-dashboard/adapters/wordpress-posts.php",
-            "bytes": 16255,
-            "sha256": "5d5ca3d3840787e2cd824a667bd49e953905243f78dac96b9c5292e700890754"
+            "bytes": 38405,
+            "sha256": "862b61aac189dd36a758144ee711b0836f01fc4572cbc9707813363748ee7448"
         },
         {
             "path": "mu-plugins/hossam-dashboard/adapters/wordpress-uploads.php",
@@ -94,8 +94,8 @@
         },
         {
             "path": "mu-plugins/hossam-dashboard/ajax/posts.php",
-            "bytes": 14531,
-            "sha256": "3615445986960cc50b0fcb4a0b4188e918a293903d454a62e43139c1ac9a833a"
+            "bytes": 36869,
+            "sha256": "3ba07af6e5998f9fd8bc23c27f6da6655e74df5a987d292bd5ab1180e95d70a9"
         },
         {
             "path": "mu-plugins/hossam-dashboard/ajax/seo.php",
