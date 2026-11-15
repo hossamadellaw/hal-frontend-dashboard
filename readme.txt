@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.3.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.4.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,15 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.4 =
+* AI generation is repaired end to end: failures carry classified sanitized codes (rejected key, scope, quota, request shape, or a live provider list), the pinned model moves to the current Flash generation with a provenance docblock, a free provider-live probe joins the hourly health cron as a second verdict level, and AI buttons enter a waiting state with a pinned width instead of collapsing.
+* The articles table reports the article author and their site link for non-admin roles instead of action buttons, while administrators keep every existing action.
+* The More fold in the editor toolbar is admin-only per the server capability flag, a phone drawer trigger outside the sliding panel opens the tool drawer for every role, and Escape or a backdrop click closes it and restores focus.
+* The Add-block toolbar button opens the official inserter popover directly and the standalone inserter row is hidden by CSS, keeping the writing canvas clean.
+* The write column gains Translations Hub and SEO & SERP availability cards that activate with the saved-state wave, the edit editor mounts the same bottom action bar and states as the write editor, and the sidebar cards follow the documented model order with unified heads.
+* Language status chips expose an aria label alongside their tooltip, the overview counters render tabular figures in the text font, and the bottom-bar publish button reads Publish Article Now.
+* Version identity 1.1.4 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 12.
 
 = 1.1.3 =
 * The article editor gains a professional formatting toolbar above the writing canvas: ten tool groups plus a History group and an admin-only More menu, a static bottom action bar (Publish / Save Draft / Discard), and responsive tablet and phone layouts — all rendered with the existing dashboard stylesheet.
