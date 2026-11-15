@@ -372,8 +372,17 @@ function testCssCoversFragments(renderedJson) {
   const u5Anchor = '.hossam-write-aside-holder[data-hossam-card-state="pending-save"] .hossam-write-card-tag{\n  background:var(--cream);color:var(--txt-3);\n}';
   const u5End = runtimeCss.indexOf(u5Anchor) + u5Anchor.length;
   const u5Block = (u5Start >= 0 && u5End > u5Start) ? runtimeCss.slice(u5Start, u5End) : '';
+  const u6Mark = runtimeCss.indexOf('[B9-U6]');
+  const u6Start = u6Mark >= 0 ? runtimeCss.lastIndexOf('/*', u6Mark) - 1 : -1;
+  // v1.1.4: [B9-U6]/[B9-U7] are one contiguous addition — the internal
+  // Add-block row hide (item 8's CSS-only move) and the writer-path
+  // author-info styles (item 13); the strip consumes through the closing
+  // brace of the author-site rule exactly.
+  const u7Anchor = '.hossam-author-site{\n  font-size:12px;color:var(--gold);\n}';
+  const u6End = runtimeCss.indexOf(u7Anchor) + u7Anchor.length;
+  const u6Block = (u6Start >= 0 && u6End > u6Start) ? runtimeCss.slice(u6Start, u6End) : '';
   let remainder = runtimeCss;
-  for (const block of [u1Block, u2Block, u3Block, u4Block, u5Block]) {
+  for (const block of [u1Block, u2Block, u3Block, u4Block, u5Block, u6Block]) {
     if (block !== '') { remainder = remainder.replace(block, ''); }
   }
   // v1.1.3: the remainder comparison goes canonical — comments stripped by
@@ -385,6 +394,13 @@ function testCssCoversFragments(renderedJson) {
     .replace(/(^|\s)\/\/[^\n]*/g, '$1 ');
   const remainderCanonical = jsStripCanonical(remainder);
   const legacyCanonical = jsStripCanonical(legacyCss);
+  // v1.1.4 item 10: the documented stat-val font move — the legacy canonical
+  // carries the old serif body; the comparison target swaps it for the new
+  // text-font body with the tabular figures (the T10 pattern, by value).
+  const legacyCanonicalAdjusted = legacyCanonical.replace(
+    ".stat-val{font-size:30px;font-family:'Cormorant Garamond',serif;font-weight:600;",
+    ".stat-val{font-size:30px;font-family:'DM Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;font-weight:600;"
+  );
   check('B9F-5-css-delta-only',
     runtimeCss.includes('.text-center{text-align:center}')
       && runtimeCss.includes('[B9-U1]')
@@ -392,6 +408,8 @@ function testCssCoversFragments(renderedJson) {
       && runtimeCss.includes('[B9-U3]')
       && runtimeCss.includes('[B9-U4]')
       && runtimeCss.includes('[B9-U5]')
+      && runtimeCss.includes('[B9-U6]')
+      && runtimeCss.includes('[B9-U7]')
       && runtimeCss.includes('.hossam-post-success-card')
       && runtimeCss.includes('.hossam-rich-editor')
       && !legacyCss.includes('.text-center')
@@ -399,9 +417,11 @@ function testCssCoversFragments(renderedJson) {
       && !legacyCss.includes('[B9-U3]')
       && !legacyCss.includes('[B9-U4]')
       && !legacyCss.includes('[B9-U5]')
-      && remainderCanonical === legacyCanonical,
-    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3]+[B9-U4]+[B9-U5] blocks and the v1.1.3 comments batch (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
-    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3]/[B9-U4]/[B9-U5] blocks and the v1.1.3 comments batch');
+      && !legacyCss.includes('[B9-U6]')
+      && !legacyCss.includes('[B9-U7]')
+      && remainderCanonical === legacyCanonicalAdjusted,
+    `dashboard.css is canonical-identical to the legacy source except the documented [B9-U1]+[B9-U2]+[B9-U3]+[B9-U4]+[B9-U5]+[B9-U6]+[B9-U7] blocks, the v1.1.3 comments batch, and the item-10 stat-val font move (comments stripped, LF, whitespace kept; runtime sha256 ${runtimeHash.slice(0, 12)}… vs legacy ${legacyHash.slice(0, 12)}…)`,
+    'dashboard.css diverges from legacy beyond the documented [B9-U1]/[B9-U2]/[B9-U3]/[B9-U4]/[B9-U5]/[B9-U6]/[B9-U7] blocks, the v1.1.3 comments batch, and the item-10 stat-val font move');
 
   testCssUrlsOnly();
   testCssClassCoverage(renderedJson, runtimeCss);

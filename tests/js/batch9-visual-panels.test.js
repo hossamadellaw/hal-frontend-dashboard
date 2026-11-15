@@ -338,7 +338,10 @@ const V106_POSTS_DELTA = {
     // bare lang-text inline style left with the text cell (documented in
     // stylesLost below). The four chip-state classes travel whole from PHP
     // (the rm_cls pattern, like the meter levels) so they do not appear here.
-    'hossam-lang-chips', 'hossam-lang-chip', 'hossam-seo-suggestions'],
+    'hossam-lang-chips', 'hossam-lang-chip', 'hossam-seo-suggestions',
+    // v1.1.4 item 13: the writer-path author info styles (the admin actions
+    // path keeps its existing classes).
+    'hossam-author-info', 'hossam-author-site'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -452,10 +455,16 @@ function checkUnit(name, refSrc, migSrc, legacyRules, runtimeRules) {
   // `.hossam-post-success-card .btn` for every .btn panel, but the full
   // selector cannot apply outside the success card, so no other panel can
   // look different for a migration reason. Any non-hossam gain still fails.
-  const documentedGain = (k) => k.includes('.text-center') || k.includes('hossam-');
+  // v1.1.4 item 10 (T10 pattern — value update, not strictness): the .stat-val
+  // rule body moves to the text font with tabular figures on the overview —
+  // the one documented non-hossam gain.
+  const documentedGain = (k) => k.includes('.text-center') || k.includes('hossam-') || k.includes('.stat-val');
+  // v1.1.4 item 10: the dropped side carries the same documented move — the
+  // legacy serif stat-val body leaves the runtime for the text-font body.
+  const documentedDrop = (k) => k.includes('.stat-val');
   check(`B9V-${name}-rules-symmetric`,
-    dropped.length === 0 && gained.every(documentedGain),
-    `${name}: applicable release rules ⊇ reference rules (${runtimeKeys.size} vs ${legacyKeys.size}; only .text-center or documented hossam-* additions may be gained)`,
+    dropped.every(documentedDrop) && gained.every(documentedGain),
+    `${name}: applicable release rules ⊇ reference rules (${runtimeKeys.size} vs ${legacyKeys.size}; only .text-center or documented hossam-* additions may be gained, and the documented stat-val font move may drop)`,
     `${name}: dropped=[${dropped.length}] gained-undocumented=[${gained.filter((k) => !documentedGain(k)).length}]`);
 
   const orphans = [...mig.classes].filter((c) =>

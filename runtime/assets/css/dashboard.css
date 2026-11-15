@@ -409,7 +409,7 @@ body.admin-bar .app{height:calc(100vh - 32px)}
 .si-warn{background:var(--warn-bg);color:var(--warn)}
 .si-danger{background:var(--danger-bg);color:var(--danger)}
 .stat-label{font-size:11px;font-weight:500;letter-spacing:.5px;color:var(--txt-3);text-transform:uppercase}
-.stat-val{font-size:30px;font-family:'Cormorant Garamond',serif;font-weight:600;color:var(--txt-1);line-height:1;margin:2px 0}
+.stat-val{font-size:30px;font-family:'DM Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;font-weight:600;color:var(--txt-1);line-height:1;margin:2px 0}
 .stat-sub{font-size:11px;color:var(--txt-3)}
 .stat-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:12px;font-weight:500;margin-top:4px}
 .stat-badge.up{background:var(--success-bg);color:var(--success)}
@@ -464,6 +464,21 @@ tr:hover td{background:rgba(0,0,0,.012)}
    saved-state wave (data-hossam-card-state). */
 .hossam-write-aside-holder[data-hossam-card-state="pending-save"] .hossam-write-card-tag{
   background:var(--cream);color:var(--txt-3);
+}
+/* [B9-U6] v1.1.4 fixes contract item 8: the internal Add-block row is hidden
+   by CSS only — the toolbar's Add-block button bridges to the same official
+   Inserter popover, so the content area stays clean (the owner's directive).
+   The anchor point stays in posts.php for the bridge.
+   [B9-U7] v1.1.4 fixes contract item 13: the writer-path author info styles
+   (the admin actions path keeps its existing classes). */
+.hossam-rich-editor-inserter{
+  display:none;
+}
+.hossam-author-info{
+  display:flex;flex-direction:column;gap:4px;align-items:flex-start;
+}
+.hossam-author-site{
+  font-size:12px;color:var(--gold);
 }
 .btn-icon{padding:6px;width:30px;height:30px;justify-content:center}
 .btn-outline{background:transparent;border-color:var(--gold);color:var(--gold)}

@@ -1397,6 +1397,16 @@ function hossamToolbarBuild(containerId,container,cfg){
     hossamToolbarCmd(container,'insertHTML','<table border="1" style="width:100%;border-collapse:collapse;"><tr><th style="text-align:start;"></th><th style="text-align:start;"></th></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table><p></p>');
   }));
   g9.appendChild(btn('📂',['w7Collapsible','Insert collapsible section'],function(){hossamToolbarCmd(container,'insertHTML','<details><summary></summary><p></p></details><p></p>');}));
+  /* [W8] v1.1.4 item 8: the Add-block bridge — a toolbar button opening the
+     official Inserter's own popover (zero engine touch); the internal inserter
+     row is hidden by CSS (item 8's CSS-only hide, documented [B9-U6]). The
+     same available blocks per role govern the popover (OP-2). */
+  g9.appendChild(btn('＋',['w7AddBlock','Add block'],function(){
+    try{
+      var trigger=container.querySelector('[data-role="inserter"] button');
+      if(trigger) trigger.click();
+    }catch(e){}
+  }));
   g9.appendChild(btn('🔗',['w7RefLink','Insert reference link'],function(){
     var url=hossamToolbarPrompt(t('w7PromptLink','Link URL:'));
     if(url) hossamToolbarCmd(container,'createLink',url);
@@ -1487,11 +1497,17 @@ function hossamToolbarBuildActionBar(container,context){
     }catch(e){}
   }
   if(canPublish){
-    left.appendChild(mk('w7PublishNow','Publish Now','btn btn-gold',function(){submitWith('publish');}));
+    left.appendChild(mk('w7PublishNow','Publish Article Now','btn btn-gold',function(){submitWith('publish');}));
   }
   left.appendChild(mk('w7SaveDraft','Save as Draft','btn btn-outline',function(){submitWith('draft');}));
   bar.appendChild(left);
   bar.appendChild(mk('w7Discard','Discard Changes','btn btn-outline hossam-bar-discard',function(){
+    /* [W8] v1.1.4 item 9: the confirm guard with the model's verbatim text —
+       confirm executes the existing discard path; cancel leaves everything
+       untouched. Present in both contexts through the unified bar. */
+    try{
+      if(!window.confirm('Discard changes and restore previous snapshot?')) return;
+    }catch(e){}
     try{
       var ta=doc.getElementById(textareaId);
       var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited[editorId]:null;
