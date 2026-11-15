@@ -3,14 +3,14 @@
   "snapshot": {
     "label": "Dahboard-v-1.0.0",
     "id_algorithm": "sha256(path|bytes|sha256, LF-separated, paths sorted)",
-    "id": "4a1adb0701fb8fc7f747ac4900eed8401b93465d2ef65da1d4470575d8b9a293",
+    "id": "e8b8fcd5880056f28eec9ea22f77bd1c75dc4006c3fcb7eda9597ca2545557d7",
     "source_authority": "owner-designated legacy baseline",
     "absolute_paths_stored": false
   },
   "counts": {"mu":23,"theme":26,"total":49},
   "files": [
     {"path":"mu-plugins/hossam-dashboard.php","bytes":4837,"sha256":"84d128c34740e5b05e6bfeb9d3812c65b7ded230b9e310db14fbdaeb60377fbc"},
-    {"path":"mu-plugins/hossam-dashboard/adapters/ai.php","bytes":21228,"sha256":"2c4190b758c11e39143b01466c29109aaef21c0e77de00e981988b2fb26d0256"},
+    {"path":"mu-plugins/hossam-dashboard/adapters/ai.php","bytes":29688,"sha256":"4b6a2b19085044b38ba3a13797c96a536e846d23408a3d03af1b790800f8df45"},
     {"path":"mu-plugins/hossam-dashboard/adapters/amelia.php","bytes":18105,"sha256":"3f8bde7e92c0e4175b2e4d840944333be31d65eb2c98ea747ed42fe15cad3e3c"},
     {"path":"mu-plugins/hossam-dashboard/adapters/rankmath.php","bytes":7812,"sha256":"899d78cd66ab729a7b5afc06938a9b3d28640d8eda5c0145c5a86dbf2f1abd90"},
     {"path":"mu-plugins/hossam-dashboard/adapters/ultimatemember.php","bytes":3736,"sha256":"12be5514067e5b3742c06577abb1a571def2096b68228060668e01ea11a99af9"},

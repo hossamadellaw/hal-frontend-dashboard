@@ -864,9 +864,15 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // context unification, and the model card order.
 // items 8-13 renewal: the Add-block bridge, the Discard confirm guard, the
 // Publish Article Now unification, and the context surfaces.
+// v1.1.5 wave 2 renewal (one value for the whole wave — the 5-A unified
+// commitment): items 16+18+21+25 touch posts.js (the tags[] append pair, the
+// live SEO listeners, the AI icon focus link, and the More drawer-close
+// sync) — the pin renews raw+LF to the new authorized revision. The HEAD
+// leg completes at the wave commitment commit (the pin pins the committed
+// blob by design; the working tree carries the renewed value until then).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'f764340cc2bd8258659bee76f658512df6e197baa5d9ab4676e44a97971eb3ce' === $posts_js_lf_hash
-		&& 'f764340cc2bd8258659bee76f658512df6e197baa5d9ab4676e44a97971eb3ce' === $posts_js_head_hash,
+	'b697e8699741a30d5a5a56e81919599e76575931f6fbafd9ef8ae64c3a40ab67' === $posts_js_lf_hash
+		&& 'b697e8699741a30d5a5a56e81919599e76575931f6fbafd9ef8ae64c3a40ab67' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, and the items 8-13 bridge, guard, and unification',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 

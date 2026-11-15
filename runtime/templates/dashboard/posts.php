@@ -95,6 +95,134 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
     && method_exists( 'HAL_Frontend_Dashboard_Settings_Repository', 'get_effective_editor_mode' ) )
     ? HAL_Frontend_Dashboard_Settings_Repository::get_effective_editor_mode()
     : 'off';
+
+// v1.1.5 item 16 (S-9): the site-tag suggestion read — the tags used in
+// PUBLISHED articles of the given categories (the article's own sections
+// govern the scope; with no categories the scope is all published posts),
+// most frequent first. One markup builder renders the Tags card in BOTH
+// contexts (write + edit) — no parallel build. Every read is core-only and
+// function-guarded so the isolated harnesses stay green; the read scope
+// travels to the render (data-hossam-tags-scope) so the documented read
+// list is visible in the markup itself.
+$hossam_tags_cap = 15;
+$hossam_tag_suggestions = function ( array $hossam_scope_cat_ids ) use ( $hossam_tags_cap ): array {
+    $hossam_scope_cat_ids = array_values( array_unique( array_filter( array_map( 'absint', $hossam_scope_cat_ids ) ) ) );
+    if ( ! function_exists( 'get_posts' ) || ! function_exists( 'wp_get_object_terms' ) ) {
+        return array();
+    }
+    $hossam_q_args = array(
+        'post_type'              => 'post',
+        'post_status'            => 'publish',
+        'posts_per_page'         => 100,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+    );
+    if ( ! empty( $hossam_scope_cat_ids ) ) {
+        $hossam_q_args['category__in'] = $hossam_scope_cat_ids;
+    }
+    $hossam_scope_ids = get_posts( $hossam_q_args );
+    if ( empty( $hossam_scope_ids ) || ! is_array( $hossam_scope_ids ) ) {
+        return array();
+    }
+    // One tally pass: per scoped post, one core read returns the post's tags
+    // AND categories together (the linkage the suggestion mechanism needs —
+    // tag frequency + the category ids each tag was read from).
+    $hossam_tally = array();
+    foreach ( $hossam_scope_ids as $hossam_scope_pid ) {
+        $hossam_terms = wp_get_object_terms( (int) $hossam_scope_pid, array( 'post_tag', 'category' ), array( 'update_term_meta_cache' => false ) );
+        if ( is_wp_error( $hossam_terms ) || empty( $hossam_terms ) ) {
+            continue;
+        }
+        $hossam_post_cats = array();
+        $hossam_post_tags = array();
+        foreach ( (array) $hossam_terms as $hossam_term ) {
+            if ( ! isset( $hossam_term->taxonomy, $hossam_term->name ) ) {
+                continue;
+            }
+            if ( 'category' === $hossam_term->taxonomy ) {
+                $hossam_post_cats[ (int) $hossam_term->term_id ] = true;
+            } elseif ( 'post_tag' === $hossam_term->taxonomy ) {
+                $hossam_post_tags[ (string) $hossam_term->name ] = true;
+            }
+        }
+        foreach ( array_keys( $hossam_post_tags ) as $hossam_tag_name ) {
+            if ( ! isset( $hossam_tally[ $hossam_tag_name ] ) ) {
+                $hossam_tally[ $hossam_tag_name ] = array( 'name' => $hossam_tag_name, 'count' => 0, 'cats' => array() );
+            }
+            $hossam_tally[ $hossam_tag_name ]['count']++;
+            foreach ( array_keys( $hossam_post_cats ) as $hossam_cat_id ) {
+                $hossam_tally[ $hossam_tag_name ]['cats'][ $hossam_cat_id ] = true;
+            }
+        }
+    }
+    uasort( $hossam_tally, function ( $a, $b ) {
+        if ( $a['count'] === $b['count'] ) {
+            return strcmp( $a['name'], $b['name'] );
+        }
+        return $b['count'] - $a['count'];
+    } );
+    $hossam_out = array();
+    foreach ( $hossam_tally as $hossam_row ) {
+        $hossam_out[] = array(
+            'name'  => (string) $hossam_row['name'],
+            'count' => (int) $hossam_row['count'],
+            'cats'  => array_map( 'strval', array_keys( $hossam_row['cats'] ) ),
+        );
+        if ( count( $hossam_out ) >= $hossam_tags_cap ) {
+            break;
+        }
+    }
+    return $hossam_out;
+};
+// The one Tags-card builder for both contexts (the live card markup —
+// article chips with remove buttons, category-scoped suggestion chips, the
+// add row, and the tags[] hidden mirror inside the form). Zero inline
+// styles; every control is type="button" (S-11) so nothing inside the save
+// form submits implicitly; the empty marker keeps "removed the last tag"
+// persisted on save.
+$hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_suggestions, string $hossam_scope_read ) use ( $hossam_tags_cap ): void {
+    echo '<div class="hossam-aside-chips" data-hossam-tags-chips data-hossam-tags-scope="' . esc_attr( $hossam_scope_read ) . '">';
+    foreach ( $hossam_current_tags as $hossam_tag_name ) {
+        $hossam_tag_name = (string) $hossam_tag_name;
+        if ( '' === $hossam_tag_name ) {
+            continue;
+        }
+        echo '<span class="hossam-tag-chip" data-tag="' . esc_attr( $hossam_tag_name ) . '">' . esc_html( $hossam_tag_name )
+            . '<button type="button" class="hossam-tag-chip-remove" aria-label="' . esc_attr( sprintf( hossam_t( 'Remove tag: %s' ), $hossam_tag_name ) ) . '">×</button></span>';
+    }
+    echo '</div>';
+    echo '<p class="form-hint hossam-aside-empty" data-hossam-tags-empty' . ( empty( $hossam_current_tags ) ? '' : ' hidden' ) . '>' . esc_html( hossam_t( 'No tags yet.' ) ) . '</p>';
+    echo '<p class="form-hint">' . esc_html( hossam_t( 'Tags power related-article linking — keep them short and specific.' ) ) . '</p>';
+    echo '<p class="form-hint">' . esc_html( hossam_t( 'Suggested from published articles in the selected categories.' ) ) . '</p>';
+    echo '<div class="hossam-aside-chips hossam-tags-suggestions" data-hossam-tags-suggestions>';
+    foreach ( $hossam_suggestions as $hossam_suggestion ) {
+        echo '<button type="button" class="hossam-tag-suggest" data-tag-suggest="' . esc_attr( $hossam_suggestion['name'] ) . '" data-tag-cats="' . esc_attr( implode( ',', $hossam_suggestion['cats'] ) ) . '" title="' . esc_attr( sprintf( hossam_t( 'Used in %d published articles in this scope.' ), (int) $hossam_suggestion['count'] ) ) . '">+ ' . esc_html( $hossam_suggestion['name'] ) . '</button>';
+    }
+    echo '</div>';
+    echo '<div class="hossam-tags-add-row">';
+    echo '<input type="text" class="filter-select" maxlength="100" placeholder="' . esc_attr( hossam_t( 'Add a tag…' ) ) . '" aria-label="' . esc_attr( hossam_t( 'Add a tag…' ) ) . '" />';
+    echo '<button type="button" class="btn btn-sm" data-hossam-tags-add title="' . esc_attr( hossam_t( 'Up to 15 tags per article.' ) ) . '">' . esc_html( hossam_t( 'Add' ) ) . '</button>';
+    echo '</div>';
+    echo '<div class="hossam-tags-values" data-hossam-tags-values aria-hidden="true">';
+    $hossam_mirrored = 0;
+    foreach ( $hossam_current_tags as $hossam_tag_name ) {
+        $hossam_tag_name = (string) $hossam_tag_name;
+        if ( '' === $hossam_tag_name ) {
+            continue;
+        }
+        echo '<input type="hidden" name="tags[]" value="' . esc_attr( $hossam_tag_name ) . '" />';
+        $hossam_mirrored++;
+    }
+    if ( 0 === $hossam_mirrored ) {
+        // The explicit empty-set marker: the key stays present on save with
+        // the cleared state (the removal acceptance) instead of falling back
+        // to the keep-contract.
+        echo '<input type="hidden" name="tags[]" value="" />';
+    }
+    echo '</div>';
+};
 ?>
     <!-- ══ PANEL: WRITE NEW ARTICLE ══ -->
     <?php if ( $sees_content ) : ?>
@@ -125,14 +253,19 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
            shell only: no editing engine and no direct edit field — the
            existing BlockCanvas is the only surface, and the toolbar is manual
            from posts.js. -->
-      <!-- v1.1.3 W6: the side column is permanent (the three display holders
-           below keep it present regardless of the AI card) — the writing
-           column stays the single form (never split). -->
-      <div class="hossam-write-workspace hossam-write-has-aside">
+      <!-- v1.1.3 W6: the side column is permanent — v1.1.5 items 15-1/21-1
+           complete the reference form's column split: the single form wraps
+           the two-column workspace grid (the writing column + the side
+           stack), so every field — including the side-stack card fields —
+           stays a DOM child of hossam-post-create-form and the posts.js
+           contract (form.querySelector on hossam-post-create-form) works
+           verbatim (the form is never split). -->
+        <form id="hossam-post-create-form" onsubmit="event.preventDefault(); hossamCreateArticle(this); return false;" class="hossam-write-primary">
         <!-- Core-first (second batch): the primary path hossam_create_article —
              the author is assigned from the server session, and no AI here
              (item 3 constraint). -->
-        <form id="hossam-post-create-form" onsubmit="event.preventDefault(); hossamCreateArticle(this); return false;" class="hossam-write-primary">
+        <div class="hossam-write-workspace hossam-write-has-aside">
+        <div class="hossam-write-writing-col">
           <div class="card hossam-write-card">
           <!-- (1) Title row — the model: title-input-container (shell + H1
                badge + heading-policy line). The H1 badge is a reminder of the
@@ -149,7 +282,14 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
               <span><?php echo esc_html( __( 'H1 is reserved for the title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?></span>
             </div>
           </div>
-          <!-- (2) Content panel — the model: an attached toolbar above the
+          <!-- (2) v1.1.5 item 19: the Excerpt group moved directly under the
+               title group (the reads are name-based and position-independent
+               — hossam-new-excerpt untouched). -->
+          <div class="form-group mb-8">
+            <label class="form-label" for="hossam-new-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
+            <textarea class="form-input" id="hossam-new-excerpt" name="excerpt" rows="3"></textarea>
+          </div>
+          <!-- (3) Content panel — the model: an attached toolbar above the
                canvas in one static box (pro-toolbar-container +
                editor-canvas-surface without separation or pinning — the v2.8
                decision). The shell holds the textarea (the permanent form
@@ -175,9 +315,41 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
               <?php endif; ?>
             </div>
           </div>
-          <div class="form-group mb-8">
-            <label class="form-label" for="hossam-new-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
-            <textarea class="form-input" id="hossam-new-excerpt" name="excerpt" rows="3"></textarea>
+          <!-- v1.1.5 item 15: the categories tree and the featured-image
+               package moved DOM inside the Metadata card (side-stack position
+               1) — same ids/names/contract, still children of the single
+               form; the Status element moved into the Publishing card
+               (item 14-2). The posts.js contract (form.querySelector on
+               hossam-post-create-form) keeps working — the form wraps the
+               whole workspace grid and is never split. -->
+          <div class="form-actions mt-12">
+            <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
+          </div>
+          </div><!-- /hossam-write-card -->
+        </div><!-- /hossam-write-writing-col -->
+        <?php
+        // v1.1.3 W6 + v1.1.5 item 14: the side column stack — the six cards
+        // in the owner's royal order (Metadata → Tags → Translations → SEO →
+        // AI → Publishing). The fields inside the cards are real form fields
+        // (children of the single wrapping form). Role label computed
+        // internally from the shell's existing flags.
+        $hossam_write_role_label = $is_admin
+            ? hossam_t( 'Administrator' )
+            : ( $is_editor ? hossam_t( 'Editor' ) : ( $is_author ? hossam_t( 'Author' ) : hossam_t( 'Contributor' ) ) );
+        ?>
+        <div class="hossam-write-side-stack">
+        <!-- (1) Metadata — v1.1.5 item 15: the live card carries the real
+             categories tree and the real featured-image package. The two
+             text mirror rows left, each resolved per the wave-0
+             documentation (S-12): the Featured Image mirror row → the moved
+             featured-image package inside this card (item 15-2); the
+             Excerpt mirror row → the real Excerpt field in the writing
+             column directly under the title (item 19-1), not inside this
+             card. Zero text unchanged elsewhere. -->
+        <div class="card hossam-write-aside-holder" id="hossam-metadata-holder" data-hossam-side-card="metadata">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <div class="form-group mb-8">
             <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
@@ -226,52 +398,76 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
             <button type="button" class="btn btn-sm btn-ghost" id="hossam-new-thumbnail-remove" style="display:none"><?php echo esc_html( hossam_t( 'Remove featured image' ) ); ?></button>
           </div>
           <?php endif; ?>
-          <div class="form-group mb-8">
-            <label class="form-label" for="hossam-new-status"><?php echo esc_html( hossam_t( 'Status' ) ); ?></label>
-            <select class="filter-select" id="hossam-new-status" name="status">
-              <option value="draft"><?php echo esc_html( hossam_t( 'Draft' ) ); ?></option>
-              <option value="pending"><?php echo esc_html( hossam_t( 'Pending Review' ) ); ?></option>
-              <?php if ( current_user_can( 'publish_posts' ) ) : ?>
-              <option value="publish"><?php echo esc_html( hossam_t( 'Published' ) ); ?></option>
-              <?php endif; ?>
-            </select>
+        </div>
+        <!-- (2) Tags — v1.1.5 item 16 (S-9/S-10/S-11): the live card. Write
+             context: a new article starts with zero tags; the suggestions
+             cover the published posts of all sections (no categories are
+             checked yet) and posts.js narrows them live to the checked
+             categories via the rendered data-tag-cats read lists. One
+             builder renders both contexts. -->
+        <div class="card hossam-write-aside-holder" id="hossam-tags-holder" data-hossam-side-card="tags">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
-          <!-- The metadata field rows (excerpt/categories/featured image/
-               status) stay verbatim inside the single form — the posts.js
-               contract (form.querySelector on hossam-post-create-form)
-               forbids splitting the form, so the reference form's column
-               split is not duplicated here (a marked delta). -->
-          <div class="form-actions mt-12">
-            <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
+          <?php
+            // S-9: the read is proven by measurement and documented in the
+            // render — the scope marker travels on the chips container.
+            $hossam_write_tag_scope = ( function_exists( 'get_posts' ) && function_exists( 'wp_get_object_terms' ) )
+                ? 'post_tag@publish;category:all'
+                : '';
+            $hossam_render_tags_card( array(), $hossam_tag_suggestions( array() ), $hossam_write_tag_scope );
+          ?>
+        </div>
+        <!-- (3) Translations — v1.1.5 item 17: one markup for both contexts.
+             The write card keeps its declared availability state before the
+             first save (the T-05 contract): zero rows and zero buttons while
+             pending (no post id — zero calls with id 0), and the existing
+             saved-state flip plus the existing post-save redirect hand over
+             to the edit panel where the language rows and their actions are
+             real (the same builder family and the same translate
+             delegation). Detection scope per the owner's narrowing:
+             read-only, zero WPML writes. -->
+        <div class="card hossam-write-aside-holder" id="hossam-translations-holder" data-hossam-side-card="translations" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🌐</span><?php echo esc_html( hossam_t( 'Languages & Translation' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
           </div>
-          </div><!-- /hossam-write-card -->
-        </form>
-        <?php
-        // v1.1.3 W6: the side column stack — the AI card plus the three
-        // display holders (Publishing / Metadata / Tags) in one column so the
-        // workspace grid keeps exactly two children (the single form column
-        // and the side stack); the holders are display-only — the form fields
-        // above remain the only inputs, and the holders mirror their initial
-        // state (the empty-state wireframes land with the editor-cards wave).
-        // Role label computed internally from the shell's existing flags.
-        $hossam_write_role_label = $is_admin
-            ? hossam_t( 'Administrator' )
-            : ( $is_editor ? hossam_t( 'Editor' ) : ( $is_author ? hossam_t( 'Author' ) : hossam_t( 'Contributor' ) ) );
-        ?>
-        <div class="hossam-write-side-stack">
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'Language rows appear here after the first save — detection only.' ) ); ?></p>
+        </div>
+        <!-- (4) SEO & SERP — v1.1.4 item 5 availability state preserved
+             (position 4 in the royal order). Rank Math stays the only score
+             source; the fields and score activate with the saved-state wave
+             after the first save. -->
+        <div class="card hossam-write-aside-holder" id="hossam-seo-holder" data-hossam-side-card="seo" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🔍</span><?php echo esc_html( hossam_t( 'SEO & SERP' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'SEO score' ) ); ?></span>
+            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Not calculated yet.' ) ); ?></span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'SEO fields and the score appear after the first save.' ) ); ?></p>
+        </div>
         <?php if ( $hossam_write_ai_on ) : ?>
-        <!-- Third batch (7.4): AI buttons render only when a valid strategic
-             capability is proven plus the user permission — hiding is a
-             display condition, and authorization is re-enforced server-side
-             on every endpoint.
+        <!-- (5) AI Writing Assistant — third batch (7.4): AI buttons render
+             only when a valid strategic capability is proven plus the user
+             permission — hiding is a display condition, and authorization is
+             re-enforced server-side on every endpoint.
              (Batch 7: + the owner gate B3-08 is_feature_enabled('ai')).
              v1.1.1 C1: the independent AI card in the side column per the
              model (Panel 5) — every .js-ai-run button, data attributes and
              the hidden result verbatim as-is (ai.js reads them via
-             delegation). -->
-        <div class="card hossam-write-ai-card">
+             delegation).
+             v1.1.5 item 18-4 (D-OWNER-4=A): the head icon is a real
+             interactive button (type="button", in-flow — zero fixed/sticky,
+             the m19 decision stands): activating it focuses the card's
+             actions row (the first js-ai-run button) — a focus/accessibility
+             link only, zero new action and zero endpoint. -->
+        <div class="card hossam-write-ai-card" data-hossam-side-card="ai">
           <div class="hossam-write-card-head">
-            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">✨</span><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
+            <div class="card-sub hossam-write-card-title"><button type="button" class="hossam-write-card-ico hossam-write-card-ico-btn" aria-label="<?php echo esc_attr( hossam_t( 'Jump to the AI actions' ) ); ?>" title="<?php echo esc_attr( hossam_t( 'Jump to the AI actions' ) ); ?>">✨</button><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
             <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <p class="hossam-write-card-desc"><?php echo esc_html( hossam_t( 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ) ); ?></p>
@@ -285,14 +481,24 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
           <div id="ai-suggestion-result-write" class="hidden"></div>
         </div>
         <?php endif; ?>
-        <div class="card hossam-write-aside-holder" id="hossam-publishing-holder">
+        <!-- (6) Publishing — v1.1.5 item 14-2: the real Status element moved
+             DOM into the card (the id/name/options contract verbatim — the
+             posts.js reads are name/id-based and position-independent; the
+             bottom action bar reads getElementById('hossam-new-status')). -->
+        <div class="card hossam-write-aside-holder" id="hossam-publishing-holder" data-hossam-side-card="publishing">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">📌</span><?php echo esc_html( hossam_t( 'Publishing' ) ); ?></div>
             <span class="hossam-write-card-tag"><?php echo esc_html( $hossam_write_role_label ); ?></span>
           </div>
-          <div class="hossam-aside-row">
-            <span class="form-label"><?php echo esc_html( hossam_t( 'Status' ) ); ?></span>
-            <span class="pill pill-draft"><?php echo esc_html( hossam_t( 'Draft' ) ); ?></span>
+          <div class="form-group mb-8">
+            <label class="form-label" for="hossam-new-status"><?php echo esc_html( hossam_t( 'Status' ) ); ?></label>
+            <select class="filter-select" id="hossam-new-status" name="status">
+              <option value="draft"><?php echo esc_html( hossam_t( 'Draft' ) ); ?></option>
+              <option value="pending"><?php echo esc_html( hossam_t( 'Pending Review' ) ); ?></option>
+              <?php if ( current_user_can( 'publish_posts' ) ) : ?>
+              <option value="publish"><?php echo esc_html( hossam_t( 'Published' ) ); ?></option>
+              <?php endif; ?>
+            </select>
           </div>
           <div class="hossam-aside-row">
             <span class="form-label"><?php echo esc_html( hossam_t( 'Permalink' ) ); ?></span>
@@ -300,59 +506,9 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
           </div>
           <p class="form-hint"><?php echo esc_html( hossam_t( 'The permalink is set after the first save.' ) ); ?></p>
         </div>
-        <div class="card hossam-write-aside-holder" id="hossam-metadata-holder">
-          <div class="hossam-write-card-head">
-            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
-            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
-          </div>
-          <div class="hossam-aside-row">
-            <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
-            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'No cover selected yet.' ) ); ?></span>
-          </div>
-          <div class="hossam-aside-row">
-            <span class="form-label"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></span>
-            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Write a short excerpt in the form — it feeds archives and search results.' ) ); ?></span>
-          </div>
-        </div>
-        <div class="card hossam-write-aside-holder" id="hossam-tags-holder">
-          <div class="hossam-write-card-head">
-            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
-            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
-          </div>
-          <div class="hossam-aside-chips" aria-hidden="true"></div>
-          <p class="form-hint hossam-aside-empty"><?php echo esc_html( hossam_t( 'No tags yet.' ) ); ?></p>
-          <p class="form-hint"><?php echo esc_html( hossam_t( 'Tags power related-article linking — keep them short and specific.' ) ); ?></p>
-        </div>
-        <!-- [W6] v1.1.4 item 5: the Translations Hub lands in the write column in
-             its declared availability state (the model order: after Tags). The
-             detection contract governs the saved context (the edit panel's card
-             reads WPML); a draft without an id creates nothing here — the card
-             flips through the existing saved-state wave only. Detection scope
-             per the owner's narrowing: read-only, zero WPML writes. -->
-        <div class="card hossam-write-aside-holder" id="hossam-translations-holder" data-hossam-card-state="pending-save">
-          <div class="hossam-write-card-head">
-            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🌐</span><?php echo esc_html( hossam_t( 'Translations Hub' ) ); ?></div>
-            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
-          </div>
-          <p class="form-hint"><?php echo esc_html( hossam_t( 'Language rows appear here after the first save — detection only.' ) ); ?></p>
-        </div>
-        <!-- [W6] v1.1.4 item 5: the SEO & SERP card in its declared availability
-             state (the model order: last). Rank Math stays the only score source;
-             the fields and score activate with the saved-state wave after the
-             first save. -->
-        <div class="card hossam-write-aside-holder" id="hossam-seo-holder" data-hossam-card-state="pending-save">
-          <div class="hossam-write-card-head">
-            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🔍</span><?php echo esc_html( hossam_t( 'SEO & SERP' ) ); ?></div>
-            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
-          </div>
-          <div class="hossam-aside-row">
-            <span class="form-label"><?php echo esc_html( hossam_t( 'SEO score' ) ); ?></span>
-            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Not calculated yet.' ) ); ?></span>
-          </div>
-          <p class="form-hint"><?php echo esc_html( hossam_t( 'SEO fields and the score appear after the first save.' ) ); ?></p>
-        </div>
         </div><!-- /hossam-write-side-stack -->
-      </div><!-- /hossam-write-workspace -->
+        </div><!-- /hossam-write-workspace -->
+        </form>
       <!-- Scoped fallback: [frontend_admin] hidden by default; opened only on
            a technical failure (network/5xx/unparseable response) from
            posts.js — never on a security rejection or invalid input (gate
@@ -514,11 +670,21 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     <?php if ( $is_noindex ) : ?><span title="Noindex" style="font-size:10px">🚫</span><?php endif; ?>
                   </td>
                   <td>
+                    <?php
+                    // v1.1.4 item 13 + v1.1.5 item 26 (D-OWNER-1(A)): the
+                    // author info reads are hoisted once — both cell paths
+                    // consume them. Function-guarded so the isolated
+                    // rendering harnesses (no author stubs) stay green.
+                    $hossam_row_author_id   = function_exists( 'get_post_field' ) ? (int) get_post_field( 'post_author', $post_id ) : 0;
+                    $hossam_row_author_name = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'display_name', $hossam_row_author_id ) : '';
+                    $hossam_row_author_url  = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'user_url', $hossam_row_author_id ) : '';
+                    ?>
                     <?php if ( current_user_can( 'manage_options' ) ) : ?>
                     <!-- v1.1.4 item 13: the admin path keeps the existing
-                         actions verbatim; the writer path swaps in the author
-                         info (the bounded owner directive — the markup detail
-                         documented here before the touch per the contract). -->
+                         actions verbatim; v1.1.5 item 26 (D-OWNER-1(A))
+                         appends the SAME author-info markup beside the actions
+                         inside the same cell (the writer-path block verbatim —
+                         zero endpoint, zero JS, zero adapter). -->
                     <div class="articles-tbl-actions">
                       <?php if ( $can_edit ) : ?>
                       <a href="<?php echo esc_url($edit_url); ?>" class="btn btn-sm"><?php echo esc_html( hossam_t( 'Edit' ) ); ?></a>
@@ -535,17 +701,21 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>" title="<?php echo esc_attr( __( 'Admin gateway — opens the official editor in a separate tab, administrators only.', 'hal-frontend-dashboard' ) ); ?>"><?php echo esc_html( hossam_t( 'Manual update' ) ); ?></a>
                       <?php endif; ?>
                     </div>
+                    <div class="td-muted hossam-author-info">
+                      <?php if ( $hossam_row_author_name ) : ?>
+                      <span><?php echo esc_html( $hossam_row_author_name ); ?></span>
+                      <?php endif; ?>
+                      <?php if ( $hossam_row_author_url ) : ?>
+                      <a href="<?php echo esc_url( $hossam_row_author_url ); ?>" target="_blank" rel="noopener" class="hossam-author-site"><?php echo esc_html( hossam_t( 'Author site' ) ); ?></a>
+                      <?php endif; ?>
+                      <?php if ( ! $hossam_row_author_name && ! $hossam_row_author_url ) : ?>
+                      <span class="hossam-aside-muted">—</span>
+                      <?php endif; ?>
+                    </div>
                     <?php else : ?>
                     <!-- v1.1.4 item 13 (the writer path): the author info for
                          the article and their site account — the author display
-                         name and their site link; zero action buttons. The
-                         author reads are function-guarded so the isolated
-                         rendering harnesses (no author stubs) stay green. -->
-                    <?php
-                    $hossam_row_author_id   = function_exists( 'get_post_field' ) ? (int) get_post_field( 'post_author', $post_id ) : 0;
-                    $hossam_row_author_name = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'display_name', $hossam_row_author_id ) : '';
-                    $hossam_row_author_url  = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'user_url', $hossam_row_author_id ) : '';
-                    ?>
+                         name and their site link; zero action buttons. -->
                     <div class="td-muted hossam-author-info">
                       <?php if ( $hossam_row_author_name ) : ?>
                       <span><?php echo esc_html( $hossam_row_author_name ); ?></span>
@@ -620,36 +790,68 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <h1><?php echo esc_html( hossam_t( 'Edit Article' ) ); ?></h1>
         <p><?php echo esc_html( hossam_t( 'Edit an existing post. Changes are saved immediately upon submission.' ) ); ?></p>
       </div>
-      <div class="card mb-14">
         <?php
           $hossam_edit_resource_allowed = false;
           if ( $url_post_id ) {
               $the_post = get_post( $url_post_id );
               if ( ! $the_post || 'post' !== $the_post->post_type || $the_post->post_status === 'trash' ) {
-                  echo '<div class="info-card">' . esc_html( hossam_t( 'Article not found.' ) ) . '</div>';
+                  echo '<div class="card mb-14"><div class="info-card">' . esc_html( hossam_t( 'Article not found.' ) ) . '</div></div>';
               } elseif ( ! current_user_can( 'edit_post', $url_post_id ) ) {
                   // Item 3 (second batch): per-post capability check via
                   // map_meta_cap instead of a manual post_author comparison
                   // (line-142 reference). The endpoint re-verifies
                   // server-side; hiding the form here is not authorization.
-                  echo '<div class="info-card" style="color:var(--danger)">' . esc_html( hossam_t( 'You do not have permission to edit this article.' ) ) . '</div>';
+                  echo '<div class="card mb-14"><div class="info-card" style="color:var(--danger)">' . esc_html( hossam_t( 'You do not have permission to edit this article.' ) ) . '</div></div>';
               } else {
                   $hossam_edit_resource_allowed = true;
                   $hossam_edit_cats = wp_get_post_categories( $the_post->ID );
                   $hossam_can_publish = current_user_can( 'publish_posts' );
                   $hossam_cur_status  = get_post_status( $the_post );
+                  $hossam_edit_role_label = $is_admin
+                      ? hossam_t( 'Administrator' )
+                      : ( $is_editor ? hossam_t( 'Editor' ) : ( $is_author ? hossam_t( 'Author' ) : hossam_t( 'Contributor' ) ) );
                   ?>
                   <!-- Core-first: full server-side population then submit to
-                       hossam_update_article -->
+                       hossam_update_article.
+                       v1.1.5 items 21-1/15-1: the edit form wraps the same
+                       two-column workspace grid as the write form (the form
+                       is never split — every field stays its DOM child), and
+                       the edit branch drops its former bare one-card wrapper
+                       so the writing column renders identically to the write
+                       context. -->
                    <form id="hossam-post-edit-form" onsubmit="event.preventDefault(); hossamUpdateArticle(this); return false;">
                     <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
-                    <div class="form-group mb-8">
+                    <div class="hossam-write-workspace hossam-write-has-aside">
+                    <div class="hossam-write-writing-col">
+                    <div class="card hossam-write-card">
+                    <!-- v1.1.5 item 19-2: the edit title adopts the write
+                         panel's title markup verbatim (the shell + the H1
+                         badge + the policy line — value transfer, no parallel
+                         build) with the edit field id/name/value contract
+                         unchanged. -->
+                    <div class="form-group mb-8 hossam-write-title-group">
                       <label class="form-label" for="hossam-edit-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
-                      <input type="text" class="form-input" id="hossam-edit-title" name="title" maxlength="255" value="<?php echo esc_attr( $the_post->post_title ); ?>" />
+                      <div class="hossam-write-title-shell">
+                        <span class="hossam-write-h1-badge" title="<?php echo esc_attr( __( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?>">H1</span>
+                        <input type="text" class="form-input hossam-write-title-input" id="hossam-edit-title" name="title" maxlength="255" value="<?php echo esc_attr( $the_post->post_title ); ?>" />
+                      </div>
+                      <div class="hossam-write-title-hint">
+                        <span class="hossam-write-policy-pill">H1</span>
+                        <span><?php echo esc_html( __( 'H1 is reserved for the title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?></span>
+                      </div>
                     </div>
+                    <!-- v1.1.5 item 19-1: the Excerpt group directly under the
+                         title group (the read is name-based and
+                         position-independent — hossam-edit-excerpt
+                         untouched). -->
                     <div class="form-group mb-8">
+                      <label class="form-label" for="hossam-edit-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
+                      <textarea class="form-input" id="hossam-edit-excerpt" name="excerpt" rows="3"><?php echo esc_textarea( $the_post->post_excerpt ?? '' ); ?></textarea>
+                    </div>
+                    <div class="form-group mb-8 hossam-write-content-group">
                       <label class="form-label" for="hossam-edit-content"><?php echo esc_html( hossam_t( 'Content' ) ); ?></label>
-                      <textarea class="form-input" id="hossam-edit-content" name="content" rows="12"><?php echo esc_textarea( $the_post->post_content ); ?></textarea>
+                      <div class="hossam-write-editor-surface">
+                      <textarea class="form-input hossam-write-content-input" id="hossam-edit-content" name="content" rows="12"><?php echo esc_textarea( $the_post->post_content ); ?></textarea>
                       <?php if ( $hossam_rich_editor_feature && 'off' !== $hossam_editor_mode ) : ?>
                       <!-- v1.0.6 §9: the rich editor position in the edit panel
                            inside the content field of the HAL template — the
@@ -665,12 +867,34 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                         <div class="hossam-rich-editor-canvas" data-role="canvas"></div>
                       </div>
                       <?php endif; ?>
+                      </div><!-- /hossam-write-editor-surface -->
                     </div>
-                    <div class="form-group mb-8">
-                      <label class="form-label" for="hossam-edit-excerpt"><?php echo esc_html( hossam_t( 'Excerpt' ) ); ?></label>
-                      <textarea class="form-input" id="hossam-edit-excerpt" name="excerpt" rows="3"><?php echo esc_textarea( $the_post->post_excerpt ?? '' ); ?></textarea>
+                    <!-- v1.1.5 item 15: the categories tree and the
+                         featured-image package moved DOM inside the Metadata
+                         card (side-stack position 1) — same ids/names/
+                         contract, still children of the single form; the
+                         Status element and the Permalink row moved into the
+                         Publishing card (item 14-2). -->
+                    <div class="form-actions mt-12">
+                      <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
                     </div>
-                    <div class="form-group mb-8">
+                    </div><!-- /card hossam-write-card -->
+                    </div><!-- /hossam-write-writing-col -->
+                    <!-- v1.1.5 item 14/21: the side column — the six cards in
+                         the royal order (Metadata → Tags → Translations → SEO
+                         → AI → Publishing), same heads and classes as the
+                         write context; the ids carry the hossam-edit- prefix
+                         (the two panels live in one page — unique ids), and
+                         the shared data-hossam-side-card marker carries the
+                         positional contract the batch17 harness measures. -->
+                    <div class="hossam-write-side-stack">
+                    <!-- (1) Metadata — the live card (item 15). -->
+                    <div class="card hossam-write-aside-holder" id="hossam-edit-metadata-holder" data-hossam-side-card="metadata">
+                      <div class="hossam-write-card-head">
+                        <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
+                        <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
+                      </div>
+                      <div class="form-group mb-8">
                       <span class="form-label"><?php echo esc_html( hossam_t( 'Categories' ) ); ?></span>
                       <?php
                         // v1.0.6 §3-P4: parent-children tree (hierarchical order
@@ -710,58 +934,47 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                         echo '</details></div>';
                       ?>
                       <p class="form-hint"><?php echo esc_html( hossam_t( 'Leave all unchecked to keep the current categories.' ) ); ?></p>
-                    </div>
-                    <?php if ( current_user_can( 'upload_files' ) ) :
-                      $hossam_edit_thumb_id = function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $the_post->ID ) : 0;
-                      $hossam_edit_thumb_url = ( $hossam_edit_thumb_id > 0 && function_exists( 'wp_get_attachment_url' ) ) ? (string) wp_get_attachment_url( $hossam_edit_thumb_id ) : '';
-                    ?>
-                    <div class="form-group mb-8">
-                      <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
-                      <input type="hidden" id="hossam-edit-thumbnail" name="thumbnail_id" value="<?php echo esc_attr( $hossam_edit_thumb_id > 0 ? (string) $hossam_edit_thumb_id : '' ); ?>" />
-                      <div><img id="hossam-edit-thumbnail-preview" src="<?php echo esc_url( $hossam_edit_thumb_url ); ?>" alt="" style="<?php echo '' !== $hossam_edit_thumb_url ? 'max-width:120px;height:auto;' : 'display:none;max-width:120px;height:auto;'; ?>" /></div>
-                      <button type="button" class="btn btn-sm" id="hossam-edit-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
-                      <?php if ( $hossam_edit_thumb_id > 0 ) : ?>
-                      <button type="button" class="btn btn-sm btn-ghost" id="hossam-edit-thumbnail-remove"><?php echo esc_html( hossam_t( 'Remove featured image' ) ); ?></button>
-                      <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
-                    <?php
-                    // v1.0.6 P1: read-only Permalink display (get_permalink) —
-                    // the draft link tagged "Temporary — final on publish". No
-                    // slug edit field.
-                    $hossam_edit_permalink = function_exists( 'get_permalink' ) ? (string) get_permalink( $the_post->ID ) : '';
-                    if ( '' !== $hossam_edit_permalink ) :
-                    ?>
-                    <div class="form-group mb-8">
-                      <span class="form-label"><?php echo esc_html( hossam_t( 'Permalink' ) ); ?></span>
-                      <div>
-                        <a href="<?php echo esc_url( $hossam_edit_permalink ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $hossam_edit_permalink ); ?></a>
-                        <?php if ( in_array( $hossam_cur_status, [ 'draft', 'pending', 'future' ], true ) ) : ?>
-                        <span class="data-tag"><?php echo esc_html( hossam_t( 'Temporary — final on publish' ) ); ?></span>
+                      </div>
+                      <?php if ( current_user_can( 'upload_files' ) ) :
+                        $hossam_edit_thumb_id = function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $the_post->ID ) : 0;
+                        $hossam_edit_thumb_url = ( $hossam_edit_thumb_id > 0 && function_exists( 'wp_get_attachment_url' ) ) ? (string) wp_get_attachment_url( $hossam_edit_thumb_id ) : '';
+                      ?>
+                      <div class="form-group mb-8">
+                        <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
+                        <input type="hidden" id="hossam-edit-thumbnail" name="thumbnail_id" value="<?php echo esc_attr( $hossam_edit_thumb_id > 0 ? (string) $hossam_edit_thumb_id : '' ); ?>" />
+                        <div><img id="hossam-edit-thumbnail-preview" src="<?php echo esc_url( $hossam_edit_thumb_url ); ?>" alt="" style="<?php echo '' !== $hossam_edit_thumb_url ? 'max-width:120px;height:auto;' : 'display:none;max-width:120px;height:auto;'; ?>" /></div>
+                        <button type="button" class="btn btn-sm" id="hossam-edit-thumbnail-btn"><?php echo esc_html( hossam_t( 'Set featured image' ) ); ?></button>
+                        <?php if ( $hossam_edit_thumb_id > 0 ) : ?>
+                        <button type="button" class="btn btn-sm btn-ghost" id="hossam-edit-thumbnail-remove"><?php echo esc_html( hossam_t( 'Remove featured image' ) ); ?></button>
                         <?php endif; ?>
                       </div>
+                      <?php endif; ?>
+                    </div><!-- /hossam-edit-metadata-holder -->
+                    <!-- (2) Tags — v1.1.5 item 16: the live card in the edit
+                         context — the article's current tags render as
+                         removable chips and the suggestions cover the
+                         published posts of the article's own categories
+                         (S-9: the read scope travels on the render). -->
+                    <div class="card hossam-write-aside-holder" id="hossam-edit-tags-holder" data-hossam-side-card="tags">
+                      <div class="hossam-write-card-head">
+                        <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
+                        <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
+                      </div>
+                      <?php
+                        $hossam_edit_tag_names = array();
+                        if ( function_exists( 'wp_get_post_tags' ) ) {
+                            foreach ( (array) wp_get_post_tags( (int) $the_post->ID, array( 'fields' => 'names' ) ) as $hossam_edit_tag_name ) {
+                                if ( is_string( $hossam_edit_tag_name ) && '' !== $hossam_edit_tag_name ) {
+                                    $hossam_edit_tag_names[] = $hossam_edit_tag_name;
+                                }
+                            }
+                        }
+                        $hossam_edit_tag_scope = ( function_exists( 'get_posts' ) && function_exists( 'wp_get_object_terms' ) )
+                            ? 'post_tag@publish;category:' . ( empty( $hossam_edit_cats ) ? 'all' : implode( ',', array_map( 'strval', array_map( 'intval', (array) $hossam_edit_cats ) ) ) )
+                            : '';
+                        $hossam_render_tags_card( $hossam_edit_tag_names, $hossam_tag_suggestions( (array) $hossam_edit_cats ), $hossam_edit_tag_scope );
+                      ?>
                     </div>
-                    <?php endif; ?>
-                    <?php if ( 'publish' === $hossam_cur_status && ! $hossam_can_publish ) : ?>
-                    <?php /* A published post whose user lacks publish_posts: no status field at all — the published post stays published */ ?>
-                    <?php else : ?>
-                    <div class="form-group mb-8">
-                      <label class="form-label" for="hossam-edit-status"><?php echo esc_html( hossam_t( 'Status' ) ); ?></label>
-                      <select class="filter-select" id="hossam-edit-status" name="status">
-                        <?php if ( $hossam_can_publish || in_array( $hossam_cur_status, [ 'draft', 'pending' ], true ) ) : ?>
-                        <option value="draft" <?php selected( $hossam_cur_status, 'draft' ); ?>><?php echo esc_html( hossam_t( 'Draft' ) ); ?></option>
-                        <option value="pending" <?php selected( $hossam_cur_status, 'pending' ); ?>><?php echo esc_html( hossam_t( 'Pending Review' ) ); ?></option>
-                        <?php endif; ?>
-                        <?php if ( $hossam_can_publish || 'publish' === $hossam_cur_status ) : ?>
-                        <option value="publish" <?php selected( $hossam_cur_status, 'publish' ); ?>><?php echo esc_html( hossam_t( 'Published' ) ); ?></option>
-                        <?php endif; ?>
-                      </select>
-                    </div>
-                    <?php endif; ?>
-                    <div class="form-actions mt-12">
-                      <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save Article' ) ); ?></button>
-                    </div>
-                  </form>
                   <?php
                   // v1.1.3 W6 (D2): the Languages & Translation card per the
                   // adopted translation design — always visible in the edit
@@ -827,8 +1040,18 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                   }
                   ?>
                   <?php if ( $hossam_lang_card_ready && ! empty( $hossam_lang_rows ) ) : ?>
-                  <div class="card mt-12" id="hossam-languages-card">
-                    <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'Languages & Translation' ) ); ?></div>
+                  <!-- (3) Translations — v1.1.5 item 17: the same card in the
+                       edit context with the real rows and their real actions
+                       (the js-translate-article delegation and the
+                       hossam_translate_article endpoint untouched); the
+                       unified head (item 21-2) and the legacy card id kept on
+                       the inner block. WPML stays detection-only. -->
+                  <div class="card hossam-write-aside-holder" id="hossam-edit-translations-holder" data-hossam-side-card="translations">
+                    <div class="hossam-write-card-head">
+                      <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🌐</span><?php echo esc_html( hossam_t( 'Languages & Translation' ) ); ?></div>
+                      <span class="hossam-write-card-tag"><?php echo esc_html( $hossam_edit_role_label ); ?></span>
+                    </div>
+                    <div id="hossam-languages-card">
                     <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Translation creates a linked draft in the target language — edit it and publish it like any article.' ) ); ?></p>
                     <div class="hossam-lang-rows">
                       <?php foreach ( $hossam_lang_rows as $hossam_lang_row ) : ?>
@@ -843,6 +1066,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     <?php if ( current_user_can( 'manage_options' ) ) : ?>
                     <p class="form-hint mt-8"><a href="<?php echo esc_url( admin_url( 'admin.php?page=sitepress-multilingual-cms' ) ); ?>" target="_blank" rel="noopener"><?php echo esc_html( hossam_t( 'Language Manager' ) ); ?></a></p>
                     <?php endif; ?>
+                    </div><!-- /hossam-languages-card -->
                   </div>
                   <?php endif; ?>
                   <?php
@@ -866,19 +1090,40 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       $hossam_edit_seo_score = isset( $hossam_edit_seo['seo_score'] ) ? (int) $hossam_edit_seo['seo_score'] : 0;
                       $hossam_edit_seo_options = function_exists( 'hossam_get_allowed_rank_math_robots' ) ? hossam_get_allowed_rank_math_robots() : [];
                   ?>
-                  <div class="card mt-12" id="hossam-edit-seo-group">
-                    <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'SEO' ) ); ?></div>
+                  <!-- (4) SEO & SERP — v1.1.5 item 18: the live card in the
+                       edit context (the write context keeps the availability
+                       card). The fields reflect the article live while it is
+                       being edited (the posts.js listeners); Rank Math stays
+                       the only score source. v1.1.5 item 21-3: the inner SEO
+                       form becomes a non-form container with the SAME id —
+                       inside the wrapping edit form a nested form would be
+                       invalid — with distinguished internal field names
+                       (seo_post_id/seo_title/seo_focus_keyword/
+                       seo_description/seo_robots[]) so the outer
+                       hossamUpdateArticle reads never collide; hossamSaveSeo
+                       appends the SAME wire keys (title/focus_keyword/
+                       description/robots[]/post_id) byte-for-byte, so the
+                       hossam_save_seo endpoint contract is untouched. The
+                       Save SEO button is type="button" calling the existing
+                       handler. -->
+                  <div class="card hossam-write-aside-holder" id="hossam-edit-seo-holder" data-hossam-side-card="seo">
+                    <div class="hossam-write-card-head">
+                      <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🔍</span><?php echo esc_html( hossam_t( 'SEO & SERP' ) ); ?></div>
+                      <span class="hossam-write-card-tag"><?php echo esc_html( $hossam_edit_role_label ); ?></span>
+                    </div>
+                    <div id="hossam-edit-seo-group">
                     <?php
                     // v1.1.3 W6 (D3): the simplified SEO group per the adopted
                     // design — a colored read-only meter whose thresholds are
                     // identical to the articles-table SEO column (>=80 good /
                     // >=51 average / <=50 weak / none), one explanation line
                     // per field, guidance-only character counters (the live
-                    // update is later JS; the initial value is server-computed),
-                    // and robots labels carrying a plain description with the
-                    // raw value beside it (the raw values remain the save
-                    // contract). Rank Math stays the only score source — no
-                    // client-side calculation anywhere.
+                    // update is the posts.js listeners — v1.1.5 item 18-1; the
+                    // initial value is server-computed), and robots labels
+                    // carrying a plain description with the raw value beside
+                    // it (the raw values remain the save contract). Rank Math
+                    // stays the only score source — no client-side score
+                    // calculation anywhere.
                     $hossam_seo_meter_cls = $hossam_edit_seo_score >= 80 ? 'good' : ( $hossam_edit_seo_score >= 51 ? 'avg' : ( $hossam_edit_seo_score > 0 ? 'weak' : 'none' ) );
                     $hossam_seo_meter_label = $hossam_edit_seo_score >= 80 ? hossam_t( 'Good' ) : ( $hossam_edit_seo_score >= 51 ? hossam_t( 'Average' ) : ( $hossam_edit_seo_score > 0 ? hossam_t( 'Weak' ) : hossam_t( 'Not calculated yet.' ) ) );
                     // The level classes travel whole from PHP (the rm_cls
@@ -922,18 +1167,24 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <span class="hossam-seo-meter-label <?php echo esc_attr( $hossam_seo_label_cls ); ?>"><?php echo esc_html( $hossam_seo_meter_label ); ?></span>
                     </div>
                     <p class="form-hint mb-8"><?php echo esc_html( hossam_t( 'Raise the score by completing the fields below — Rank Math calculates it automatically.' ) ); ?></p>
-                    <?php if ( ! empty( $hossam_seo_suggestions ) ) : ?>
-                    <ul class="hossam-seo-suggestions mb-8">
+                    <!-- v1.1.5 item 18-1: the suggestions list is always
+                         addressable (the posts.js listeners rebuild it live
+                         with the same server rules and hide it when empty) —
+                         the initial server-computed list is unchanged. -->
+                    <ul class="hossam-seo-suggestions mb-8" id="hossam-seo-suggestions"<?php echo empty( $hossam_seo_suggestions ) ? ' hidden' : ''; ?>>
                       <?php foreach ( $hossam_seo_suggestions as $hossam_seo_suggestion ) : ?>
                       <li><?php echo esc_html( $hossam_seo_suggestion ); ?></li>
                       <?php endforeach; ?>
                     </ul>
-                    <?php endif; ?>
-                    <form id="hossam-edit-seo-form" onsubmit="event.preventDefault(); hossamSaveSeo(this); return false;">
-                      <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
+                    <!-- v1.1.5 item 21-3: the non-form container with the same
+                         id (the nested-form constraint) + the distinguished
+                         internal names; hossamSaveSeo reads these names and
+                         appends the unchanged wire keys. -->
+                    <div id="hossam-edit-seo-form">
+                      <input type="hidden" name="seo_post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
                       <div class="form-group mb-8">
                         <label class="form-label" for="hossam-edit-seo-kw"><?php echo esc_html( hossam_t( 'Focus Keyword' ) ); ?></label>
-                        <input type="text" class="form-input" id="hossam-edit-seo-kw" name="focus_keyword" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_kw ); ?>" />
+                        <input type="text" class="form-input" id="hossam-edit-seo-kw" name="seo_focus_keyword" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_kw ); ?>" />
                         <p class="form-hint"><?php echo esc_html( hossam_t( 'The keyword your client searches for — e.g. corporate lawyer in Cairo.' ) ); ?></p>
                       </div>
                       <div class="form-group mb-8">
@@ -941,7 +1192,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                           <label class="form-label" for="hossam-edit-seo-title"><?php echo esc_html( hossam_t( 'SEO Title' ) ); ?></label>
                           <span class="hossam-seo-counter"><?php echo esc_html( $hossam_seo_title_len . ' / 60' ); ?></span>
                         </div>
-                        <input type="text" class="form-input" id="hossam-edit-seo-title" name="title" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_title ); ?>" />
+                        <input type="text" class="form-input" id="hossam-edit-seo-title" name="seo_title" maxlength="255" value="<?php echo esc_attr( $hossam_edit_seo_title ); ?>" />
                         <p class="form-hint"><?php echo esc_html( hossam_t( 'The title shown in search results — it may differ from the article title.' ) ); ?></p>
                       </div>
                       <div class="form-group mb-8">
@@ -949,7 +1200,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                           <label class="form-label" for="hossam-edit-seo-desc"><?php echo esc_html( hossam_t( 'Meta Description' ) ); ?></label>
                           <span class="hossam-seo-counter"><?php echo esc_html( $hossam_seo_desc_len . ' / 160' ); ?></span>
                         </div>
-                        <textarea class="form-input" id="hossam-edit-seo-desc" name="description" rows="3"><?php echo esc_textarea( $hossam_edit_seo_desc ); ?></textarea>
+                        <textarea class="form-input" id="hossam-edit-seo-desc" name="seo_description" rows="3"><?php echo esc_textarea( $hossam_edit_seo_desc ); ?></textarea>
                         <p class="form-hint"><?php echo esc_html( hossam_t( 'The summary line shown under the title in search results.' ) ); ?></p>
                       </div>
                       <div class="form-group mb-8">
@@ -957,7 +1208,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                         <div class="hossam-seo-robots">
                           <?php foreach ( $hossam_edit_seo_options as $hossam_edit_seo_option ) : ?>
                           <label class="hossam-seo-robots-row">
-                            <input type="checkbox" name="robots[]" value="<?php echo esc_attr( $hossam_edit_seo_option ); ?>"<?php echo ( is_array( $hossam_edit_seo_robots ) ? in_array( $hossam_edit_seo_option, $hossam_edit_seo_robots, true ) : str_contains( (string) $hossam_edit_seo_robots, $hossam_edit_seo_option ) ) ? ' checked' : ''; ?> />
+                            <input type="checkbox" name="seo_robots[]" value="<?php echo esc_attr( $hossam_edit_seo_option ); ?>"<?php echo ( is_array( $hossam_edit_seo_robots ) ? in_array( $hossam_edit_seo_option, $hossam_edit_seo_robots, true ) : str_contains( (string) $hossam_edit_seo_robots, $hossam_edit_seo_option ) ) ? ' checked' : ''; ?> />
                             <span><?php echo esc_html( $hossam_seo_robots_labels[ $hossam_edit_seo_option ] ?? $hossam_edit_seo_option ); ?></span>
                             <span class="hossam-robots-raw"><?php echo esc_html( $hossam_edit_seo_option ); ?></span>
                           </label>
@@ -965,20 +1216,28 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                         </div>
                       </div>
                       <div class="form-actions mt-12">
-                        <button type="submit" class="btn btn-gold"><?php echo esc_html( hossam_t( 'Save SEO' ) ); ?></button>
+                        <button type="button" class="btn btn-gold" onclick="hossamSaveSeo(document.getElementById('hossam-edit-seo-form'))"><?php echo esc_html( hossam_t( 'Save SEO' ) ); ?></button>
                       </div>
-                    </form>
-                  </div>
+                    </div><!-- /hossam-edit-seo-form (the non-form container — item 21-3) -->
+                    </div><!-- /hossam-edit-seo-group -->
+                  </div><!-- /hossam-edit-seo-holder -->
                   <?php endif; ?>
                   <?php if ( HAL_Frontend_Dashboard_Settings_Repository::is_feature_enabled( 'ai' ) && function_exists( 'hossam_ai_interface_available' ) && hossam_ai_interface_available() ) : ?>
-                  <!-- Third batch (7.4): inside the permission branch only —
-                       edit_post at post level pinned above, and the capability
-                       proven server-side now.
+                  <!-- (5) AI Writing Assistant — third batch (7.4): inside the
+                       permission branch only — edit_post at post level pinned
+                       above, and the capability proven server-side now.
                        (Batch 7: + the owner gate B3-08
-                       is_feature_enabled('ai')). -->
-                  <div class="card mt-12">
-                    <div class="card-sub mb-8"><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
-                    <div class="filter-bar">
+                       is_feature_enabled('ai')).
+                       v1.1.5 item 21-2: the unified card head (the same
+                       pattern as the write context) with the interactive icon
+                       (item 18-4 — a focus link only). -->
+                  <div class="card hossam-write-ai-card" data-hossam-side-card="ai">
+                    <div class="hossam-write-card-head">
+                      <div class="card-sub hossam-write-card-title"><button type="button" class="hossam-write-card-ico hossam-write-card-ico-btn" aria-label="<?php echo esc_attr( hossam_t( 'Jump to the AI actions' ) ); ?>" title="<?php echo esc_attr( hossam_t( 'Jump to the AI actions' ) ); ?>">✨</button><?php echo esc_html( hossam_t( 'AI Writing Assistant' ) ); ?></div>
+                      <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
+                    </div>
+                    <p class="hossam-write-card-desc"><?php echo esc_html( hossam_t( 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ) ); ?></p>
+                    <div class="filter-bar hossam-write-ai-actions">
                       <button type="button" class="btn btn-sm js-ai-run" data-job-type="grammar" data-post-id="<?php echo esc_attr( $the_post->ID ); ?>" data-source="hossam-edit-content" data-result="ai-suggestion-result-edit"><?php echo esc_html( hossam_t( 'Grammar Check' ) ); ?></button>
                       <input type="text" class="filter-select" id="hossam-ai-target-edit" maxlength="8" placeholder="<?php echo esc_attr( hossam_t( 'Target language code' ) ); ?>" />
                       <button type="button" class="btn btn-sm js-ai-run" data-job-type="translation" data-post-id="<?php echo esc_attr( $the_post->ID ); ?>" data-source="hossam-edit-content" data-lang-source="hossam-ai-target-edit" data-result="ai-suggestion-result-edit"><?php echo esc_html( hossam_t( 'Suggest Translation' ) ); ?></button>
@@ -988,19 +1247,65 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     <div id="ai-suggestion-result-edit" class="hidden"></div>
                   </div>
                   <?php endif; ?>
+                  <!-- (6) Publishing — v1.1.5 item 14-2/21-2: the real Status
+                       element and the real Permalink row moved DOM into the
+                       card (the id/name/option contracts verbatim — the
+                       posts.js reads and the bottom action bar are
+                       name/id-based and position-independent). -->
+                  <div class="card hossam-write-aside-holder" id="hossam-edit-publishing-holder" data-hossam-side-card="publishing">
+                    <div class="hossam-write-card-head">
+                      <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">📌</span><?php echo esc_html( hossam_t( 'Publishing' ) ); ?></div>
+                      <span class="hossam-write-card-tag"><?php echo esc_html( $hossam_edit_role_label ); ?></span>
+                    </div>
+                    <?php
+                    // v1.0.6 P1: read-only Permalink display (get_permalink) —
+                    // the draft link tagged "Temporary — final on publish". No
+                    // slug edit field.
+                    $hossam_edit_permalink = function_exists( 'get_permalink' ) ? (string) get_permalink( $the_post->ID ) : '';
+                    if ( '' !== $hossam_edit_permalink ) :
+                    ?>
+                    <div class="hossam-aside-row">
+                      <span class="form-label"><?php echo esc_html( hossam_t( 'Permalink' ) ); ?></span>
+                      <span class="hossam-edit-permalink-value">
+                        <a href="<?php echo esc_url( $hossam_edit_permalink ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $hossam_edit_permalink ); ?></a>
+                        <?php if ( in_array( $hossam_cur_status, [ 'draft', 'pending', 'future' ], true ) ) : ?>
+                        <span class="data-tag"><?php echo esc_html( hossam_t( 'Temporary — final on publish' ) ); ?></span>
+                        <?php endif; ?>
+                      </span>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( 'publish' === $hossam_cur_status && ! $hossam_can_publish ) : ?>
+                    <?php /* A published post whose user lacks publish_posts: no status field at all — the published post stays published */ ?>
+                    <?php else : ?>
+                    <div class="form-group mb-8">
+                      <label class="form-label" for="hossam-edit-status"><?php echo esc_html( hossam_t( 'Status' ) ); ?></label>
+                      <select class="filter-select" id="hossam-edit-status" name="status">
+                        <?php if ( $hossam_can_publish || in_array( $hossam_cur_status, [ 'draft', 'pending' ], true ) ) : ?>
+                        <option value="draft" <?php selected( $hossam_cur_status, 'draft' ); ?>><?php echo esc_html( hossam_t( 'Draft' ) ); ?></option>
+                        <option value="pending" <?php selected( $hossam_cur_status, 'pending' ); ?>><?php echo esc_html( hossam_t( 'Pending Review' ) ); ?></option>
+                        <?php endif; ?>
+                        <?php if ( $hossam_can_publish || 'publish' === $hossam_cur_status ) : ?>
+                        <option value="publish" <?php selected( $hossam_cur_status, 'publish' ); ?>><?php echo esc_html( hossam_t( 'Published' ) ); ?></option>
+                        <?php endif; ?>
+                      </select>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                  </div><!-- /hossam-write-side-stack -->
+                  </div><!-- /hossam-write-workspace -->
+                  </form>
                   <?php
               }
           } else {
-              echo '<div class="info-card">
+              echo '<div class="card mb-14"><div class="info-card">
                   <p>' . sprintf(
                       hossam_t( 'Select an article from %s and click Edit to load the form here.' ),
                       '<strong>' . esc_html( hossam_t( 'All My Articles' ) ) . '</strong>'
                   ) . '</p>
                   <button class="btn btn-gold mt-8" onclick="nav(document.querySelector(\'[data-panel=all-articles]\'),\'all-articles\')">' . esc_html( hossam_t( 'Go to My Articles' ) ) . '</button>
-              </div>';
+              </div></div>';
           }
         ?>
-      </div>
       <?php if ( $hossam_edit_resource_allowed && $posts_frontend_fallback ) : ?>
       <!-- Scoped fallback only (a technical failure from posts.js) — never
            opens on a security rejection -->

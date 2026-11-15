@@ -323,25 +323,46 @@ if ( ! function_exists( 'hossam_ai_connector_source_status' ) ) {
 // 5) The two strategy executors — each receives a ready prompt and returns a text or a WP_Error
 // ══════════════════════════════════════════════════════════════
 
-/**
- * The fixed approved models list for the direct_key strategy — any model
- * outside it is rejected before the call. Extension is a separate Change
- * Request.
- *
- * v1.1.4 fixes contract item 1-(c): the pinned value moves off the retired
- * gemini-1.5-flash onto the current Flash generation. Value provenance:
- * selected per the fixes contract item 1-(c) from the live Flash family
- * (gemini-2.x-flash); the free GET /v1beta/models probe (item 1-(e)) is the
- * live arbiter of the value — re-verified at the live window per acceptance
- * k-1 (verification date recorded there), never by guessing.
- *
- * @return string[]
- */
-if ( ! function_exists( 'hossam_ai_allowed_models' ) ) {
-	function hossam_ai_allowed_models(): array {
-		return array( 'gemini-2.5-flash' );
+	/**
+	 * The fixed approved models list for the direct_key strategy — any model
+	 * outside it is rejected before the call. Extension is a separate Change
+	 * Request.
+	 *
+	 * v1.1.5 fixes contract item 22: the pinned value moves off gemini-2.5-flash
+	 * onto gemini-3.6-flash. Value provenance (measured live 2026-11-15 with the
+	 * owner-approved key — conversation only, never stored in any artifact): the
+	 * provider's own retirement notice returned 404 on generateContent for
+	 * gemini-2.5-flash while the model stayed listed («no longer available to new
+	 * users… use models/gemini-3.8-flash»); the provider-suggested successor was
+	 * under load (timeout/503) and gemini-3.6-flash returned 200 generateContent
+	 * with a matching modelVersion and a response shape this adapter parses
+	 * unchanged (the final answer in parts[0].text). The pinned value lives in
+	 * hossam_ai_pinned_model() — the single source for the allowlist, the config
+	 * default and the probe's presence check. The free GET /v1beta/models probe
+	 * (item 23) is the live arbiter — re-verified at the live acceptance window —
+	 * never by guessing.
+	 *
+	 * @return string[]
+	 */
+	if ( ! function_exists( 'hossam_ai_allowed_models' ) ) {
+		function hossam_ai_allowed_models(): array {
+			return array( hossam_ai_pinned_model() );
+		}
 	}
-}
+
+	if ( ! function_exists( 'hossam_ai_pinned_model' ) ) {
+		/**
+		 * The single source of the pinned live model for the direct_key
+		 * strategy (v1.1.5 fixes contract item 22) — consumed by the
+		 * allowlist, the config default and the probe's presence check so
+		 * the three can never drift apart.
+		 *
+		 * @return string
+		 */
+		function hossam_ai_pinned_model(): string {
+			return 'gemini-3.6-flash';
+		}
+	}
 
 /**
  * The direct_key setup read: provider/model from the constants, and the key
@@ -378,7 +399,7 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 
 		$model = defined( 'HOSSAM_AI_MODEL' ) && is_string( HOSSAM_AI_MODEL ) && '' !== HOSSAM_AI_MODEL
 			? HOSSAM_AI_MODEL
-			: 'gemini-2.5-flash';
+			: hossam_ai_pinned_model();
 		if ( ! in_array( $model, hossam_ai_allowed_models(), true ) ) {
 			return new WP_Error(
 				'hossam_ai_unsupported_model',
@@ -613,12 +634,22 @@ if ( ! function_exists( 'hossam_ai_classify_generation_failure' ) ) {
 
 if ( ! function_exists( 'hossam_ai_probe_direct_key' ) ) {
 	/**
-	 * v1.1.4 fixes contract items 1-(d)/(e): the free separation probe — one
-	 * GET /v1beta/models call with the key read at call time from the Secret
-	 * Store and dropped immediately. No text generation, no raw provider body
-	 * stored, no new endpoint, and no key in any artifact. The result is a
-	 * sanitized code only: provider_live_ok / provider_live_http_<status> /
-	 * provider_live_network.
+	 * v1.1.4 fixes contract items 1-(d)/(e) + v1.1.5 fixes contract item 23:
+	 * the free separation probe — one GET /v1beta/models call with the key
+	 * read at call time from the Secret Store and dropped immediately. No text
+	 * generation, no raw provider body stored, no new endpoint, and no key in
+	 * any artifact. The result is a sanitized code only: provider_live_ok /
+	 * provider_live_http_<status> / provider_live_network /
+	 * provider_live_model_absent.
+	 *
+	 * Item 23 adds the presence check: a bare 200 is not sufficient — a retired
+	 * model can remain listed for compatibility while generateContent 404s for
+	 * new keys (measured live 2026-11-15). The pinned model must appear in the
+	 * returned list; its absence is its own sanitized code. The documented
+	 * limit: the listed-but-retired stage where the provider still serves the
+	 * name in the list is caught by the classified generation failure instead
+	 * (generation_failed-http_error-<status>) — the probe stays generation-free
+	 * by contract.
 	 *
 	 * Consumed by the Integration Health Monitor as the provider_live level
 	 * (the dual configured + live verdict inside the existing hourly cron) and
@@ -650,6 +681,21 @@ if ( ! function_exists( 'hossam_ai_probe_direct_key' ) ) {
 		$status = (int) wp_remote_retrieve_response_code( $response );
 		if ( $status < 200 || $status >= 300 ) {
 			return 'provider_live_http_' . $status;
+		}
+
+		// v1.1.5 fixes contract item 23: the presence check — the pinned model
+		// must survive the provider's list, not merely return a 200.
+		$body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$names = array();
+		if ( is_array( $body ) && isset( $body['models'] ) && is_array( $body['models'] ) ) {
+			foreach ( $body['models'] as $model ) {
+				if ( is_array( $model ) && isset( $model['name'] ) && is_string( $model['name'] ) ) {
+					$names[] = $model['name'];
+				}
+			}
+		}
+		if ( ! in_array( 'models/' . hossam_ai_pinned_model(), $names, true ) ) {
+			return 'provider_live_model_absent';
 		}
 		return 'provider_live_ok';
 	}

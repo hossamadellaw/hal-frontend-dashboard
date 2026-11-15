@@ -234,6 +234,33 @@ b16t_check(
 );
 
 
+/* ─ v1.1.5 item 25 (§86/§94): the More handler, in the drawer context,
+   calls the unified close path — the wired handler lives in hossamToolbarMount
+   (the only scope where drawerClose exists), gated on the exact CSS
+   breakpoint (≤768) and the drawer-open state; the fold band keeps the bare
+   toggle. The build no longer carries the bare class toggle. ── */
+$more_start = strpos( $js_src, '[v1.1.5 item 25 — the named complementary fix' );
+$more_end   = ( false !== $more_start ) ? strpos( $js_src, '});', $more_start ) : false;
+$more_block = ( false !== $more_start && false !== $more_end ) ? substr( $js_src, $more_start, $more_end - $more_start ) : '';
+b16t_check(
+	'B16T-M1-more-drawer-close',
+	'' !== $more_block
+		&& false !== strpos( $more_block, "matchMedia('(max-width: 768px)')" )
+		&& false !== strpos( $more_block, 'drawerClose(true)' )
+		&& false !== strpos( $more_block, "bar.classList.contains('hossam-pt-more-open')" )
+		&& false !== strpos( $more_block, "bar.classList.toggle('hossam-pt-more-open')" ),
+	'the More handler delegates to the unified drawerClose(true) in the drawer context (the exact CSS media query as the JS gate, one shared value) and keeps the bare toggle for the fold band',
+	'the More handler does not call the unified close path or the gate drifted'
+);
+b16t_check(
+	'B16T-M2-build-no-bare-toggle',
+	1 === substr_count( $js_src, "bar.classList.toggle('hossam-pt-more-open')" )
+		&& 0 === substr_count( $js_src, "root.classList.toggle('hossam-pt-more-open')" )
+		&& false === strpos( $block, "moreBtn.addEventListener('click'" ),
+	'the bare class toggle lives only in the synced More handler (the build button carries no listener of its own — one handler, one state machine)',
+	'the bare toggle is duplicated or the build still wires the More button'
+);
+
 /* ── zero-Arabic hygiene ── */
 foreach ( [ 'posts.js' => $js_src, 'i18n.php' => $i18n_src ] as $name => $src ) {
 	b16t_check(

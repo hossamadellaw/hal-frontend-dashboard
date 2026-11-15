@@ -177,19 +177,28 @@ if ( ! function_exists( 'wp_unslash' ) ) {
 		return $value;
 	}
 }
-// v1.1.4 fixes contract item 1-(d): the monitor's provider_live probe issues
-// one free GET /v1beta/models call when direct_key is the chosen strategy —
-// the fixture answers HTTP 200 (a live list) unless a scenario overrides the
+// v1.1.4 fixes contract item 1-(d) + v1.1.5 fixes contract item 23: the
+// monitor's provider_live probe issues one free GET /v1beta/models call when
+// direct_key is the chosen strategy — the fixture answers HTTP 200 (a live
+// list containing the pinned model, since the probe now checks the pinned
+// model's presence in the returned list) unless a scenario overrides the
 // result, so the dual configured + live verdict is exercisable here.
 if ( ! function_exists( 'wp_remote_get' ) ) {
 	function wp_remote_get( string $url, array $args = array() ) {
 		$GLOBALS['B2S_REMOTE_CALLS'][] = array( 'url' => $url, 'args' => $args );
-		return $GLOBALS['B2S_REMOTE_RESULT'] ?? array( 'response' => array( 'code' => 200 ), 'body' => '{"models":[]}' );
+		return $GLOBALS['B2S_REMOTE_RESULT'] ?? array( 'response' => array( 'code' => 200 ), 'body' => '{"models":[{"name":"models/gemini-3.6-flash"}]}' );
 	}
 }
 if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
 	function wp_remote_retrieve_response_code( $response ): int {
 		return is_array( $response ) ? (int) ( $response['response']['code'] ?? 0 ) : 0;
+	}
+}
+if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
+	// v1.1.5 fixes contract item 23: the probe's presence check reads the
+	// response body — the fixture provides the accessor alongside the GET stub.
+	function wp_remote_retrieve_body( $response ): string {
+		return is_array( $response ) ? (string) ( $response['body'] ?? '' ) : '';
 	}
 }
 if ( ! function_exists( 'absint' ) ) {

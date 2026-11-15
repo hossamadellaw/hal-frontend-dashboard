@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.4.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.5.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,15 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.5 =
+* The editor cards follow the owner-ordered layout (Metadata, Tags, Translations Hub, SEO & SERP, AI Assistant, Publishing) and every card is live: Metadata carries the featured image and category, Tags suggests site tags from the same category under a hard 15-tag limit, Translations exposes its action buttons, the SEO counters update while writing, and the AI card icon is a real button.
+* The article excerpt sits directly under the title in both the write and edit editors, and the title carries the plugin styling in both contexts.
+* All add-block controls inside the writing canvas are hidden through the official editor styles channel, so the toolbar button remains the only add path and the writing body stays clean.
+* The edit editor now mounts the same six-card side column, unified heads, and bottom action bar as the write editor, and the articles table shows the author name and site link beside the admin actions.
+* Opening More inside the phone drawer keeps the backdrop, focus, and Escape behavior in sync with the drawer state.
+* AI generation is repaired end to end: the pinned model moves to gemini-3.6-flash verified against the live provider list, the provider-live probe now checks that the pinned model is still offered, and a stale configured model fails loudly instead of silently.
+* Version identity 1.1.5 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 13.
 
 = 1.1.4 =
 * AI generation is repaired end to end: failures carry classified sanitized codes (rejected key, scope, quota, request shape, or a live provider list), the pinned model moves to the current Flash generation with a provenance docblock, a free provider-live probe joins the hourly health cron as a second verdict level, and AI buttons enter a waiting state with a pinned width instead of collapsing.

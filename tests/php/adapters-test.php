@@ -68,6 +68,10 @@ $GLOBALS['B4_CAPS']       = array();
 $GLOBALS['B4_HTTP']       = array( 'calls' => array() );
 $GLOBALS['B4_UPLOAD']     = array( 'result' => 0, 'calls' => 0 );
 $GLOBALS['B4_TERMS']      = array();
+// v1.1.5 item 16: the tags fixtures — the existing post_tag term ids and
+// the per-post stored tag sets (the wp_set_post_tags boundary).
+$GLOBALS['B4_TAG_NAMES']  = array();
+$GLOBALS['B4_POST_TAGS']  = array();
 $GLOBALS['B4_POSTS']      = array();
 $GLOBALS['B4_MEDIA']      = array( 'image_ids' => array(), 'meta' => array() );
 $GLOBALS['B4_SHORTCODES'] = array();
@@ -539,6 +543,75 @@ if ( ! function_exists( 'wp_set_post_categories' ) ) {
 if ( ! function_exists( 'wp_get_post_categories' ) ) {
 	function wp_get_post_categories( int $post_id, array $args = array() ) {
 		return $GLOBALS['B4_POST_CATEGORIES'][ $post_id ] ?? array();
+	}
+}
+// v1.1.5 item 16: the post_tag boundary — resolution (get_term_by by name),
+// creation (wp_insert_term) and the set write with a read-back (the
+// wp_set_post_tags/wp_get_post_tags pair), mirroring the categories stubs.
+if ( ! function_exists( 'get_term_by' ) ) {
+	function get_term_by( string $field, $value, string $taxonomy = '' ) {
+		if ( 'name' !== $field || 'post_tag' !== $taxonomy ) {
+			return false;
+		}
+		$tid = array_search( (string) $value, $GLOBALS['B4_TAG_NAMES'], true );
+		if ( false === $tid ) {
+			return false;
+		}
+		$term           = new stdClass();
+		$term->term_id  = (int) $tid;
+		$term->name     = (string) $value;
+		$term->taxonomy = 'post_tag';
+		return $term;
+	}
+}
+if ( ! function_exists( 'wp_insert_term' ) ) {
+	function wp_insert_term( string $term, string $taxonomy = '', array $args = array() ) {
+		if ( 'post_tag' !== $taxonomy || '' === trim( $term ) ) {
+			return new WP_Error( 'invalid_term', 'Invalid term.' );
+		}
+		if ( in_array( $term, $GLOBALS['B4_TAG_NAMES'], true ) ) {
+			return new WP_Error( 'term_exists', 'Term already exists.' );
+		}
+		$next = empty( $GLOBALS['B4_TAG_NAMES'] ) ? 100 : ( max( array_keys( $GLOBALS['B4_TAG_NAMES'] ) ) + 1 );
+		$GLOBALS['B4_TAG_NAMES'][ $next ] = $term;
+		return array( 'term_id' => $next, 'term_taxonomy_id' => $next );
+	}
+}
+if ( ! function_exists( 'wp_set_post_tags' ) ) {
+	function wp_set_post_tags( int $post_id, array $tags = array(), bool $append = false ) {
+		if ( ! empty( $GLOBALS['B4_POSTS_FAIL_TAGS'] ) ) {
+			return false;
+		}
+		$ids = array();
+		foreach ( $tags as $tag ) {
+			if ( is_numeric( $tag ) ) {
+				$ids[] = (int) $tag;
+			} else {
+				$tid = array_search( (string) $tag, $GLOBALS['B4_TAG_NAMES'], true );
+				if ( false !== $tid ) {
+					$ids[] = (int) $tid;
+				}
+			}
+		}
+		$GLOBALS['B4_POST_TAGS'][ $post_id ] = array_values( array_unique( $ids ) );
+		return $GLOBALS['B4_POST_TAGS'][ $post_id ];
+	}
+}
+if ( ! function_exists( 'wp_get_post_tags' ) ) {
+	function wp_get_post_tags( int $post_id, array $args = array() ) {
+		$ids = $GLOBALS['B4_POST_TAGS'][ $post_id ] ?? array();
+		if ( isset( $args['fields'] ) && 'ids' === $args['fields'] ) {
+			return $ids;
+		}
+		$out = array();
+		foreach ( $ids as $tid ) {
+			$term           = new stdClass();
+			$term->term_id  = (int) $tid;
+			$term->name     = $GLOBALS['B4_TAG_NAMES'][ $tid ] ?? ( 'tag-' . $tid );
+			$term->taxonomy = 'post_tag';
+			$out[]          = $term;
+		}
+		return $out;
 	}
 }
 if ( ! function_exists( 'get_post_meta' ) ) {
@@ -1196,6 +1269,66 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			b4_result_line( $mode );
 			// no fallthrough
 
+		case 'posts-tags-contract':
+			// v1.1.5 item 16 (S-10): the tags[] key in the save contract —
+			// resolution through the ready term interfaces, the hard 15 cap
+			// as an explicit rejection, replace semantics with the explicit
+			// empty set, the no-key keep-contract, and the snapshot restore.
+			b4_define_release_context();
+			b4_require_runtime();
+			$GLOBALS['B4_TAG_NAMES'] = array( 60 => 'contracts', 61 => 'labour' );
+			$GLOBALS['B4_TERMS']['post_tag'] = array( 60, 61 );
+			$GLOBALS['B4_CAPS']      = array( 'edit_posts' => true, 'publish_posts' => true );
+
+			$post_a = hossam_create_article( array( 'title' => 'T1', 'tags' => array( 'contracts', 'brand new tag' ) ) );
+			b4_check( 'PT1', is_int( $post_a ) && array( 60, 62 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'create resolves an existing tag name and inserts a free name (get_term_by → wp_insert_term) and stores the resolved ids',
+				'tag resolution mismatch: ' . json_encode( is_wp_error( $post_a ) ? $post_a->get_error_code() : $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true, 'edit_post_' . $post_a => true );
+			$error = hossam_update_article( $post_a, array( 'title' => 'X', 'tags' => array( 61, 999999 ) ) );
+			b4_check( 'PT2', is_wp_error( $error ) && 'hossam_invalid_tags' === $error->get_error_code(),
+				'an unknown numeric tag id is an explicit hossam_invalid_tags rejection (never a silent drop)',
+				'unknown id mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_code() : $error ) );
+
+			$error = hossam_create_article( array( 'title' => 'T2', 'tags' => array( 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p' ) ) );
+			b4_check( 'PT3', is_wp_error( $error ) && 'hossam_invalid_tags' === $error->get_error_code() && false !== strpos( (string) $error->get_error_message(), '15' ),
+				'S-10: sixteen tags breach the hard cap — an explicit WP_Error with the cap message (no silent truncation)',
+				'cap rejection mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_message() : $error ) );
+
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( 61 ) ) );
+			b4_check( 'PT4', true === $updated && array( 61 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the tags key present replaces the set (the removal acceptance: a removed chip leaves the stored set)',
+				'replace mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( '' ) ) );
+			b4_check( 'PT5', true === $updated && array() === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the explicit empty-set marker (the mirror of an emptied chip rack) clears all tags — verified by re-reading',
+				'clear mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$GLOBALS['B4_POST_TAGS'][ $post_a ] = array( 60 );
+			$updated = hossam_update_article( $post_a, array( 'title' => 'Y' ) );
+			b4_check( 'PT6', true === $updated && array( 60 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the key absent is the keep-contract — a title-only update never writes tags',
+				'keep-contract mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$dirty = sanitize_text_field( '  padded  ' );
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( $dirty ) ) );
+			$stored_names = array();
+			foreach ( (array) ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? array() ) as $tid ) {
+				$stored_names[] = $GLOBALS['B4_TAG_NAMES'][ $tid ] ?? '';
+			}
+			b4_check( 'PT7', true === $updated && array( 'padded' ) === $stored_names,
+				'sanitize_text_field plus trim govern every free name before resolution (the S-10 name hygiene)',
+				'sanitize mismatch: ' . json_encode( $stored_names ) );
+
+			$restored = hossam_restore_article_snapshot( $post_a, array( 'post_title' => 't', 'post_content' => 'c', 'post_status' => 'draft', 'post_excerpt' => '' ), array(), 0, false, false, false, array( 60, 61 ), true );
+			b4_check( 'PT8', true === $restored && array( 60, 61 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the compensation contract covers tags — the snapshot restore writes back and re-verifies by reading (the item 16 extension)',
+				'snapshot restore mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+			b4_result_line( $mode );
+			// no fallthrough
+
 		case 'ai-strategies-unprofiled':
 			// No runtime profile at all: the registry cannot execute.
 			b4_define_release_context();
@@ -1253,7 +1386,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			require $project . '/runtime/adapters/ai.php'; // the isolated adapter under test.
 			b4_define_valid_profile();
 			define( 'HOSSAM_AI_PROVIDER', 'gemini' );
-			define( 'HOSSAM_AI_MODEL', 'gemini-2.5-flash' );
+			define( 'HOSSAM_AI_MODEL', 'gemini-3.6-flash' );
 			// This isolated process intentionally has NO batch-3 classes: the
 			// adapter's credential read must fail closed without them — the
 			// registry-backed read is proven in the runtime modes.
@@ -1299,10 +1432,10 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', b4_valid_key_hex( 'exec' ) );
 			b4_define_valid_profile();
 			define( 'HOSSAM_AI_PROVIDER', 'gemini' );
-			define( 'HOSSAM_AI_MODEL', 'gemini-2.5-flash' );
+			define( 'HOSSAM_AI_MODEL', 'gemini-3.6-flash' );
 			b4_require_runtime();
 			HAL_Frontend_Dashboard_Secret_Store::set( 'ai_direct_key', 'B4-FIXTURE-SECRET-9f3' );
-			b4_check( 'AE7', is_array( hossam_ai_get_provider_config() ) && 'gemini' === hossam_ai_get_provider_config()['provider'] && 'gemini-2.5-flash' === hossam_ai_get_provider_config()['model'], 'the registry-backed config reads provider/model from the documented constants and the key from the store (model on the fixed allowlist)', 'config mismatch' );
+			b4_check( 'AE7', is_array( hossam_ai_get_provider_config() ) && 'gemini' === hossam_ai_get_provider_config()['provider'] && 'gemini-3.6-flash' === hossam_ai_get_provider_config()['model'], 'the registry-backed config reads provider/model from the documented constants and the key from the store (model on the fixed allowlist)', 'config mismatch' );
 
 			$b4_fixture_body = json_encode( array(
 				'candidates' => array(
@@ -1321,7 +1454,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			);
 			$result = hossam_ai_execute_direct_key( 'prompt text' );
 			$call   = $GLOBALS['B4_HTTP']['calls'][0] ?? array();
-			b4_check( 'AE8', 'generated' === $result && 'POST' === $call['verb'] && false !== strpos( $call['url'], 'gemini-2.5-flash' ) && 'B4-FIXTURE-SECRET-9f3' === ( $call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $call['url'], 'B4-FIXTURE-SECRET-9f3' ) && false === strpos( (string) ( $call['args']['body'] ?? '' ), 'B4-FIXTURE-SECRET-9f3' ), 'a successful direct_key call sends the credential only in the header (never URL/body) and trims the result', 'credential placement mismatch: ' . json_encode( array( 'url' => $call['url'] ?? '', 'body' => $call['args']['body'] ?? '' ) ) );
+			b4_check( 'AE8', 'generated' === $result && 'POST' === $call['verb'] && false !== strpos( $call['url'], 'gemini-3.6-flash' ) && 'B4-FIXTURE-SECRET-9f3' === ( $call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $call['url'], 'B4-FIXTURE-SECRET-9f3' ) && false === strpos( (string) ( $call['args']['body'] ?? '' ), 'B4-FIXTURE-SECRET-9f3' ), 'a successful direct_key call sends the credential only in the header (never URL/body) and trims the result', 'credential placement mismatch: ' . json_encode( array( 'url' => $call['url'] ?? '', 'body' => $call['args']['body'] ?? '' ) ) );
 			b4_check( 'AE9', 90.0 === (float) ( $call['args']['timeout'] ?? 0 ), 'the executor timeout comes from the runtime profile (direct_key_timeout)', 'timeout mismatch' );
 
 			if ( '' !== $log_file ) {
@@ -1360,8 +1493,12 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			$probe_code = hossam_ai_probe_direct_key();
 			$probe_call = $GLOBALS['B4_HTTP']['calls'][0] ?? array();
 			b4_check( 'AE15', 'provider_live_http_401' === $probe_code && 'GET' === $probe_call['verb'] && false !== strpos( $probe_call['url'], '/v1beta/models' ) && 'B4-FIXTURE-SECRET-9f3' === ( $probe_call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $probe_call['url'], 'B4-FIXTURE-SECRET-9f3' ), 'the separation probe distinguishes a rejected key (provider_live_http_401) with a free GET models call carrying the key only in the header', 'probe mismatch: ' . json_encode( array( 'probe' => $probe_code, 'call' => $probe_call ) ) );
-			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'models' => array() ) ) ) );
-			b4_check( 'AE16', 'provider_live_ok' === hossam_ai_probe_direct_key(), 'a live models list (HTTP 200) probes as provider_live_ok — the generation failure is inside the generation call itself', 'probe ok mismatch' );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'models' => array( array( 'name' => 'models/gemini-3.6-flash' ) ) ) ) ) );
+			b4_check( 'AE16', 'provider_live_ok' === hossam_ai_probe_direct_key(), 'a live models list (HTTP 200) containing the pinned model probes as provider_live_ok — the generation failure is inside the generation call itself (v1.1.5 item 23 presence check)', 'probe ok mismatch' );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'models' => array( array( 'name' => 'models/gemini-2.5-flash' ) ) ) ) ) );
+			b4_check( 'AE16B', 'provider_live_model_absent' === hossam_ai_probe_direct_key() && 'provider_live_model_absent' === sanitize_key( 'provider_live_model_absent' ), 'a 200 list missing the pinned model probes as provider_live_model_absent (v1.1.5 item 23 — the retired-but-listed scenario measured live 2026-11-15) and the new code survives sanitize_key byte-identically', 'probe absent-model mismatch' );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => 'not-json-at-all' ) );
+			b4_check( 'AE16C', 'provider_live_model_absent' === hossam_ai_probe_direct_key(), 'a 200 with an unparseable body fails closed to provider_live_model_absent (no pinned model found — fail-closed, no silent ok)', 'probe unparseable-body mismatch' );
 			$GLOBALS['B4_HTTP']['wp_error'] = new WP_Error( 'http_failure', 'transport' );
 			b4_check( 'AE17', 'provider_live_network' === hossam_ai_probe_direct_key(), 'a transport failure probes as provider_live_network', 'probe network mismatch' );
 			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'promptFeedback' => array( 'blockReason' => 'SAFETY Block!' ) ) ) ) );
@@ -1423,7 +1560,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			define( 'HOSSAM_AI_MODEL', 'unlisted-model-x' );
 			b4_require_runtime();
 			HAL_Frontend_Dashboard_Secret_Store::set( 'ai_direct_key', 'b4-model-key-44' );
-			b4_check( 'AM1', array( 'gemini-2.5-flash' ) === hossam_ai_allowed_models(), 'the approved model list is fixed in code', 'allowlist mismatch: ' . json_encode( hossam_ai_allowed_models() ) );
+			b4_check( 'AM1', array( 'gemini-3.6-flash' ) === hossam_ai_allowed_models() && 'gemini-3.6-flash' === hossam_ai_pinned_model(), 'the approved model list is fixed in code through the single pinned-model source (v1.1.5 item 22)', 'allowlist mismatch: ' . json_encode( hossam_ai_allowed_models() ) );
 			$model_error = hossam_ai_get_provider_config();
 			b4_check( 'AM2', is_wp_error( $model_error ) && 'hossam_ai_unsupported_model' === $model_error->get_error_code(), 'an unlisted model is refused before any connection', 'model gate missing' );
 			$GLOBALS['B4_HTTP'] = array( 'calls' => array() );
@@ -1431,6 +1568,27 @@ function b4_mode( string $mode, array $args, string $project ): void {
 		b4_check( 'AM3', is_wp_error( $model_exec ) && 'hossam_ai_unsupported_model' === $model_exec->get_error_code() && 0 === count( $GLOBALS['B4_HTTP']['calls'] ), 'the executor rejects the unlisted model with zero HTTP calls', 'executor model gate missing' );
 		b4_result_line( $mode );
 		// no fallthrough
+
+		case 'ai-model-retired':
+			// v1.1.5 fixes contract item 22: the wp-config trap — a stale
+			// HOSSAM_AI_MODEL constant (the exact retired value measured 404
+			// live 2026-11-15) fails closed as unsupported_model before any
+			// connection. The code default moved with the pin; a stale
+			// deployment constant is the documented owner-side follow-up.
+			b4_define_release_context();
+			define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', b4_valid_key_hex( 'ret' ) );
+			b4_define_valid_profile();
+			define( 'HOSSAM_AI_PROVIDER', 'gemini' );
+			define( 'HOSSAM_AI_MODEL', 'gemini-2.5-flash' );
+			b4_require_runtime();
+			HAL_Frontend_Dashboard_Secret_Store::set( 'ai_direct_key', 'b4-model-key-45' );
+			$config = hossam_ai_get_provider_config();
+			b4_check( 'AMR1', is_wp_error( $config ) && 'hossam_ai_unsupported_model' === $config->get_error_code(), 'the exact retired model constant (measured 404 live 2026-11-15) fails closed as unsupported_model — the wp-config trap is loud, not silent', 'retired model gate missing: ' . json_encode( is_wp_error( $config ) ? $config->get_error_code() : $config ) );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array() );
+			$exec = hossam_ai_execute_direct_key( 'prompt text' );
+			b4_check( 'AMR2', is_wp_error( $exec ) && 'hossam_ai_unsupported_model' === $exec->get_error_code() && 0 === count( $GLOBALS['B4_HTTP']['calls'] ), 'the executor refuses the retired model constant with zero HTTP calls', 'retired executor gate missing' );
+			b4_result_line( $mode );
+			// no fallthrough
 
 		case 'ai-connector-reach':
 			// B4-03 reach: the real admin diagnosis rows consume the real
@@ -1850,12 +2008,14 @@ b4_run_mode( 'amelia-credentials-legacy-fallback' );
 b4_run_mode( 'rankmath-contract' );
 b4_run_mode( 'uploads-contract' );
 b4_run_mode( 'posts-contract' );
+b4_run_mode( 'posts-tags-contract' );
 b4_run_mode( 'ai-strategies-unprofiled' );
 b4_run_mode( 'ai-strategies' );
 b4_run_mode( 'ai-execution' );
 b4_run_mode( 'ai-provider-allowlist' );
 b4_run_mode( 'ai-direct-fallback' );
 b4_run_mode( 'ai-model-allowlist' );
+b4_run_mode( 'ai-model-retired' );
 b4_run_mode( 'ai-connector-reach' );
 b4_run_mode( 'wpml-link-verify' );
 b4_run_mode( 'wpml-translation-gate' );
