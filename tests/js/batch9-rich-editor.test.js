@@ -919,6 +919,20 @@ testB4();
 testB5();
 testB6();
 testB7();
+function testI20(){
+  /* v1.1.5 item 20: the contentCss channel carries the four in-canvas
+     add-UI hide families (the official BlockCanvas styles route only) and
+     the parent stylesheet does not pretend to cross the iframe boundary. */
+  var families=['.block-editor-default-block-appender','.block-list-appender','.block-editor-block-list__empty-block-inserter','.block-editor-block-list__insertion-point'];
+  var cssStart=source.indexOf('var contentCss=');
+  var cssChunk=cssStart===-1?'':source.slice(cssStart, cssStart+900);
+  var allIn=families.every(function(f){ return cssChunk.indexOf(f)!==-1 && cssChunk.indexOf('display:none')!==-1; });
+  check('I20-CSS-FAMILIES', allIn, 'contentCss hides the four in-canvas add-UI families (item 20 — the canvas stays clean, the toolbar button is the only add path)', 'contentCss families missing');
+  var css = require('node:fs').readFileSync(path.join(projectRoot,'runtime','assets','css','dashboard.css'),'utf8');
+  var parentCrosses = families.some(function(f){ return css.indexOf(f)!==-1; });
+  check('I20-CHANNEL-DISCIPLINE', !parentCrosses, 'the in-canvas hide families live only in the official styles channel, never in the parent stylesheet', 'families found in parent css');
+}
+
 testB8();
 testB9();
 testB10();
@@ -931,6 +945,7 @@ testO5();
 testO6();
 testO7();
 testO8();
+testI20();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

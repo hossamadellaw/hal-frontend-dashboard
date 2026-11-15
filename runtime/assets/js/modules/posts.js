@@ -992,8 +992,13 @@ function hossamRichInitEditor(containerId){
     try{container.addEventListener('paste',markPaste,true);}catch(pe0){}
     try{container.addEventListener('input',function(){hossamSetEditorState(container,'writing');},true);}catch(pe1){}
     /* Content styles are passed to the iframe through the official BlockCanvas
-       interface (styles) — with RTL from the HAL settings. */
-    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}';
+       interface (styles) — with RTL from the HAL settings.
+       v1.1.5 item 20: this styles string is the only legitimate channel into
+       the BlockCanvas iframe — the default appender and the empty-block
+       inserter families are hidden inside the canvas so the writing body
+       stays clean and the toolbar button remains the only add path (the
+       pre-save serialize reads block state, never this DOM). */
+    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-default-block-appender,.block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}';
     function HossamRichApp(){
       var useState=el.useState;
       var state=useState(initialBlocks);
