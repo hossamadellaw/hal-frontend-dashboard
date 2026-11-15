@@ -468,10 +468,12 @@ tr:hover td{background:rgba(0,0,0,.012)}
 /* [B9-U6] v1.1.4 fixes contract item 8: the internal Add-block row is hidden
    by CSS only — the toolbar's Add-block button bridges to the same official
    Inserter popover, so the content area stays clean (the owner's directive).
-   The anchor point stays in posts.php for the bridge.
+   The anchor point stays in posts.php for the bridge. The selector carries
+   the .hossam-rich-editor ancestor so the hide outspecifies the original
+   flex rule later in this file (CSS cascade order).
    [B9-U7] v1.1.4 fixes contract item 13: the writer-path author info styles
    (the admin actions path keeps its existing classes). */
-.hossam-rich-editor-inserter{
+.hossam-rich-editor .hossam-rich-editor-inserter{
   display:none;
 }
 .hossam-author-info{
