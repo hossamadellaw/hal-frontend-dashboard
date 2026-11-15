@@ -72,6 +72,14 @@ async function hossamCreateArticle(form){
   var catBoxes = (typeof form.querySelectorAll === 'function')
     ? form.querySelectorAll('input[name="categories[]"]:checked') : [];
   catBoxes.forEach(box=>fd.append("categories[]",box.value));
+  /* [v1.1.5 item 16] the single tags[] key opens in the save contract — the
+     categories[] append pattern verbatim: the hidden mirror inside the Tags
+     card is the carrier, and the empty marker (a single empty value when the
+     chip set is empty) keeps "removed the last tag" an explicit save instead
+     of falling back to the keep-contract. Zero new endpoint. */
+  var tagBoxes = (typeof form.querySelectorAll === 'function')
+    ? form.querySelectorAll('input[name="tags[]"]') : [];
+  tagBoxes.forEach(box=>fd.append("tags[]",box?box.value:""));
   if(excerpt){fd.append("excerpt",excerpt.value);}
   /* [B9-05] + [B9-06] P1: send the value when it is not empty — zero '0'
      is sent explicitly for removal (no '0' exclusion, and never -1). */
@@ -124,6 +132,11 @@ async function hossamUpdateArticle(form){
   var catBoxesU = (typeof form.querySelectorAll === 'function')
     ? form.querySelectorAll('input[name="categories[]"]:checked') : [];
   catBoxesU.forEach(box=>fd.append("categories[]",box.value));
+  /* [v1.1.5 item 16] the tags[] append in the update path — same contract as
+     the create path (the categories[] pattern verbatim). */
+  var tagBoxesU = (typeof form.querySelectorAll === 'function')
+    ? form.querySelectorAll('input[name="tags[]"]') : [];
+  tagBoxesU.forEach(box=>fd.append("tags[]",box?box.value:""));
   if(excerpt){fd.append("excerpt",excerpt.value);}
   /* [B9-05] + [B9-06] P1: zero '0' is sent explicitly for removal (no '0'
      exclusion, and never -1) — a completely empty update keeps the contract
@@ -349,22 +362,30 @@ hossamBindThumbnailRemove('hossam-edit-thumbnail-remove','hossam-edit-thumbnail'
 
 /* v1.0.6 §8.6: SEO save from the edit-panel group via wp_ajax_hossam_save_seo.
    No legacy fallback (no alternative form for the SEO group) — a security
-   rejection/invalid input = toast only. */
+   rejection/invalid input = toast only.
+   [v1.1.5 item 21-3] the SEO group is now a non-form container with the same
+   id inside the wrapping edit form (the nested-form constraint); its fields
+   carry the distinguished internal names (seo_post_id/seo_title/
+   seo_focus_keyword/seo_description/seo_robots[]) so the outer
+   hossamUpdateArticle reads never collide — and the wire keys appended below
+   are byte-identical to the shipped contract (title/focus_keyword/
+   description/robots[]/post_id): the hossam_save_seo endpoint contract is
+   untouched. */
 async function hossamSaveSeo(form){
   if(!window.hossamAjax || !form) return false;
   const fd=new FormData();
   fd.append("action","hossam_save_seo");
   fd.append("nonce",hossamAjax.nonce);
-  const pid=form.querySelector('[name="post_id"]'),
-        title=form.querySelector('[name="title"]'),
-        kw=form.querySelector('[name="focus_keyword"]'),
-        desc=form.querySelector('[name="description"]');
+  const pid=form.querySelector('[name="seo_post_id"]'),
+        title=form.querySelector('[name="seo_title"]'),
+        kw=form.querySelector('[name="seo_focus_keyword"]'),
+        desc=form.querySelector('[name="seo_description"]');
   fd.append("post_id",pid?pid.value:"0");
   if(title) fd.append("title",title.value);
   if(kw) fd.append("focus_keyword",kw.value);
   if(desc) fd.append("description",desc.value);
   var seoRobots=(typeof form.querySelectorAll==='function')
-    ? form.querySelectorAll('input[name="robots[]"]:checked') : [];
+    ? form.querySelectorAll('input[name="seo_robots[]"]:checked') : [];
   /* [R21-c] bind the robots chips to the closed list only (index/noindex/follow/
      nofollow) — NoArchive/NoSnippet blocked on the client path too (strict
      case-insensitive comparison normalization). The server-side intersection
@@ -393,6 +414,237 @@ async function hossamSaveSeo(form){
   showToast((d&&d.data&&d.data.message)||t('networkError','Network error'),'error');
   return false;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   [v1.1.5 item 16] the live Tags card — one behavior set for both contexts
+   (the same builder renders the write and the edit cards). State lives in
+   the card DOM only: the chips + the hidden tags[] mirror inside the form;
+   the save path reads the mirror exactly like the categories checkboxes.
+   DOM APIs only (createElement/textContent — zero raw-HTML writes). Every
+   control is type="button" (S-11): nothing inside the save form submits
+   implicitly.
+   S-10: the client mirrors the server's 15-tag cap with an explicit toast —
+   the server gate stays the only authority.
+   ══════════════════════════════════════════════════════════════ */
+var hossamTagsCap=15; /* the server cap (S-10) mirrored for the explicit client message */
+function hossamTagsCardOf(node){
+  try{ return (node&&node.closest)?node.closest('[data-hossam-side-card="tags"]'):null; }catch(e){ return null; }
+}
+function hossamTagsChipsBox(card){
+  try{ return card?card.querySelector('[data-hossam-tags-chips]'):null; }catch(e){ return null; }
+}
+function hossamTagsMirrorBox(card){
+  try{ return card?card.querySelector('[data-hossam-tags-values]'):null; }catch(e){ return null; }
+}
+function hossamTagChipName(chip){
+  try{ return chip&&chip.getAttribute?(chip.getAttribute('data-tag')||''):''; }catch(e){ return ''; }
+}
+/* Rebuild the hidden mirror from the live chips + keep the empty hint and
+   the suggestion selected-state in sync. The empty set keeps ONE empty
+   marker input so "removed the last tag" reaches the server as an explicit
+   empty set (the removal acceptance) instead of the keep-contract. */
+function hossamTagsSync(card){
+  try{
+    if(!card) return;
+    var chipsBox=hossamTagsChipsBox(card), mirror=hossamTagsMirrorBox(card);
+    if(!chipsBox||!mirror) return;
+    var chips=chipsBox.querySelectorAll('.hossam-tag-chip');
+    while(mirror.firstChild) mirror.removeChild(mirror.firstChild);
+    for(var i=0;i<chips.length;i++){
+      var input=document.createElement('input');
+      input.type='hidden';
+      input.name='tags[]';
+      input.value=hossamTagChipName(chips[i]);
+      mirror.appendChild(input);
+    }
+    if(!chips.length){
+      var marker=document.createElement('input');
+      marker.type='hidden'; marker.name='tags[]'; marker.value='';
+      mirror.appendChild(marker);
+    }
+    var empty=card.querySelector('[data-hossam-tags-empty]');
+    if(empty){ if(chips.length){empty.setAttribute('hidden','');}else{empty.removeAttribute('hidden');} }
+    var suggestBox=card.querySelector('[data-hossam-tags-suggestions]');
+    if(suggestBox){
+      var sugg=suggestBox.querySelectorAll('.hossam-tag-suggest');
+      for(var s=0;s<sugg.length;s++){
+        var name=hossamTagChipName(sugg[s]);
+        var selected=false;
+        for(var c=0;c<chips.length;c++){ if(hossamTagChipName(chips[c])===name){selected=true;break;} }
+        if(selected){ sugg[s].classList.add('is-selected'); } else { sugg[s].classList.remove('is-selected'); }
+      }
+    }
+  }catch(e){}
+}
+function hossamTagsAdd(name, card){
+  try{
+    name=String(name||'').replace(/^\s+|\s+$/g,'');
+    if(!card||!name) return false;
+    var chipsBox=hossamTagsChipsBox(card);
+    if(!chipsBox) return false;
+    var chips=chipsBox.querySelectorAll('.hossam-tag-chip');
+    for(var i=0;i<chips.length;i++){ if(hossamTagChipName(chips[i])===name){ return false; } } /* dedupe — the chip is already on the article */
+    if(chips.length>=hossamTagsCap){
+      showToast(t('tagsCap','Up to 15 tags per article.'),'error');
+      return false;
+    }
+    var chip=document.createElement('span');
+    chip.className='hossam-tag-chip';
+    chip.setAttribute('data-tag',name);
+    chip.textContent=name;
+    var x=document.createElement('button');
+    x.type='button';
+    x.className='hossam-tag-chip-remove';
+    x.setAttribute('aria-label',t('tagRemoveNamed','Remove tag')+' '+name);
+    x.textContent='×';
+    chip.appendChild(x);
+    chipsBox.appendChild(chip);
+    hossamTagsSync(card);
+    return true;
+  }catch(e){ return false; }
+}
+/* One delegation pair for both contexts: suggestion chips add their tag to
+   the article set; chip remove buttons remove it. Both walk up to the card
+   through the shared data-hossam-side-card="tags" marker. */
+document.addEventListener('click',function(e){
+  try{
+    var sug=(e.target&&e.target.closest)?e.target.closest('[data-tag-suggest]'):null;
+    if(sug){ e.preventDefault(); hossamTagsAdd(sug.getAttribute('data-tag-suggest'),hossamTagsCardOf(sug)); return; }
+    var rm=(e.target&&e.target.closest)?e.target.closest('.hossam-tag-chip-remove'):null;
+    if(rm){
+      e.preventDefault();
+      var chip=rm.closest('.hossam-tag-chip'), card=hossamTagsCardOf(rm);
+      if(chip&&chip.parentNode) chip.parentNode.removeChild(chip);
+      hossamTagsSync(card);
+      return;
+    }
+    var add=(e.target&&e.target.closest)?e.target.closest('[data-hossam-tags-add]'):null;
+    if(add){
+      e.preventDefault();
+      var card2=hossamTagsCardOf(add);
+      var row=add.closest?add.closest('.hossam-tags-add-row'):null;
+      var input=row?row.querySelector('input[type="text"]'):null;
+      if(input){ hossamTagsAdd(input.value,card2); if(input.value){input.value='';} }
+    }
+  }catch(e){}
+});
+/* S-9: the suggestion scope narrows live to the checked categories — the
+   read lists travel on each suggestion chip (data-tag-cats) rendered
+   server-side; with no categories checked the full rendered scope shows. */
+document.addEventListener('change',function(e){
+  try{
+    var box=e.target;
+    if(!box||!box.name||box.name!=='categories[]') return;
+    var form=box.closest?box.closest('form'):null;
+    if(!form) return;
+    var checked={};
+    var boxes=form.querySelectorAll?form.querySelectorAll('input[name="categories[]"]:checked'):[];
+    for(var i=0;i<boxes.length;i++){ checked[boxes[i].value]=true; }
+    var anyChecked=Object.keys(checked).length>0;
+    var suggestBoxes=form.querySelectorAll?form.querySelectorAll('[data-hossam-tags-suggestions]'):[];
+    for(var s=0;s<suggestBoxes.length;s++){
+      var chips=suggestBoxes[s].querySelectorAll('.hossam-tag-suggest');
+      for(var c=0;c<chips.length;c++){
+        var cats=(chips[c].getAttribute('data-tag-cats')||'').split(',');
+        var hit=false;
+        for(var k=0;k<cats.length;k++){ if(cats[k]&&checked[cats[k]]){hit=true;break;} }
+        chips[c].hidden=anyChecked&&!hit;
+      }
+    }
+  }catch(e){}
+});
+
+/* ══════════════════════════════════════════════════════════════
+   [v1.1.5 item 18-1] the live SEO fields — the counters and the suggestion
+   list reflect the article while it is being edited (the guidance-only
+   rules are the server's own: empty → write-it, 50-60 title, 120-160
+   description, noindex note). Display guidance only: Rank Math stays the
+   only score source — the score element updates from the hossam_save_seo
+   response exclusively (the chain above), zero client-side score
+   calculation anywhere.
+   ══════════════════════════════════════════════════════════════ */
+function hossamSeoLiveCount(v){
+  try{ return (typeof Array.from==='function')?Array.from(String(v)).length:String(v).length; }catch(e){ return String(v).length; }
+}
+function hossamSeoLiveUpdate(){
+  try{
+    var box=document.getElementById('hossam-edit-seo-form');
+    if(!box||!box.querySelector) return;
+    var kw=box.querySelector('[name="seo_focus_keyword"]'),
+        st=box.querySelector('[name="seo_title"]'),
+        de=box.querySelector('[name="seo_description"]');
+    var kwV=kw?String(kw.value||''):'', stV=st?String(st.value||''):'', deV=de?String(de.value||''):'';
+    var stLen=hossamSeoLiveCount(stV), deLen=hossamSeoLiveCount(deV);
+    if(st){
+      var stGroup=st.closest?st.closest('.form-group'):null;
+      var stCounter=stGroup?stGroup.querySelector('.hossam-seo-counter'):null;
+      if(stCounter) stCounter.textContent=stLen+' / 60';
+    }
+    if(de){
+      var deGroup=de.closest?de.closest('.form-group'):null;
+      var deCounter=deGroup?deGroup.querySelector('.hossam-seo-counter'):null;
+      if(deCounter) deCounter.textContent=deLen+' / 160';
+    }
+    var noindex=false;
+    var robots=box.querySelectorAll?box.querySelectorAll('input[name="seo_robots[]"]:checked'):[];
+    for(var r=0;r<robots.length;r++){ if(String(robots[r].value||'').toLowerCase()==='noindex'){noindex=true;break;} }
+    var items=[];
+    if(''===kwV.replace(/^\s+|\s+$/g,'')){ items.push(t('seoSugKw','Set a focus keyword so the score has a target.')); }
+    if(''===stV.replace(/^\s+|\s+$/g,'')){ items.push(t('seoSugTitle','Write the SEO title — it is the headline search results show.')); }
+    else if(stLen<50||stLen>60){ items.push(t('seoSugTitleLen','Keep the SEO title between 50 and 60 characters.')); }
+    if(''===deV.replace(/^\s+|\s+$/g,'')){ items.push(t('seoSugDesc','Write the meta description — it is the summary line under the title.')); }
+    else if(deLen<120||deLen>160){ items.push(t('seoSugDescLen','Keep the meta description between 120 and 160 characters.')); }
+    if(noindex){ items.push(t('seoSugNoindex','This page is set to noindex — it will not appear in search results.')); }
+    var list=box.querySelector('.hossam-seo-suggestions');
+    if(list){
+      while(list.firstChild) list.removeChild(list.firstChild);
+      for(var i=0;i<items.length;i++){
+        var li=document.createElement('li');
+        li.textContent=items[i];
+        list.appendChild(li);
+      }
+      if(items.length){ list.removeAttribute('hidden'); } else { list.setAttribute('hidden',''); }
+    }
+  }catch(e){}
+}
+try{
+  var hossamSeoLiveBind=function(){
+    var ids=['hossam-edit-seo-kw','hossam-edit-seo-title','hossam-edit-seo-desc'];
+    for(var i=0;i<ids.length;i++){
+      var f=document.getElementById(ids[i]);
+      if(f&&!f.getAttribute('data-hossam-seo-live')){
+        f.setAttribute('data-hossam-seo-live','1');
+        f.addEventListener('input',hossamSeoLiveUpdate);
+        f.addEventListener('change',hossamSeoLiveUpdate);
+      }
+    }
+    var box=document.getElementById('hossam-edit-seo-form');
+    if(box&&box.addEventListener&&!box.getAttribute('data-hossam-seo-live-box')){
+      box.setAttribute('data-hossam-seo-live-box','1');
+      box.addEventListener('change',function(ev){
+        try{ if(ev.target&&ev.target.name==='seo_robots[]') hossamSeoLiveUpdate(); }catch(e){}
+      });
+    }
+  };
+  if(typeof document!=='undefined'&&document&&typeof document.addEventListener==='function'){
+    if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',function(){try{hossamSeoLiveBind();hossamSeoLiveUpdate();}catch(e){}}); }
+    else{ hossamSeoLiveBind(); hossamSeoLiveUpdate(); }
+  }
+}catch(eSeoLive){}
+
+/* [v1.1.5 item 18-4 — D-OWNER-4=A] the AI card head icon is a real button
+   (type="button", in-flow): activating it focuses the card's actions row —
+   the first js-ai-run button — a focus/accessibility link only (zero new
+   action, zero endpoint, zero fixed/sticky). */
+document.addEventListener('click',function(e){
+  try{
+    var ico=(e.target&&e.target.closest)?e.target.closest('.hossam-write-card-ico-btn'):null;
+    if(!ico) return;
+    var card=ico.closest?ico.closest('.card'):null;
+    var first=card?card.querySelector('.js-ai-run'):null;
+    if(first&&typeof first.focus==='function') first.focus();
+  }catch(e){}
+});
 
 /* [Patch 4] Create WPML translation for an article.
    v1.0.6 §14: the translations panel reuses this same endpoint (no new
@@ -1428,16 +1680,17 @@ function hossamToolbarBuild(containerId,container,cfg){
      adminExtend flag (computed in setup.php, consumed here from cfg) gates the
      toggle and adds the fold-capable display class; every other role keeps its
      allowed groups visible in the scrollable row with no missing fold. Display
-     gate only — the endpoint re-verifies server-side on every save. */
+     gate only — the endpoint re-verifies server-side on every save.
+     [v1.1.5 item 25] the More click behavior is wired in hossamToolbarMount —
+     the only scope where the unified close path (drawerClose) exists — so the
+     drawer-context branch can call the identical close function the backdrop
+     and the Escape guard call (no bare abstract class toggle anymore). */
   if(cfg&&cfg.adminExtend){
     var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
     moreBtn.type='button';
     moreBtn.title=t('w7MoreTitle','More tools');
     moreBtn.appendChild(el('span',undefined,t('w7More','More')));
     moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
-    moreBtn.addEventListener('click',function(ev){
-      try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
-    });
     root.appendChild(moreBtn);
     root.classList.add('hossam-pt-more-capable');
   }
@@ -1580,6 +1833,29 @@ function hossamToolbarMount(containerId,container){
         drawerClose(true);
       }catch(e){}
     });
+    /* [v1.1.5 item 25 — the named complementary fix (§86/§94 text)] the More
+       handler, in the drawer context — the band where the container is the
+       off-canvas drawer and the drawer is open — calls the unified close
+       path itself (drawerClose above, the identical function the backdrop
+       click and the Escape guard call) instead of the bare abstract class
+       toggle: class, backdrop, aria-expanded and the Escape guard's state
+       test move as one synchronized state machine, and focus returns to the
+       external trigger. The JS gate reads the SAME breakpoint the CSS uses
+       (≤768 — the exact media query, one shared value, no drift); the fold
+       band (769-1024) keeps the shipped bare toggle semantics unchanged
+       (v1.1.4 item 3's fold acceptance untouched). */
+    var moreSync=bar.querySelector('.hossam-pt-more-toggle');
+    if(moreSync){
+      moreSync.addEventListener('click',function(ev){
+        try{
+          ev.preventDefault();
+          var drawerBand=false;
+          try{ drawerBand=!!(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches); }catch(eM){ drawerBand=false; }
+          if(drawerBand&&bar.classList.contains('hossam-pt-more-open')){ drawerClose(true); return; }
+          bar.classList.toggle('hossam-pt-more-open');
+        }catch(e){}
+      });
+    }
     host.insertBefore(backdrop,host.firstChild);
     host.insertBefore(trigger,backdrop.nextSibling);
     /* [W8] v1.1.4 item 6: the bottom bar mounts for both contexts — one render
