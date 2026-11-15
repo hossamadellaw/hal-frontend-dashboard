@@ -3,7 +3,7 @@
   "snapshot": {
     "label": "Dahboard-v-1.0.0",
     "id_algorithm": "sha256(path|bytes|sha256, LF-separated, paths sorted)",
-    "id": "4a1adb0701fb8fc7f747ac4900eed8401b93465d2ef65da1d4470575d8b9a293",
+    "id": "e8b8fcd5880056f28eec9ea22f77bd1c75dc4006c3fcb7eda9597ca2545557d7",
     "source_authority": "owner-designated legacy baseline",
     "absolute_paths_stored": false
   },

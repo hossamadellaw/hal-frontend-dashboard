@@ -536,5 +536,29 @@ hal_ih_check(
 	'version check found in ai adapter'
 );
 
+/* H14 — v1.1.5 fixes contract item 23: the dual verdict fixation — the
+ * monitor composes provider_live_model_absent when the 200 list lacks the
+ * pinned model, blocks ai under direct_key, stays generation-free (one GET
+ * /v1beta/models, zero generateContent), and the dual verdict stays green
+ * when the pinned model is present. The fixture drives HAL_IH_REMOTE_RESULT
+ * per scenario; the stored key at this point is the direct-key-two fixture. */
+$ih_models_present = json_encode( array( 'models' => array( array( 'name' => 'models/gemini-3.6-flash' ) ) ) );
+$ih_models_absent  = json_encode( array( 'models' => array( array( 'name' => 'models/gemini-2.5-flash' ), array( 'name' => 'models/gemini-3.8-flash' ) ) ) );
+
+$GLOBALS['HAL_IH_REMOTE']   = array();
+$GLOBALS['HAL_IH_REMOTE_RESULT'] = array( 'code' => 200, 'body' => $ih_models_absent );
+$ih_status_a = HAL_Frontend_Dashboard_Integration_Health_Monitor::run_checks();
+hal_ih_check( 'H14-BLOCKED', 'blocked' === ( $ih_status_a['ai']['status'] ?? '' ), 'a 200 list without the pinned model blocks ai under direct_key (the dual verdict consumes the new probe code)', 'ai status: ' . json_encode( $ih_status_a['ai'] ?? null ) );
+hal_ih_check( 'H14-CODE-APPENDED', in_array( 'provider_live_model_absent', $ih_status_a['ai']['codes'] ?? array(), true ), 'the sanitized code provider_live_model_absent is appended to the ai codes (item 23 presence check)', 'codes: ' . json_encode( $ih_status_a['ai']['codes'] ?? array() ) );
+$ih_probe_calls = array_values( array_filter( $GLOBALS['HAL_IH_REMOTE'] ?? array(), static function ( array $c ): bool { return false !== strpos( (string) $c['url'], '/v1beta/models' ); } ) );
+$ih_post_calls  = array_values( array_filter( $GLOBALS['HAL_IH_REMOTE'] ?? array(), static function ( array $c ): bool { return false !== strpos( (string) $c['url'], 'generateContent' ); } ) );
+hal_ih_check( 'H14-ONE-GET-ZERO-POST', 1 === count( $ih_probe_calls ) && 0 === count( $ih_post_calls ), 'the probe stays generation-free: exactly one GET /v1beta/models and zero generateContent calls', 'probe=' . count( $ih_probe_calls ) . ' post=' . count( $ih_post_calls ) );
+hal_ih_check( 'H14-NO-KEY-IN-STATUS', false === strpos( json_encode( $ih_status_a ), 'direct-key-two' ), 'no credential material in the composed status payload', 'key leaked into status' );
+
+$GLOBALS['HAL_IH_REMOTE']   = array();
+$GLOBALS['HAL_IH_REMOTE_RESULT'] = array( 'code' => 200, 'body' => $ih_models_present );
+$ih_status_b = HAL_Frontend_Dashboard_Integration_Health_Monitor::run_checks();
+hal_ih_check( 'H14-PRESENT-OK', 'ok' === ( $ih_status_b['ai']['status'] ?? '' ) && in_array( 'provider_live_ok', $ih_status_b['ai']['codes'] ?? array(), true ), 'a 200 list containing the pinned model keeps the dual verdict green (provider_live_ok appended)', 'ai status: ' . json_encode( $ih_status_b['ai'] ?? null ) );
+
 putenv( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY' );
 hal_ih_report( 'main', $wp_target );

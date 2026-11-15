@@ -4,7 +4,7 @@
     "purpose": "Batch-12 (§23 cutover/de-duplication) final re-verification: live re-read of all 49 baseline sources from the exclusive legacy root plus the legacy->runtime coverage map. CURRENT-STATE EVIDENCE ONLY — not historical provenance.",
     "generated_utc": "2026-09-26T11:32:00Z",
     "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
-    "snapshot_id": "f9fa0723f727d5bee0aa861c43f7104cf44bb4384078d9b77fda079dde4ca800",
+    "snapshot_id": "f69e3f9a495273cd6e1226376b797c6acaed898bd7c6cfcb5ec09abc05f6e88c",
     "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in path-sorted order: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
     "counts": {
         "mu": 23,
@@ -29,8 +29,8 @@
         },
         {
             "path": "mu-plugins/hossam-dashboard/adapters/ai.php",
-            "bytes": 21557,
-            "sha256": "0d853c7150960e950e2f31aefb680207d90b4f28dcd3f78faa5274d577c2a53f"
+            "bytes": 29688,
+            "sha256": "4b6a2b19085044b38ba3a13797c96a536e846d23408a3d03af1b790800f8df45"
         },
         {
             "path": "mu-plugins/hossam-dashboard/adapters/amelia.php",
