@@ -4,7 +4,7 @@
     "purpose": "Batch-4 (adapters §15) per-file verification inputs: paths, byte sizes and SHA-256 of the eight legacy adapter sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
     "generated_utc": "2026-09-14T20:11:46Z",
     "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
-    "snapshot_id": "303186d1798f90291efa75e96518866ae8609125c304b386a88c58f7145d6060",
+    "snapshot_id": "ecd43cd86cc76aeb3019ad51cc3ba18f8c738ce4b504b4cad3068df67018ba1a",
     "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: \"<path>\" + NUL + \"<bytes>\" + NUL + \"<sha256>\" + LF. Recompute from the files array to self-verify.",
     "baseline_drift_note": "adapters/ai.php differs from the batch-0 baseline inventory (21228 bytes -> current size below; source evolved 2026-09-06 before its migration); the other seven match the batch-0 baseline hashes. Per §10.1 rule 1 the exclusive source path is authoritative; this snapshot records what was actually read.",
     "files": [
@@ -45,8 +45,8 @@
         },
         {
             "path": "mu-plugins/hossam-dashboard/adapters/ai.php",
-            "bytes": 21557,
-            "sha256": "0d853c7150960e950e2f31aefb680207d90b4f28dcd3f78faa5274d577c2a53f"
+            "bytes": 29688,
+            "sha256": "4b6a2b19085044b38ba3a13797c96a536e846d23408a3d03af1b790800f8df45"
         }
     ]
 }

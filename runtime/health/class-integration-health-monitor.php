@@ -144,15 +144,19 @@ final class HAL_Frontend_Dashboard_Integration_Health_Monitor {
 			);
 		}
 
-		// v1.1.4 fixes contract item 1-(d): the dual configured + live verdict —
-		// only when direct_key is the chosen strategy, one free provider_live
-		// probe call (GET /v1beta/models, no text generation; the key is read at
-		// call time and dropped immediately by the probe itself). With
-		// wp_ai_client chosen (or no settled strategy) the provider_live level
-		// is not required and never counts as a blocker — the configured check
-		// alone governs. The result is a sanitized code appended to the ai
-		// integration's codes (provider_live_ok / provider_live_http_<status> /
-		// provider_live_network).
+		// v1.1.4 fixes contract item 1-(d) + v1.1.5 fixes contract item 23: the
+		// dual configured + live verdict — only when direct_key is the chosen
+		// strategy, one free provider_live probe call (GET /v1beta/models, no
+		// text generation; the key is read at call time and dropped immediately
+		// by the probe itself). With wp_ai_client chosen (or no settled
+		// strategy) the provider_live level is not required and never counts as
+		// a blocker — the configured check alone governs. The result is a
+		// sanitized code appended to the ai integration's codes
+		// (provider_live_ok / provider_live_http_<status> /
+		// provider_live_network / provider_live_model_absent — item 23's
+		// presence check: a bare 200 no longer passes when the pinned model is
+		// missing from the provider's list; this monitor consumes the new code
+		// unchanged through the existing !== 'provider_live_ok' gate).
 		if ( 'direct_key' === $ai_strategy && isset( $status['ai'] ) ) {
 			$probe_code = function_exists( 'hossam_ai_probe_direct_key' )
 				? hossam_ai_probe_direct_key()
