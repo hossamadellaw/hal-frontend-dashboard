@@ -859,8 +859,17 @@ async function testAi() {
     { ok: true, status: 200, json: async () => ({ success: true, data: { status: 'completed', result: { text: 'Clicked' } } }) },
   ]);
   let prevented = false;
+  // v1.1.4 fixes contract item 1 part three: the button fixture carries the
+  // DOM surface the waiting state consumes (disabled/aria-busy/pinned width).
   const button = {
     dataset: { jobType: 'grammar', source: 'hossam-edit-content', result: 'ai-result' },
+    disabled: false,
+    offsetWidth: 88,
+    style: {},
+    _attrs: {},
+    classList: { add() {}, remove() {}, contains() { return false; } },
+    setAttribute(k, v) { this._attrs[k] = v; },
+    removeAttribute(k) { delete this._attrs[k]; },
   };
   // ai.js registers the LAST click listener (dashboard.js's language
   // dropdown IIFE registers one earlier during shell load).
@@ -870,6 +879,11 @@ async function testAi() {
     target: { closest: (sel) => (sel === '.js-ai-run' ? button : null) },
     preventDefault() { prevented = true; },
   });
+  check('B10J-32b-ai-busy-state',
+    button.disabled === true && button._attrs['aria-busy'] === 'true'
+      && typeof button._hossamAiBusyRun === 'number' && button.style.minWidth === '88px',
+    'the clicked AI button enters the waiting state (disabled, aria-busy, run-owned, pinned width) — the box cannot collapse mid-call',
+    'busy state missing: ' + JSON.stringify({ d: button.disabled, a: button._attrs['aria-busy'], w: button.style.minWidth }));
   await awaitOneTick();
   await awaitOneTick();
   const newIds = [...sandbox.__intervals.keys()].filter((id) => !idsBeforeClick.has(id));
@@ -882,6 +896,11 @@ async function testAi() {
       && sandbox.__result._innerHTML.includes('Clicked'),
     'the .js-ai-run delegation preventDefaults and submits the source element content (AI runs only through the listener, never inline)',
     'delegated click broken: prevented=' + prevented + ' calls=' + sandbox.__fetchCalls.length);
+  await awaitOneTick();
+  check('B10J-32c-ai-busy-restored',
+    button.disabled === false && button._attrs['aria-busy'] === undefined && button.style.minWidth === '',
+    'the AI button leaves the waiting state the moment its run settles (restored in both outcomes)',
+    'busy restore missing: ' + JSON.stringify({ d: button.disabled, a: button._attrs['aria-busy'], w: button.style.minWidth }));
 }
 
 /* ════════════════════════════════════════════════════════════════

@@ -303,6 +303,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <div class="card hossam-write-aside-holder" id="hossam-metadata-holder">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🏷️</span><?php echo esc_html( hossam_t( 'Metadata' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <div class="hossam-aside-row">
             <span class="form-label"><?php echo esc_html( hossam_t( 'Featured Image' ) ); ?></span>
@@ -316,10 +317,39 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
         <div class="card hossam-write-aside-holder" id="hossam-tags-holder">
           <div class="hossam-write-card-head">
             <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">#️⃣</span><?php echo esc_html( hossam_t( 'Tags' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'Optional' ) ); ?></span>
           </div>
           <div class="hossam-aside-chips" aria-hidden="true"></div>
           <p class="form-hint hossam-aside-empty"><?php echo esc_html( hossam_t( 'No tags yet.' ) ); ?></p>
           <p class="form-hint"><?php echo esc_html( hossam_t( 'Tags power related-article linking — keep them short and specific.' ) ); ?></p>
+        </div>
+        <!-- [W6] v1.1.4 item 5: the Translations Hub lands in the write column in
+             its declared availability state (the model order: after Tags). The
+             detection contract governs the saved context (the edit panel's card
+             reads WPML); a draft without an id creates nothing here — the card
+             flips through the existing saved-state wave only. Detection scope
+             per the owner's narrowing: read-only, zero WPML writes. -->
+        <div class="card hossam-write-aside-holder" id="hossam-translations-holder" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🌐</span><?php echo esc_html( hossam_t( 'Translations Hub' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'Language rows appear here after the first save — detection only.' ) ); ?></p>
+        </div>
+        <!-- [W6] v1.1.4 item 5: the SEO & SERP card in its declared availability
+             state (the model order: last). Rank Math stays the only score source;
+             the fields and score activate with the saved-state wave after the
+             first save. -->
+        <div class="card hossam-write-aside-holder" id="hossam-seo-holder" data-hossam-card-state="pending-save">
+          <div class="hossam-write-card-head">
+            <div class="card-sub hossam-write-card-title"><span class="hossam-write-card-ico" aria-hidden="true">🔍</span><?php echo esc_html( hossam_t( 'SEO & SERP' ) ); ?></div>
+            <span class="hossam-write-card-tag"><?php echo esc_html( hossam_t( 'After first save' ) ); ?></span>
+          </div>
+          <div class="hossam-aside-row">
+            <span class="form-label"><?php echo esc_html( hossam_t( 'SEO score' ) ); ?></span>
+            <span class="hossam-aside-muted"><?php echo esc_html( hossam_t( 'Not calculated yet.' ) ); ?></span>
+          </div>
+          <p class="form-hint"><?php echo esc_html( hossam_t( 'SEO fields and the score appear after the first save.' ) ); ?></p>
         </div>
         </div><!-- /hossam-write-side-stack -->
       </div><!-- /hossam-write-workspace -->
@@ -462,7 +492,7 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     <?php if ( ! empty( $hossam_row_lang_chips ) ) : ?>
                     <div class="hossam-lang-chips">
                       <?php foreach ( $hossam_row_lang_chips as $hossam_row_chip ) : ?>
-                      <span class="hossam-lang-chip <?php echo esc_attr( $hossam_row_chip[1] ); ?>" title="<?php echo esc_attr( $hossam_row_chip[2] ); ?>"><?php echo esc_html( $hossam_row_chip[0] ); ?></span>
+                      <span class="hossam-lang-chip <?php echo esc_attr( $hossam_row_chip[1] ); ?>" title="<?php echo esc_attr( $hossam_row_chip[2] ); ?>" aria-label="<?php echo esc_attr( $hossam_row_chip[0] . ' — ' . $hossam_row_chip[2] ); ?>"><?php echo esc_html( $hossam_row_chip[0] ); ?></span>
                       <?php endforeach; ?>
                     </div>
                     <?php else : ?>
@@ -484,6 +514,11 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                     <?php if ( $is_noindex ) : ?><span title="Noindex" style="font-size:10px">🚫</span><?php endif; ?>
                   </td>
                   <td>
+                    <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                    <!-- v1.1.4 item 13: the admin path keeps the existing
+                         actions verbatim; the writer path swaps in the author
+                         info (the bounded owner directive — the markup detail
+                         documented here before the touch per the contract). -->
                     <div class="articles-tbl-actions">
                       <?php if ( $can_edit ) : ?>
                       <a href="<?php echo esc_url($edit_url); ?>" class="btn btn-sm"><?php echo esc_html( hossam_t( 'Edit' ) ); ?></a>
@@ -500,6 +535,29 @@ $hossam_editor_mode = ( $hossam_rich_editor_feature
                       <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>" title="<?php echo esc_attr( __( 'Admin gateway — opens the official editor in a separate tab, administrators only.', 'hal-frontend-dashboard' ) ); ?>"><?php echo esc_html( hossam_t( 'Manual update' ) ); ?></a>
                       <?php endif; ?>
                     </div>
+                    <?php else : ?>
+                    <!-- v1.1.4 item 13 (the writer path): the author info for
+                         the article and their site account — the author display
+                         name and their site link; zero action buttons. The
+                         author reads are function-guarded so the isolated
+                         rendering harnesses (no author stubs) stay green. -->
+                    <?php
+                    $hossam_row_author_id   = function_exists( 'get_post_field' ) ? (int) get_post_field( 'post_author', $post_id ) : 0;
+                    $hossam_row_author_name = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'display_name', $hossam_row_author_id ) : '';
+                    $hossam_row_author_url  = $hossam_row_author_id && function_exists( 'get_the_author_meta' ) ? (string) get_the_author_meta( 'user_url', $hossam_row_author_id ) : '';
+                    ?>
+                    <div class="td-muted hossam-author-info">
+                      <?php if ( $hossam_row_author_name ) : ?>
+                      <span><?php echo esc_html( $hossam_row_author_name ); ?></span>
+                      <?php endif; ?>
+                      <?php if ( $hossam_row_author_url ) : ?>
+                      <a href="<?php echo esc_url( $hossam_row_author_url ); ?>" target="_blank" rel="noopener" class="hossam-author-site"><?php echo esc_html( hossam_t( 'Author site' ) ); ?></a>
+                      <?php endif; ?>
+                      <?php if ( ! $hossam_row_author_name && ! $hossam_row_author_url ) : ?>
+                      <span class="hossam-aside-muted">—</span>
+                      <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                   </td>
                 </tr>
               <?php endwhile; wp_reset_postdata(); ?>

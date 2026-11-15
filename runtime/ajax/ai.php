@@ -102,7 +102,16 @@ if ( ! function_exists( 'hossam_ai_get_lock_name' ) ) {
  * columns with uniform behavior across wpdb versions.
  */
 if ( ! function_exists( 'hossam_ai_fail_job' ) ) {
-	function hossam_ai_fail_job( int $job_id, string $safe_reason ): void {
+	/**
+	 * v1.1.4 fixes contract item 1-(b): the failure code is the classified
+	 * internal code (generation_failed-http_error-<status> / empty_result /
+	 * network — the `-` separator survives sanitize_key). $extra_meta carries
+	 * additional sanitized diagnostic fields (item 1-(e): the separation
+	 * probe code beside the classified reason) — every key and value is
+	 * sanitized again here; nothing provider-shaped and no secret can enter
+	 * through it.
+	 */
+	function hossam_ai_fail_job( int $job_id, string $safe_reason, array $extra_meta = [] ): void {
 		global $wpdb;
 		$table = $wpdb->prefix . 'hossam_ai_jobs';
 		$wpdb->query(
@@ -123,7 +132,11 @@ if ( ! function_exists( 'hossam_ai_fail_job' ) ) {
 		// rows_affected guard; meta reason pre-sanitized with sanitize_key; the return
 		// value is deliberately ignored (G4 §5). Every failure path passes here.
 		if ( (int) $wpdb->rows_affected > 0 ) {
-			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => [ 'reason' => sanitize_key( $safe_reason ) ] ] );
+			$meta = [ 'reason' => sanitize_key( $safe_reason ) ];
+			foreach ( $extra_meta as $meta_key => $meta_value ) {
+				$meta[ sanitize_key( (string) $meta_key ) ] = sanitize_key( (string) $meta_value );
+			}
+			hossam_audit_log( 'ai_fail', [ 'object_id' => $job_id, 'meta' => $meta ] );
 		}
 	}
 }
@@ -536,7 +549,30 @@ add_action( 'hossam_ai_process_job_event', function ( int $job_id ): void {
 	);
 
 	if ( is_wp_error( $result ) ) {
-		hossam_ai_fail_job( $job_id, 'generation_failed' );
+		// v1.1.4 fixes contract item 1-(b): the failure is classified into the
+		// internal sanitized code — generation_failed-http_error-<status> /
+		// generation_failed-empty_result / generation_failed-network — before the
+		// terminal write; last_error and the ai_fail audit meta carry the
+		// classified code (the blind generation_failed code is gone).
+		$classified = hossam_ai_classify_generation_failure( $result );
+
+		// v1.1.4 fixes contract item 1-(e): on the job's first generation
+		// failure the one-shot free separation probe (GET /v1beta/models — no
+		// text generation, key read at call time and dropped) disambiguates the
+		// provider-facing statuses (key rejected 401, scope/model 403, quota
+		// 429, request/model shape 400, live list 200 — the failure is inside
+		// the generation call itself). Its sanitized code lands in the audit
+		// meta beside the classified reason; last_error keeps the (b)
+		// classification. Provider-facing HTTP failures only — the network and
+		// empty_result classes carry no HTTP status to separate.
+		$extra_meta  = [];
+		$error_data  = $result->get_error_data();
+		$gen_status  = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : 0;
+		if ( $gen_status > 0 && 1 === (int) $job['attempt_count'] && function_exists( 'hossam_ai_probe_direct_key' ) ) {
+			$extra_meta['probe'] = hossam_ai_probe_direct_key();
+		}
+
+		hossam_ai_fail_job( $job_id, $classified, $extra_meta );
 		return;
 	}
 

@@ -131,9 +131,10 @@ b16t_check(
 );
 b16t_check(
 	'B16T-W4-write-editor-only',
-	false !== strpos( $block, "containerId==='hossam-rich-editor-new'" ),
-	'the bottom action bar attaches to the write editor only (the model scope)',
-	'the bottom bar attaches outside the write editor'
+	false !== strpos( $block, "containerId==='hossam-rich-editor-new'" )
+		&& false !== strpos( $block, "containerId==='hossam-rich-editor-edit'" ),
+	'the bottom action bar attaches to both editor contexts (v1.1.4 item 6: one render path — write serves the create form, edit serves the update form)',
+	'the bottom bar misses an editor context'
 );
 
 /* ── CHANNEL: the dynamic value<->fallback match (annex 10-a) ── */
@@ -204,8 +205,8 @@ foreach ( $b16t_tokens as $tok ) {
 }
 b16t_check(
 	'B16T-I1-css-js-intersection',
-	[] !== $b16t_tokens && 16 === count( $b16t_tokens ) && [] === $b16t_missing_sel,
-	'every W7 class token used in posts.js carries a dashboard.css selector (16 tokens: the toolbar family plus the container, composed strings included)',
+	[] !== $b16t_tokens && 21 === count( $b16t_tokens ) && [] === $b16t_missing_sel,
+	'every W7 class token used in posts.js carries a dashboard.css selector (21 tokens: the toolbar family plus the container, the drawer trigger/backdrop surfaces, and the fold-capable state — composed strings included)',
 	'tokens=' . count( $b16t_tokens ) . ' without a selector: ' . implode( ' | ', $b16t_missing_sel )
 );
 

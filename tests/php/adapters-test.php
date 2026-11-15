@@ -190,7 +190,11 @@ if ( ! isset( $GLOBALS['wpdb'] ) ) {
 }
 if ( ! function_exists( 'sanitize_key' ) ) {
 	function sanitize_key( string $key ): string {
-		return preg_replace( '/[^a-z0-9_]/', '', strtolower( $key ) );
+		// Mirrors the real WordPress sanitize_key: lowercase alphanumeric,
+		// underscores AND dashes survive (v1.1.4 fixes contract item 1-(b):
+		// the classified codes carry the `-` separator and must stay
+		// byte-identical through sanitization).
+		return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $key ) );
 	}
 }
 if ( ! function_exists( 'sanitize_text_field' ) ) {
@@ -1249,7 +1253,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			require $project . '/runtime/adapters/ai.php'; // the isolated adapter under test.
 			b4_define_valid_profile();
 			define( 'HOSSAM_AI_PROVIDER', 'gemini' );
-			define( 'HOSSAM_AI_MODEL', 'gemini-1.5-flash' );
+			define( 'HOSSAM_AI_MODEL', 'gemini-2.5-flash' );
 			// This isolated process intentionally has NO batch-3 classes: the
 			// adapter's credential read must fail closed without them — the
 			// registry-backed read is proven in the runtime modes.
@@ -1295,10 +1299,10 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			define( 'HAL_FRONTEND_DASHBOARD_SECRET_KEY', b4_valid_key_hex( 'exec' ) );
 			b4_define_valid_profile();
 			define( 'HOSSAM_AI_PROVIDER', 'gemini' );
-			define( 'HOSSAM_AI_MODEL', 'gemini-1.5-flash' );
+			define( 'HOSSAM_AI_MODEL', 'gemini-2.5-flash' );
 			b4_require_runtime();
 			HAL_Frontend_Dashboard_Secret_Store::set( 'ai_direct_key', 'B4-FIXTURE-SECRET-9f3' );
-			b4_check( 'AE7', is_array( hossam_ai_get_provider_config() ) && 'gemini' === hossam_ai_get_provider_config()['provider'] && 'gemini-1.5-flash' === hossam_ai_get_provider_config()['model'], 'the registry-backed config reads provider/model from the documented constants and the key from the store (model on the fixed allowlist)', 'config mismatch' );
+			b4_check( 'AE7', is_array( hossam_ai_get_provider_config() ) && 'gemini' === hossam_ai_get_provider_config()['provider'] && 'gemini-2.5-flash' === hossam_ai_get_provider_config()['model'], 'the registry-backed config reads provider/model from the documented constants and the key from the store (model on the fixed allowlist)', 'config mismatch' );
 
 			$b4_fixture_body = json_encode( array(
 				'candidates' => array(
@@ -1317,7 +1321,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			);
 			$result = hossam_ai_execute_direct_key( 'prompt text' );
 			$call   = $GLOBALS['B4_HTTP']['calls'][0] ?? array();
-			b4_check( 'AE8', 'generated' === $result && 'POST' === $call['verb'] && false !== strpos( $call['url'], 'gemini-1.5-flash' ) && 'B4-FIXTURE-SECRET-9f3' === ( $call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $call['url'], 'B4-FIXTURE-SECRET-9f3' ) && false === strpos( (string) ( $call['args']['body'] ?? '' ), 'B4-FIXTURE-SECRET-9f3' ), 'a successful direct_key call sends the credential only in the header (never URL/body) and trims the result', 'credential placement mismatch: ' . json_encode( array( 'url' => $call['url'] ?? '', 'body' => $call['args']['body'] ?? '' ) ) );
+			b4_check( 'AE8', 'generated' === $result && 'POST' === $call['verb'] && false !== strpos( $call['url'], 'gemini-2.5-flash' ) && 'B4-FIXTURE-SECRET-9f3' === ( $call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $call['url'], 'B4-FIXTURE-SECRET-9f3' ) && false === strpos( (string) ( $call['args']['body'] ?? '' ), 'B4-FIXTURE-SECRET-9f3' ), 'a successful direct_key call sends the credential only in the header (never URL/body) and trims the result', 'credential placement mismatch: ' . json_encode( array( 'url' => $call['url'] ?? '', 'body' => $call['args']['body'] ?? '' ) ) );
 			b4_check( 'AE9', 90.0 === (float) ( $call['args']['timeout'] ?? 0 ), 'the executor timeout comes from the runtime profile (direct_key_timeout)', 'timeout mismatch' );
 
 			if ( '' !== $log_file ) {
@@ -1343,6 +1347,30 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			$GLOBALS['B4_HTTP']['response'] = array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'candidates' => array() ) ) );
 			$error = hossam_ai_execute_direct_key( 'prompt text' );
 			b4_check( 'AE13', is_wp_error( $error ) && 'hossam_ai_unexpected_response' === $error->get_error_code(), 'a response without the content field fails closed as unexpected_response', 'missing-content mismatch' );
+
+			// v1.1.4 fixes contract item 1-(b)/(e): the failure classification
+			// (the `-` separator survives sanitize_key) and the free separation
+			// probe (GET /v1beta/models — no text generation, the key only in
+			// the header and dropped at call time).
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 401 ), 'body' => 'rejected' ) );
+			$error = hossam_ai_execute_direct_key( 'prompt text' );
+			$classified = hossam_ai_classify_generation_failure( $error );
+			b4_check( 'AE14', is_wp_error( $error ) && 'generation_failed-http_error-401' === $classified && 'generation_failed-http_error-401' === sanitize_key( $classified ), 'a rejected key (HTTP 401) classifies to the exact surviving code generation_failed-http_error-401 and sanitize_key leaves it byte-identical (no griffing, no sweeping)', 'classification mismatch: ' . json_encode( array( 'code' => is_wp_error( $error ) ? $error->get_error_code() : $error, 'classified' => $classified, 'sanitized' => sanitize_key( $classified ) ) ) );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 401 ), 'body' => 'rejected' ) );
+			$probe_code = hossam_ai_probe_direct_key();
+			$probe_call = $GLOBALS['B4_HTTP']['calls'][0] ?? array();
+			b4_check( 'AE15', 'provider_live_http_401' === $probe_code && 'GET' === $probe_call['verb'] && false !== strpos( $probe_call['url'], '/v1beta/models' ) && 'B4-FIXTURE-SECRET-9f3' === ( $probe_call['args']['headers']['x-goog-api-key'] ?? '' ) && false === strpos( $probe_call['url'], 'B4-FIXTURE-SECRET-9f3' ), 'the separation probe distinguishes a rejected key (provider_live_http_401) with a free GET models call carrying the key only in the header', 'probe mismatch: ' . json_encode( array( 'probe' => $probe_code, 'call' => $probe_call ) ) );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'models' => array() ) ) ) );
+			b4_check( 'AE16', 'provider_live_ok' === hossam_ai_probe_direct_key(), 'a live models list (HTTP 200) probes as provider_live_ok — the generation failure is inside the generation call itself', 'probe ok mismatch' );
+			$GLOBALS['B4_HTTP']['wp_error'] = new WP_Error( 'http_failure', 'transport' );
+			b4_check( 'AE17', 'provider_live_network' === hossam_ai_probe_direct_key(), 'a transport failure probes as provider_live_network', 'probe network mismatch' );
+			$GLOBALS['B4_HTTP'] = array( 'calls' => array(), 'response' => array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'promptFeedback' => array( 'blockReason' => 'SAFETY Block!' ) ) ) ) );
+			$GLOBALS['B4_HTTP']['wp_error'] = null;
+			$error = hossam_ai_execute_direct_key( 'prompt text' );
+			b4_check( 'AE18', 'generation_failed-empty_result' === hossam_ai_classify_generation_failure( $error ), 'a 200 response without usable text candidates classifies to generation_failed-empty_result', 'empty-result classification mismatch' );
+			$GLOBALS['B4_HTTP']['wp_error'] = new WP_Error( 'http_failure', 'transport' );
+			$error = hossam_ai_execute_direct_key( 'prompt text' );
+			b4_check( 'AE19', 'generation_failed-network' === hossam_ai_classify_generation_failure( $error ), 'a transport failure classifies to generation_failed-network', 'network classification mismatch' );
 			b4_result_line( $mode );
 			// no fallthrough
 
@@ -1395,7 +1423,7 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			define( 'HOSSAM_AI_MODEL', 'unlisted-model-x' );
 			b4_require_runtime();
 			HAL_Frontend_Dashboard_Secret_Store::set( 'ai_direct_key', 'b4-model-key-44' );
-			b4_check( 'AM1', array( 'gemini-1.5-flash' ) === hossam_ai_allowed_models(), 'the approved model list is fixed in code', 'allowlist mismatch: ' . json_encode( hossam_ai_allowed_models() ) );
+			b4_check( 'AM1', array( 'gemini-2.5-flash' ) === hossam_ai_allowed_models(), 'the approved model list is fixed in code', 'allowlist mismatch: ' . json_encode( hossam_ai_allowed_models() ) );
 			$model_error = hossam_ai_get_provider_config();
 			b4_check( 'AM2', is_wp_error( $model_error ) && 'hossam_ai_unsupported_model' === $model_error->get_error_code(), 'an unlisted model is refused before any connection', 'model gate missing' );
 			$GLOBALS['B4_HTTP'] = array( 'calls' => array() );

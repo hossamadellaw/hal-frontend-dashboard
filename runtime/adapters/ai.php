@@ -328,11 +328,18 @@ if ( ! function_exists( 'hossam_ai_connector_source_status' ) ) {
  * outside it is rejected before the call. Extension is a separate Change
  * Request.
  *
+ * v1.1.4 fixes contract item 1-(c): the pinned value moves off the retired
+ * gemini-1.5-flash onto the current Flash generation. Value provenance:
+ * selected per the fixes contract item 1-(c) from the live Flash family
+ * (gemini-2.x-flash); the free GET /v1beta/models probe (item 1-(e)) is the
+ * live arbiter of the value — re-verified at the live window per acceptance
+ * k-1 (verification date recorded there), never by guessing.
+ *
  * @return string[]
  */
 if ( ! function_exists( 'hossam_ai_allowed_models' ) ) {
 	function hossam_ai_allowed_models(): array {
-		return array( 'gemini-1.5-flash' );
+		return array( 'gemini-2.5-flash' );
 	}
 }
 
@@ -371,7 +378,7 @@ if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
 
 		$model = defined( 'HOSSAM_AI_MODEL' ) && is_string( HOSSAM_AI_MODEL ) && '' !== HOSSAM_AI_MODEL
 			? HOSSAM_AI_MODEL
-			: 'gemini-1.5-flash';
+			: 'gemini-2.5-flash';
 		if ( ! in_array( $model, hossam_ai_allowed_models(), true ) ) {
 			return new WP_Error(
 				'hossam_ai_unsupported_model',
@@ -538,7 +545,8 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 					/* translators: %d: HTTP status code */
 					__( 'AI provider returned HTTP %d.', 'hal-frontend-dashboard' ),
 					(int) $status
-				)
+				),
+				array( 'status' => (int) $status )
 			);
 		}
 
@@ -561,6 +569,89 @@ if ( ! function_exists( 'hossam_ai_execute_direct_key' ) ) {
 		}
 
 		return trim( (string) $text );
+	}
+}
+
+if ( ! function_exists( 'hossam_ai_classify_generation_failure' ) ) {
+	/**
+	 * v1.1.4 fixes contract item 1-(b): classify a generation failure into the
+	 * internal sanitized code with the `-` separator (the only character of the
+	 * triple that survives sanitize_key, which sweeps `:`). The stored pattern
+	 * is `generation_failed-http_error-<status>` / `generation_failed-empty_result`
+	 * / `generation_failed-network`:
+	 *   - an error carrying an HTTP status (attached as error data by the
+	 *     executors) maps to the http_error class with that exact status;
+	 *   - a 200 response without usable text candidates maps to empty_result;
+	 *   - every other failure without an HTTP status maps to network.
+	 * The classifier decides no permission and stores nothing — the caller
+	 * passes the returned string to hossam_ai_fail_job, which sanitizes it
+	 * again before storage (defense in depth on the same path).
+	 *
+	 * @param mixed $result The strategy callback result (WP_Error or text).
+	 * @return string The sanitized-ready classified code.
+	 */
+	function hossam_ai_classify_generation_failure( $result ): string {
+		if ( ! is_wp_error( $result ) ) {
+			return 'generation_failed-network';
+		}
+
+		$data  = $result->get_error_data();
+		$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
+
+		if ( $status > 0 ) {
+			return 'generation_failed-http_error-' . $status;
+		}
+
+		$code = (string) $result->get_error_code();
+		if ( 'hossam_ai_unexpected_response' === $code || 'hossam_ai_empty_result' === $code ) {
+			return 'generation_failed-empty_result';
+		}
+
+		return 'generation_failed-network';
+	}
+}
+
+if ( ! function_exists( 'hossam_ai_probe_direct_key' ) ) {
+	/**
+	 * v1.1.4 fixes contract items 1-(d)/(e): the free separation probe — one
+	 * GET /v1beta/models call with the key read at call time from the Secret
+	 * Store and dropped immediately. No text generation, no raw provider body
+	 * stored, no new endpoint, and no key in any artifact. The result is a
+	 * sanitized code only: provider_live_ok / provider_live_http_<status> /
+	 * provider_live_network.
+	 *
+	 * Consumed by the Integration Health Monitor as the provider_live level
+	 * (the dual configured + live verdict inside the existing hourly cron) and
+	 * by the worker's first-generation-failure separation (the audit meta).
+	 *
+	 * @return string
+	 */
+	function hossam_ai_probe_direct_key(): string {
+		if ( ! function_exists( 'hossam_ai_get_provider_config' ) ) {
+			return 'provider_live_network';
+		}
+		$config = hossam_ai_get_provider_config();
+		if ( is_wp_error( $config ) ) {
+			return 'provider_live_network';
+		}
+
+		$response = wp_remote_get(
+			'https://generativelanguage.googleapis.com/v1beta/models',
+			array(
+				'timeout' => 15,
+				'headers' => array( 'x-goog-api-key' => $config['api_key'] ),
+			)
+		);
+		unset( $config ); // The key is dropped immediately — no storage and no logging.
+
+		if ( is_wp_error( $response ) ) {
+			return 'provider_live_network';
+		}
+		$status = (int) wp_remote_retrieve_response_code( $response );
+		if ( $status < 200 || $status >= 300 ) {
+			return 'provider_live_http_' . $status;
+		}
+		return 'provider_live_ok';
 	}
 }
 

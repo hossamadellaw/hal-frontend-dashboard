@@ -409,7 +409,7 @@ body.admin-bar .app{height:calc(100vh - 32px)}
 .si-warn{background:var(--warn-bg);color:var(--warn)}
 .si-danger{background:var(--danger-bg);color:var(--danger)}
 .stat-label{font-size:11px;font-weight:500;letter-spacing:.5px;color:var(--txt-3);text-transform:uppercase}
-.stat-val{font-size:30px;font-family:'Cormorant Garamond',serif;font-weight:600;color:var(--txt-1);line-height:1;margin:2px 0}
+.stat-val{font-size:30px;font-family:'DM Sans',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;font-weight:600;color:var(--txt-1);line-height:1;margin:2px 0}
 .stat-sub{font-size:11px;color:var(--txt-3)}
 .stat-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:12px;font-weight:500;margin-top:4px}
 .stat-badge.up{background:var(--success-bg);color:var(--success)}
@@ -453,6 +453,35 @@ tr:hover td{background:rgba(0,0,0,.012)}
 .btn-sm{padding:5px 10px;font-size:11px}
 .btn-danger{border-color:var(--danger);color:var(--danger)}
 .btn-danger:hover{background:var(--danger-bg)}
+/* [B9-U4] v1.1.4 fixes contract item 1 part three: the AI waiting state — the clicked
+   button keeps its rendered width (pinned inline by ai.js so the box cannot
+   collapse mid-call) and shows the busy affordance until the run settles. */
+.hossam-ai-busy{
+  opacity:.7;cursor:progress;pointer-events:none;
+}
+/* [B9-U5] v1.1.4 fixes contract item 5: the write-column availability cards —
+   the declared pending-save tag state and its flip through the existing
+   saved-state wave (data-hossam-card-state). */
+.hossam-write-aside-holder[data-hossam-card-state="pending-save"] .hossam-write-card-tag{
+  background:var(--cream);color:var(--txt-3);
+}
+/* [B9-U6] v1.1.4 fixes contract item 8: the internal Add-block row is hidden
+   by CSS only — the toolbar's Add-block button bridges to the same official
+   Inserter popover, so the content area stays clean (the owner's directive).
+   The anchor point stays in posts.php for the bridge. The selector carries
+   the .hossam-rich-editor ancestor so the hide outspecifies the original
+   flex rule later in this file (CSS cascade order).
+   [B9-U7] v1.1.4 fixes contract item 13: the writer-path author info styles
+   (the admin actions path keeps its existing classes). */
+.hossam-rich-editor .hossam-rich-editor-inserter{
+  display:none;
+}
+.hossam-author-info{
+  display:flex;flex-direction:column;gap:4px;align-items:flex-start;
+}
+.hossam-author-site{
+  font-size:12px;color:var(--gold);
+}
 .btn-icon{padding:6px;width:30px;height:30px;justify-content:center}
 .btn-outline{background:transparent;border-color:var(--gold);color:var(--gold)}
 .btn-outline:hover{background:var(--gold-glow)}
@@ -1317,15 +1346,25 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
 .hossam-pt-more-toggle .hossam-pt-caret { display: inline; }
 /* The More fold: hossam-pt-extra groups hide until hossam-pt-more-open (tablet/phone). */
 .hossam-pt-more-toggle { display: none; }
+/* v1.1.4 item 4: the external drawer trigger and its backdrop are phone-only
+   surfaces — hidden on every wider viewport. */
+.hossam-pt-drawer-trigger { display: none; }
+.hossam-pt-drawer-backdrop { display: none; }
+/* v1.1.4 item 3 (OP-2): the fold and its toggle are display-capability state —
+   the fold-capable class lands on the container only when the server-side
+   adminExtend flag is set, so non-admin roles keep their allowed groups
+   visible in the scrollable row with no missing fold. Display gate only —
+   the endpoint re-verifies server-side on every save. */
 /* Responsive <=1024: one horizontal scrollable row; the extra groups fold
-   behind More (the model: the toolbar becomes one scrollable row). */
+   behind More for fold-capable containers (the model: the toolbar becomes one
+   scrollable row). */
 @media (max-width: 1024px) {
   #panel-write .hossam-pro-toolbar-container, #panel-edit-article .hossam-pro-toolbar-container {
     flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
   }
-  .hossam-pt-more-toggle { display: inline-flex; }
-  .hossam-pt-group.hossam-pt-extra { display: none; }
-  .hossam-pro-toolbar-container.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }
+  .hossam-pro-toolbar-container.hossam-pt-more-capable .hossam-pt-more-toggle { display: inline-flex; }
+  .hossam-pro-toolbar-container.hossam-pt-more-capable .hossam-pt-group.hossam-pt-extra { display: none; }
+  .hossam-pro-toolbar-container.hossam-pt-more-capable.hossam-pt-more-open .hossam-pt-group.hossam-pt-extra { display: flex; }
 }
 /* Responsive <=768: the toolbar becomes an off-canvas drawer (the model:
    slides from the inline-start edge with the dark backdrop); the bottom
@@ -1342,12 +1381,23 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
   [dir="rtl"] #panel-edit-article .hossam-pro-toolbar-container { transform: translateX(110%); }
   .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
   [dir="rtl"] .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
-  .hossam-pro-toolbar-container.hossam-pt-more-open::before {
-    content: ""; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: -1;
+  /* v1.1.4 item 4: the drawer backdrop is a real clickable element (the pseudo
+     element was not targetable) — clicking it closes the drawer and restores
+     focus to the external trigger. */
+  .hossam-pt-drawer-backdrop.hossam-pt-open {
+    display: block; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 100039;
+  }
+  .hossam-pt-drawer-trigger {
+    display: none; align-items: center; gap: 6px;
+    padding: 7px 12px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--white); color: var(--txt-1); cursor: pointer;
   }
   .hossam-pt-select { max-width: none; width: 100%; }
   .hossam-pt-menu { position: static; box-shadow: none; }
-  .hossam-pt-more-toggle { display: inline-flex; margin-bottom: 4px; }
+  .hossam-pro-toolbar-container.hossam-pt-more-capable .hossam-pt-more-toggle { display: inline-flex; margin-bottom: 4px; }
+  .hossam-pt-drawer-trigger { display: inline-flex; margin-bottom: 8px; }
   .action-bottom-bar {
     position: sticky; bottom: 0; z-index: 30; display: flex;
     align-items: center; justify-content: space-between; gap: 8px;
@@ -1356,6 +1406,15 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
     box-shadow: 0 -4px 16px rgba(0,0,0,.08);
   }
   .hossam-bar-left { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* v1.1.4 item 4: the Add-block row renders with a wrapped, fully padded
+     layout on phones (the gold inserter button cannot overflow its frame);
+     the final relocation into the toolbar lands with item 8 (CSS-only hide
+     of this internal position then). */
+  .hossam-rich-editor-inserter {
+    flex-wrap: wrap; row-gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
 }
 /* Desktop: the bottom bar stays static under the editor (the model shows it
    docked on tablet/mobile; on desktop the form's own actions govern). */

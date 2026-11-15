@@ -95,11 +95,12 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The article editor gains a professional formatting toolbar above the writing canvas: ten tool groups plus a History group and an admin-only More menu, a static bottom action bar (Publish / Save Draft / Discard), and responsive tablet and phone layouts — all rendered with the existing dashboard stylesheet.'
-'* The editor sidebar gains the Publishing, Metadata, Tags, Translations Hub, and SEO & SERP cards, along with the empty/writing/saved/error editor states, the untranslated-language chip, legacy hidden-block handling, and RankMath suggestions — each behind the existing server-side capability gates.'
-'* All runtime source files are English-only: user-facing strings use the standard translation helper with registered English sources, and any remaining Arabic source text is confined to the tracked build/arabic-allowlist.txt file, which must shrink with every later release.'
-'* A new release tooling script (build/bump-release.sh) updates the plugin header, version constant, stable tag, installation ZIP name, changelog entry, and release sequence in one command, with pre-flight consistency checks, post-verify reporting, and an idempotent re-run.'
-'* The release workflow validates the Requires WordPress and Requires PHP header values against the built manifest, checks the installation ZIP name, the changelog entry, and the release sequence shape, and installs PHP 8.3 explicitly before the full test run.'
+'* AI generation is repaired end to end: failures carry classified sanitized codes (rejected key, scope, quota, request shape, or a live provider list), the pinned model moves to the current Flash generation with a provenance docblock, a free provider-live probe joins the hourly health cron as a second verdict level, and AI buttons enter a waiting state with a pinned width instead of collapsing.'
+'* The articles table reports the article author and their site link for non-admin roles instead of action buttons, while administrators keep every existing action.'
+'* The More fold in the editor toolbar is admin-only per the server capability flag, a phone drawer trigger outside the sliding panel opens the tool drawer for every role, and Escape or a backdrop click closes it and restores focus.'
+'* The Add-block toolbar button opens the official inserter popover directly and the standalone inserter row is hidden by CSS, keeping the writing canvas clean.'
+'* The write column gains Translations Hub and SEO & SERP availability cards that activate with the saved-state wave, the edit editor mounts the same bottom action bar and states as the write editor, and the sidebar cards follow the documented model order with unified heads.'
+'* Language status chips expose an aria label alongside their tooltip, the overview counters render tabular figures in the text font, and the bottom-bar publish button reads Publish Article Now.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"

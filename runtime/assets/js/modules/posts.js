@@ -283,6 +283,17 @@ function hossamSeoPanelUrl(d){
 function hossamShowPostSuccessCard(form,d,message){
   if(!form||!form.querySelector) return;
   try{hossamSetEditorState(document.getElementById(form.id==='hossam-post-edit-form'?'hossam-rich-editor-edit':'hossam-rich-editor-new'),'saved');}catch(eS){}
+  /* [W8] v1.1.4 item 5: the two write-column availability cards flip through
+     the existing saved-state wave — no new state machine, no new endpoint;
+     the declared pending-save state ends at the first save. */
+  try{
+    if(form.id==='hossam-post-create-form'){
+      ['hossam-translations-holder','hossam-seo-holder'].forEach(function(hcId){
+        var hcEl=document.getElementById(hcId);
+        if(hcEl&&hcEl.setAttribute) hcEl.setAttribute('data-hossam-card-state','saved');
+      });
+    }
+  }catch(eCard){}
   const old=form.querySelector('.hossam-post-success-card');
   if(old) old.remove();
   const card=document.createElement('div');
@@ -1386,6 +1397,16 @@ function hossamToolbarBuild(containerId,container,cfg){
     hossamToolbarCmd(container,'insertHTML','<table border="1" style="width:100%;border-collapse:collapse;"><tr><th style="text-align:start;"></th><th style="text-align:start;"></th></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table><p></p>');
   }));
   g9.appendChild(btn('📂',['w7Collapsible','Insert collapsible section'],function(){hossamToolbarCmd(container,'insertHTML','<details><summary></summary><p></p></details><p></p>');}));
+  /* [W8] v1.1.4 item 8: the Add-block bridge — a toolbar button opening the
+     official Inserter's own popover (zero engine touch); the internal inserter
+     row is hidden by CSS (item 8's CSS-only hide, documented [B9-U6]). The
+     same available blocks per role govern the popover (OP-2). */
+  g9.appendChild(btn('＋',['w7AddBlock','Add block'],function(){
+    try{
+      var trigger=container.querySelector('[data-role="inserter"] button');
+      if(trigger) trigger.click();
+    }catch(e){}
+  }));
   g9.appendChild(btn('🔗',['w7RefLink','Insert reference link'],function(){
     var url=hossamToolbarPrompt(t('w7PromptLink','Link URL:'));
     if(url) hossamToolbarCmd(container,'createLink',url);
@@ -1403,16 +1424,23 @@ function hossamToolbarBuild(containerId,container,cfg){
   }));
   g9.appendChild(btn('—',['w7Divider','Divider line'],function(){hossamToolbarCmd(container,'insertHorizontalRule');}));
   root.appendChild(g9);
-  /* More toggle — folds the hossam-pt-extra groups (tablet/phone) */
-  var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
-  moreBtn.type='button';
-  moreBtn.title=t('w7MoreTitle','More tools');
-  moreBtn.appendChild(el('span',undefined,t('w7More','More')));
-  moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
-  moreBtn.addEventListener('click',function(ev){
-    try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
-  });
-  root.appendChild(moreBtn);
+  /* [W8] v1.1.4 item 3 (OP-2): the More fold is admin-only — the server-side
+     adminExtend flag (computed in setup.php, consumed here from cfg) gates the
+     toggle and adds the fold-capable display class; every other role keeps its
+     allowed groups visible in the scrollable row with no missing fold. Display
+     gate only — the endpoint re-verifies server-side on every save. */
+  if(cfg&&cfg.adminExtend){
+    var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
+    moreBtn.type='button';
+    moreBtn.title=t('w7MoreTitle','More tools');
+    moreBtn.appendChild(el('span',undefined,t('w7More','More')));
+    moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
+    moreBtn.addEventListener('click',function(ev){
+      try{ ev.preventDefault(); root.classList.toggle('hossam-pt-more-open'); }catch(e){}
+    });
+    root.appendChild(moreBtn);
+    root.classList.add('hossam-pt-more-capable');
+  }
   root.appendChild(divider());
   /* G10 — history & focus */
   var g10=group();
@@ -1427,10 +1455,16 @@ function hossamToolbarBuild(containerId,container,cfg){
   root.appendChild(g10);
   return root;
 }
-/* [W7] the static bottom action bar (the model :2337-2349) — the write
-   editor only; every button serves the EXISTING create-form contract. */
-function hossamToolbarBuildActionBar(container){
+/* [W7] the static bottom action bar (the model :2337-2349) — one render path
+   for both editor contexts: context=write serves the EXISTING create-form
+   contract, context=edit serves the EXISTING update-form contract (the edit
+   save model posts.php:586 with its actions) — no third path, no duplicated
+   logic. [W8] v1.1.4 item 6: the bar is mounted for both contexts. */
+function hossamToolbarBuildActionBar(container,context){
   var doc=document;
+  context=(context==='edit')?'edit':'write';
+  var editorId=context==='edit'?'hossam-rich-editor-edit':'hossam-rich-editor-new';
+  var textareaId=context==='edit'?'hossam-edit-content':'hossam-new-content';
   function mk(labelKey,labelText,cls,fn){
     var b=doc.createElement('button');
     b.type='button'; b.className=cls; b.textContent=t(labelKey,labelText);
@@ -1440,14 +1474,22 @@ function hossamToolbarBuildActionBar(container){
   var bar=doc.createElement('div');
   bar.className='action-bottom-bar';
   bar.setAttribute('data-hossam-bottom-bar','');
+  bar.setAttribute('data-hossam-bar-context',context);
   var left=doc.createElement('div'); left.className='hossam-bar-left';
   var canPublish=false;
   try{
-    var st=doc.getElementById('hossam-new-status');
+    var st=doc.getElementById('hossam-'+(context==='edit'?'edit':'new')+'-status');
     canPublish=!!(st&&st.querySelector('option[value="publish"]'));
   }catch(e){}
   function submitWith(status){
     try{
+      if(context==='edit'){
+        var stE=doc.getElementById('hossam-edit-status');
+        if(stE&&status) stE.value=status;
+        var fe=doc.getElementById('hossam-post-edit-form');
+        if(fe&&typeof hossamUpdateArticle==='function') hossamUpdateArticle(fe);
+        return;
+      }
       var st=doc.getElementById('hossam-new-status');
       if(st&&status) st.value=status;
       var f=doc.getElementById('hossam-post-create-form');
@@ -1455,14 +1497,20 @@ function hossamToolbarBuildActionBar(container){
     }catch(e){}
   }
   if(canPublish){
-    left.appendChild(mk('w7PublishNow','Publish Now','btn btn-gold',function(){submitWith('publish');}));
+    left.appendChild(mk('w7PublishNow','Publish Article Now','btn btn-gold',function(){submitWith('publish');}));
   }
   left.appendChild(mk('w7SaveDraft','Save as Draft','btn btn-outline',function(){submitWith('draft');}));
   bar.appendChild(left);
   bar.appendChild(mk('w7Discard','Discard Changes','btn btn-outline hossam-bar-discard',function(){
+    /* [W8] v1.1.4 item 9: the confirm guard with the model's verbatim text —
+       confirm executes the existing discard path; cancel leaves everything
+       untouched. Present in both contexts through the unified bar. */
     try{
-      var ta=doc.getElementById('hossam-new-content');
-      var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited['hossam-rich-editor-new']:null;
+      if(!window.confirm('Discard changes and restore previous snapshot?')) return;
+    }catch(e){}
+    try{
+      var ta=doc.getElementById(textareaId);
+      var rec=hossamRichState&&hossamRichState.inited?hossamRichState.inited[editorId]:null;
       var wp0=(typeof window!=='undefined')?window.wp:null;
       if(rec&&rec.api&&typeof rec.api.reparse==='function'){
         rec.api.reparse();
@@ -1475,7 +1523,13 @@ function hossamToolbarBuildActionBar(container){
 }
 /* [W7] mount point: the pro toolbar prepends into the toolbar role (above
    the official context toolbar) and the bottom bar appends to the editor
-   container (the write editor only). Called once per successful init. */
+   container (the write editor only). Called once per successful init.
+   [W8] v1.1.4 item 4: the external drawer trigger — the drawer's only key
+   used to live inside the sliding container itself, so it vanished with the
+   drawer closed. A trigger OUTSIDE the sliding container toggles
+   hossam-pt-more-open for every role; Escape and the clickable backdrop close
+   it and restore focus to the trigger. Display gate only — the endpoint
+   re-verifies server-side on every save (OP-2/OP-3). */
 function hossamToolbarMount(containerId,container){
   try{
     if(!container||container.querySelector('.hossam-pro-toolbar-container')) return;
@@ -1484,8 +1538,55 @@ function hossamToolbarMount(containerId,container){
     var mount=container.querySelector('[data-role="toolbar"]');
     if(mount&&mount.insertBefore) mount.insertBefore(bar,mount.firstChild);
     else container.insertBefore(bar,container.firstChild);
-    if(containerId==='hossam-rich-editor-new'){
-      container.appendChild(hossamToolbarBuildActionBar(container));
+    var host=mount||container;
+    var backdrop=document.createElement('div');
+    backdrop.className='hossam-pt-drawer-backdrop';
+    var trigger=document.createElement('button');
+    trigger.type='button';
+    trigger.className='hossam-pt-drawer-trigger';
+    trigger.setAttribute('aria-expanded','false');
+    var drawerId='hossam-pt-drawer-'+(containerId||'editor');
+    bar.id=drawerId;
+    trigger.setAttribute('aria-controls',drawerId);
+    var trigLabel=document.createElement('span');
+    trigLabel.setAttribute('aria-hidden','true');
+    trigLabel.textContent='☰';
+    trigger.appendChild(trigLabel);
+    var trigText=document.createElement('span');
+    trigText.textContent=t('w7DrawerTools','Tools');
+    trigger.appendChild(trigText);
+    var drawerClose=function(refocus){
+      try{
+        bar.classList.remove('hossam-pt-more-open');
+        backdrop.classList.remove('hossam-pt-open');
+        trigger.setAttribute('aria-expanded','false');
+        if(refocus&&trigger.focus) trigger.focus();
+      }catch(e){}
+    };
+    trigger.addEventListener('click',function(ev){
+      try{
+        ev.preventDefault();
+        var open=!bar.classList.contains('hossam-pt-more-open');
+        bar.classList.toggle('hossam-pt-more-open',open);
+        backdrop.classList.toggle('hossam-pt-open',open);
+        trigger.setAttribute('aria-expanded',open?'true':'false');
+      }catch(e){}
+    });
+    backdrop.addEventListener('click',function(){try{drawerClose(true);}catch(e){}});
+    document.addEventListener('keydown',function(ev){
+      try{
+        if((ev.key||'')!=='Escape') return;
+        if(!bar.classList.contains('hossam-pt-more-open')) return;
+        drawerClose(true);
+      }catch(e){}
+    });
+    host.insertBefore(backdrop,host.firstChild);
+    host.insertBefore(trigger,backdrop.nextSibling);
+    /* [W8] v1.1.4 item 6: the bottom bar mounts for both contexts — one render
+       path (context=write|edit) targeting each context's existing save
+       contract. */
+    if(containerId==='hossam-rich-editor-new'||containerId==='hossam-rich-editor-edit'){
+      container.appendChild(hossamToolbarBuildActionBar(container,containerId==='hossam-rich-editor-edit'?'edit':'write'));
     }
   }catch(e){}
 }
