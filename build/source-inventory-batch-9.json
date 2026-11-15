@@ -4,7 +4,7 @@
   "purpose": "Batch-9 (base assets and content modules §20) per-file verification inputs: paths, byte sizes and SHA-256 of the five legacy theme sources migrated by this batch, generated at batch start from the exclusive source path (architecture §10.1 rule 2). CURRENT-STATE EVIDENCE ONLY — this is not historical provenance and must not be read as pre-migration proof of the source bytes.",
   "generated_utc": "2026-11-15T00:48:22Z",
   "source_root": "LEGACY_REFERENCE_ROOT per architecture §2.1; paths below are relative to it; no absolute paths are stored",
-  "snapshot_id": "32da4c3b0daa5ea94a6dd817c4ad0257fc6078cd428fdca155764f1f494561f2",
+  "snapshot_id": "df7df4d41e9ab0b552d84c44a2d01498f4db39fbb60b53756cfd2ccd63fab84b",
   "canonicalization": "snapshot_id = sha256 of the concatenation of one line per file in the order below: <path> + NUL + <bytes> + NUL + <sha256> + LF. Recompute from the files array to self-verify.",
   "baseline_drift_note": "Baseline comparison against build/source-inventory.json (batch-0), tool-generated: 5 of 5 sources match the batch-0 baseline byte-for-byte (dashboard.css 52372 bytes e566f258ab54d8ee4d8b2caf75d067b11cb36b3db3ca883b76ba740b705df722; dashboard.js 22725 bytes 8dd5a568c159818602ba2114f93ead2d363f8b89e75e54756b0f5ab47e886f1c; posts.js 8534 bytes 13882c91dd5079dc57b5596d64b795f4b8cdac9bf90641392281a43ea6c93ef0; uploads.js 8993 bytes 89e1840cc63694e53f19f9ea246c692ea03dcb566272b26d58698f42ee9c0da0; members.js 3674 bytes b64d13c95870033cf306fd80a5990414e1dff12905bf7eb05f51bbdfffb6d36c). No drift.",
   "files": [
@@ -20,8 +20,8 @@
     },
     {
       "path": "theme/assets/js/modules/posts.js",
-      "bytes": 96629,
-      "sha256": "5fefa3ddecb677fec14fcbf1f8768b7c8e6f0f2ac55d3c3ca759fae764fb045b"
+      "bytes": 97162,
+      "sha256": "b697e8699741a30d5a5a56e81919599e76575931f6fbafd9ef8ae64c3a40ab67"
     },
     {
       "path": "theme/assets/js/modules/uploads.js",
