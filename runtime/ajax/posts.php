@@ -399,6 +399,27 @@ add_action( 'wp_ajax_hossam_create_article', function(): void {
         }
         $data['categories'] = array_values( array_map( 'absint', $raw_cats ) );
     }
+    // v1.1.5 item 16: the single tags[] key in the existing create path (the
+    // categories[] extraction pattern verbatim) — shape + the hard 15 cap
+    // here (S-10: an explicit 400 in the categories-gate style, never a
+    // silent drop), re-gated by the adapter. Zero new endpoint.
+    if ( isset( $_POST['tags'] ) ) {
+        $raw_tags = wp_unslash( $_POST['tags'] );
+        if ( ! is_array( $raw_tags ) ) {
+            wp_send_json_error( [ 'message' => hossam_t( 'Invalid tags.' ) ], 400 );
+        }
+        if ( count( $raw_tags ) > 15 ) {
+            wp_send_json_error( [ 'message' => hossam_t( 'Too many tags — up to 15 tags per article.' ) ], 400 );
+        }
+        foreach ( $raw_tags as $tag_item ) {
+            if ( ! is_scalar( $tag_item ) ) {
+                wp_send_json_error( [ 'message' => hossam_t( 'Invalid tags.' ) ], 400 );
+            }
+        }
+        $data['tags'] = array_map( static function ( $tag_item ) {
+            return is_numeric( $tag_item ) ? $tag_item : sanitize_text_field( (string) $tag_item );
+        }, $raw_tags );
+    }
     if ( isset( $_POST['thumbnail_id'] ) ) {
         if ( ! is_scalar( $_POST['thumbnail_id'] ) ) wp_send_json_error( [ 'message' => hossam_t( 'Invalid featured image.' ) ], 400 );
         $data['thumbnail_id'] = wp_unslash( $_POST['thumbnail_id'] );
@@ -509,6 +530,26 @@ add_action( 'wp_ajax_hossam_update_article', function(): void {
             }
         }
         $data['categories'] = array_values( array_map( 'absint', $raw_cats ) );
+    }
+    // v1.1.5 item 16: the single tags[] key in the existing update path (the
+    // create-path extraction verbatim, the 15 cap included) — zero new
+    // endpoint.
+    if ( isset( $_POST['tags'] ) ) {
+        $raw_tags = wp_unslash( $_POST['tags'] );
+        if ( ! is_array( $raw_tags ) ) {
+            wp_send_json_error( [ 'message' => hossam_t( 'Invalid tags.' ) ], 400 );
+        }
+        if ( count( $raw_tags ) > 15 ) {
+            wp_send_json_error( [ 'message' => hossam_t( 'Too many tags — up to 15 tags per article.' ) ], 400 );
+        }
+        foreach ( $raw_tags as $tag_item ) {
+            if ( ! is_scalar( $tag_item ) ) {
+                wp_send_json_error( [ 'message' => hossam_t( 'Invalid tags.' ) ], 400 );
+            }
+        }
+        $data['tags'] = array_map( static function ( $tag_item ) {
+            return is_numeric( $tag_item ) ? $tag_item : sanitize_text_field( (string) $tag_item );
+        }, $raw_tags );
     }
     if ( isset( $_POST['thumbnail_id'] ) ) {
         if ( ! is_scalar( $_POST['thumbnail_id'] ) ) wp_send_json_error( [ 'message' => hossam_t( 'Invalid featured image.' ) ], 400 );

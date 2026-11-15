@@ -68,6 +68,10 @@ $GLOBALS['B4_CAPS']       = array();
 $GLOBALS['B4_HTTP']       = array( 'calls' => array() );
 $GLOBALS['B4_UPLOAD']     = array( 'result' => 0, 'calls' => 0 );
 $GLOBALS['B4_TERMS']      = array();
+// v1.1.5 item 16: the tags fixtures — the existing post_tag term ids and
+// the per-post stored tag sets (the wp_set_post_tags boundary).
+$GLOBALS['B4_TAG_NAMES']  = array();
+$GLOBALS['B4_POST_TAGS']  = array();
 $GLOBALS['B4_POSTS']      = array();
 $GLOBALS['B4_MEDIA']      = array( 'image_ids' => array(), 'meta' => array() );
 $GLOBALS['B4_SHORTCODES'] = array();
@@ -539,6 +543,75 @@ if ( ! function_exists( 'wp_set_post_categories' ) ) {
 if ( ! function_exists( 'wp_get_post_categories' ) ) {
 	function wp_get_post_categories( int $post_id, array $args = array() ) {
 		return $GLOBALS['B4_POST_CATEGORIES'][ $post_id ] ?? array();
+	}
+}
+// v1.1.5 item 16: the post_tag boundary — resolution (get_term_by by name),
+// creation (wp_insert_term) and the set write with a read-back (the
+// wp_set_post_tags/wp_get_post_tags pair), mirroring the categories stubs.
+if ( ! function_exists( 'get_term_by' ) ) {
+	function get_term_by( string $field, $value, string $taxonomy = '' ) {
+		if ( 'name' !== $field || 'post_tag' !== $taxonomy ) {
+			return false;
+		}
+		$tid = array_search( (string) $value, $GLOBALS['B4_TAG_NAMES'], true );
+		if ( false === $tid ) {
+			return false;
+		}
+		$term           = new stdClass();
+		$term->term_id  = (int) $tid;
+		$term->name     = (string) $value;
+		$term->taxonomy = 'post_tag';
+		return $term;
+	}
+}
+if ( ! function_exists( 'wp_insert_term' ) ) {
+	function wp_insert_term( string $term, string $taxonomy = '', array $args = array() ) {
+		if ( 'post_tag' !== $taxonomy || '' === trim( $term ) ) {
+			return new WP_Error( 'invalid_term', 'Invalid term.' );
+		}
+		if ( in_array( $term, $GLOBALS['B4_TAG_NAMES'], true ) ) {
+			return new WP_Error( 'term_exists', 'Term already exists.' );
+		}
+		$next = empty( $GLOBALS['B4_TAG_NAMES'] ) ? 100 : ( max( array_keys( $GLOBALS['B4_TAG_NAMES'] ) ) + 1 );
+		$GLOBALS['B4_TAG_NAMES'][ $next ] = $term;
+		return array( 'term_id' => $next, 'term_taxonomy_id' => $next );
+	}
+}
+if ( ! function_exists( 'wp_set_post_tags' ) ) {
+	function wp_set_post_tags( int $post_id, array $tags = array(), bool $append = false ) {
+		if ( ! empty( $GLOBALS['B4_POSTS_FAIL_TAGS'] ) ) {
+			return false;
+		}
+		$ids = array();
+		foreach ( $tags as $tag ) {
+			if ( is_numeric( $tag ) ) {
+				$ids[] = (int) $tag;
+			} else {
+				$tid = array_search( (string) $tag, $GLOBALS['B4_TAG_NAMES'], true );
+				if ( false !== $tid ) {
+					$ids[] = (int) $tid;
+				}
+			}
+		}
+		$GLOBALS['B4_POST_TAGS'][ $post_id ] = array_values( array_unique( $ids ) );
+		return $GLOBALS['B4_POST_TAGS'][ $post_id ];
+	}
+}
+if ( ! function_exists( 'wp_get_post_tags' ) ) {
+	function wp_get_post_tags( int $post_id, array $args = array() ) {
+		$ids = $GLOBALS['B4_POST_TAGS'][ $post_id ] ?? array();
+		if ( isset( $args['fields'] ) && 'ids' === $args['fields'] ) {
+			return $ids;
+		}
+		$out = array();
+		foreach ( $ids as $tid ) {
+			$term           = new stdClass();
+			$term->term_id  = (int) $tid;
+			$term->name     = $GLOBALS['B4_TAG_NAMES'][ $tid ] ?? ( 'tag-' . $tid );
+			$term->taxonomy = 'post_tag';
+			$out[]          = $term;
+		}
+		return $out;
 	}
 }
 if ( ! function_exists( 'get_post_meta' ) ) {
@@ -1193,6 +1266,66 @@ function b4_mode( string $mode, array $args, string $project ): void {
 			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true, 'edit_post_' . $post_id => true );
 			$error = hossam_trash_article( 888888 );
 			b4_check( 'PS10', is_wp_error( $error ) && 'hossam_not_found' === $error->get_error_code() && true === hossam_trash_article( $post_id ) && 'trash' === $GLOBALS['B4_POSTS'][ $post_id ]->post_status && true === hossam_restore_article( $post_id ) && 'draft' === $GLOBALS['B4_POSTS'][ $post_id ]->post_status, 'trash/restore respect edit_post on the real post and move its status only', 'trash/restore mismatch' );
+			b4_result_line( $mode );
+			// no fallthrough
+
+		case 'posts-tags-contract':
+			// v1.1.5 item 16 (S-10): the tags[] key in the save contract —
+			// resolution through the ready term interfaces, the hard 15 cap
+			// as an explicit rejection, replace semantics with the explicit
+			// empty set, the no-key keep-contract, and the snapshot restore.
+			b4_define_release_context();
+			b4_require_runtime();
+			$GLOBALS['B4_TAG_NAMES'] = array( 60 => 'contracts', 61 => 'labour' );
+			$GLOBALS['B4_TERMS']['post_tag'] = array( 60, 61 );
+			$GLOBALS['B4_CAPS']      = array( 'edit_posts' => true, 'publish_posts' => true );
+
+			$post_a = hossam_create_article( array( 'title' => 'T1', 'tags' => array( 'contracts', 'brand new tag' ) ) );
+			b4_check( 'PT1', is_int( $post_a ) && array( 60, 62 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'create resolves an existing tag name and inserts a free name (get_term_by → wp_insert_term) and stores the resolved ids',
+				'tag resolution mismatch: ' . json_encode( is_wp_error( $post_a ) ? $post_a->get_error_code() : $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$GLOBALS['B4_CAPS'] = array( 'edit_posts' => true, 'edit_post_' . $post_a => true );
+			$error = hossam_update_article( $post_a, array( 'title' => 'X', 'tags' => array( 61, 999999 ) ) );
+			b4_check( 'PT2', is_wp_error( $error ) && 'hossam_invalid_tags' === $error->get_error_code(),
+				'an unknown numeric tag id is an explicit hossam_invalid_tags rejection (never a silent drop)',
+				'unknown id mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_code() : $error ) );
+
+			$error = hossam_create_article( array( 'title' => 'T2', 'tags' => array( 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p' ) ) );
+			b4_check( 'PT3', is_wp_error( $error ) && 'hossam_invalid_tags' === $error->get_error_code() && false !== strpos( (string) $error->get_error_message(), '15' ),
+				'S-10: sixteen tags breach the hard cap — an explicit WP_Error with the cap message (no silent truncation)',
+				'cap rejection mismatch: ' . json_encode( is_wp_error( $error ) ? $error->get_error_message() : $error ) );
+
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( 61 ) ) );
+			b4_check( 'PT4', true === $updated && array( 61 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the tags key present replaces the set (the removal acceptance: a removed chip leaves the stored set)',
+				'replace mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( '' ) ) );
+			b4_check( 'PT5', true === $updated && array() === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the explicit empty-set marker (the mirror of an emptied chip rack) clears all tags — verified by re-reading',
+				'clear mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$GLOBALS['B4_POST_TAGS'][ $post_a ] = array( 60 );
+			$updated = hossam_update_article( $post_a, array( 'title' => 'Y' ) );
+			b4_check( 'PT6', true === $updated && array( 60 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the key absent is the keep-contract — a title-only update never writes tags',
+				'keep-contract mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
+
+			$dirty = sanitize_text_field( '  padded  ' );
+			$updated = hossam_update_article( $post_a, array( 'tags' => array( $dirty ) ) );
+			$stored_names = array();
+			foreach ( (array) ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? array() ) as $tid ) {
+				$stored_names[] = $GLOBALS['B4_TAG_NAMES'][ $tid ] ?? '';
+			}
+			b4_check( 'PT7', true === $updated && array( 'padded' ) === $stored_names,
+				'sanitize_text_field plus trim govern every free name before resolution (the S-10 name hygiene)',
+				'sanitize mismatch: ' . json_encode( $stored_names ) );
+
+			$restored = hossam_restore_article_snapshot( $post_a, array( 'post_title' => 't', 'post_content' => 'c', 'post_status' => 'draft', 'post_excerpt' => '' ), array(), 0, false, false, false, array( 60, 61 ), true );
+			b4_check( 'PT8', true === $restored && array( 60, 61 ) === ( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ),
+				'the compensation contract covers tags — the snapshot restore writes back and re-verifies by reading (the item 16 extension)',
+				'snapshot restore mismatch: ' . json_encode( $GLOBALS['B4_POST_TAGS'][ $post_a ] ?? null ) );
 			b4_result_line( $mode );
 			// no fallthrough
 
@@ -1875,6 +2008,7 @@ b4_run_mode( 'amelia-credentials-legacy-fallback' );
 b4_run_mode( 'rankmath-contract' );
 b4_run_mode( 'uploads-contract' );
 b4_run_mode( 'posts-contract' );
+b4_run_mode( 'posts-tags-contract' );
 b4_run_mode( 'ai-strategies-unprofiled' );
 b4_run_mode( 'ai-strategies' );
 b4_run_mode( 'ai-execution' );

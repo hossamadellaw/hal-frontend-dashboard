@@ -322,12 +322,10 @@ const V106_POSTS_DELTA = {
     // entirely; the language-row base class sits on a PHP-concatenated
     // attribute token (never extracted), the meter level classes travel
     // whole from PHP (the rm_cls pattern), and the meter width style
-    // carries PHP — none of them appear here. Two more hooks become
-    // extractable only now: hossam-write-workspace (the workspace class
-    // was PHP-concatenated before and is a plain static token in the W6
-    // permanent-aside markup) and pill-draft (the Publishing holder's
-    // initial-status pill — the first literal pill-draft in this panel).
-    'hossam-write-workspace', 'pill-draft',
+    // carries PHP — none of them appear here. hossam-write-workspace
+    // becomes extractable (a plain static token in the W6 permanent-aside
+    // markup).
+    'hossam-write-workspace',
     'hossam-write-side-stack', 'hossam-write-aside-holder',
     'hossam-aside-row', 'hossam-aside-muted', 'hossam-aside-chips', 'hossam-aside-empty',
     'hossam-lang-rows', 'is-original', 'hossam-lang-code', 'hossam-lang-name', 'hossam-lang-action',
@@ -341,7 +339,17 @@ const V106_POSTS_DELTA = {
     'hossam-lang-chips', 'hossam-lang-chip', 'hossam-seo-suggestions',
     // v1.1.4 item 13: the writer-path author info styles (the admin actions
     // path keeps its existing classes).
-    'hossam-author-info', 'hossam-author-site'],
+    'hossam-author-info', 'hossam-author-site',
+    // v1.1.5 wave 2 (items 14/15/16/19/21 — the T10 pattern, value update):
+    // the writing-column wrapper, the interactive AI icon button, the
+    // permalink value hook, and the live Tags card family — all styled by
+    // the v1.1.5 token-based block in dashboard.css. The Publishing
+    // holder's initial-status pill (pill-draft) left the markup with the
+    // real Status element moving into the card (item 14-2), so it drops
+    // out of the gained diff entirely.
+    'hossam-write-writing-col', 'hossam-write-card-ico-btn', 'hossam-edit-permalink-value',
+    'hossam-tag-chip', 'hossam-tag-chip-remove', 'hossam-tag-suggest',
+    'hossam-tags-suggestions', 'hossam-tags-add-row', 'hossam-tags-values'],
   classesLost: [],
   idsGained: [
     'hossam-edit-excerpt', 'hossam-edit-seo-desc', 'hossam-edit-seo-form',
@@ -357,12 +365,21 @@ const V106_POSTS_DELTA = {
     // v1.1.4 item 5: the two write-column availability cards (the Translations
     // Hub and the SEO & SERP holders) — the model order after Tags.
     'hossam-translations-holder', 'hossam-seo-holder',
+    // v1.1.5 wave 2: the edit-context holders (unique ids — the two panels
+    // share one page) + the always-addressable SEO suggestions list.
+    'hossam-edit-metadata-holder', 'hossam-edit-tags-holder',
+    'hossam-edit-translations-holder', 'hossam-edit-seo-holder',
+    'hossam-edit-publishing-holder', 'hossam-seo-suggestions',
   ],
   idsLost: ['hossam-edit-cats', 'hossam-new-cats'],
   dataGained: ['oeb-post', 'role', 'textarea',
     // v1.1.4 item 5: the availability state attribute flipping through the
     // existing saved-state wave.
-    'hossam-card-state'],
+    'hossam-card-state',
+    // v1.1.5 wave 2: the positional side-card contract (item 14/21) and the
+    // live Tags card reads (item 16 + S-9 — the chips, the suggestion
+    // buttons and the documented scope).
+    'hossam-side-card', 'hossam-tags-scope', 'tag', 'tag-cats', 'tag-suggest'],
   dataLost: [],
   stylesGained: [
     "display:block;margin-right:' . (int) ( $hossam_walk_depth * 16 ) . 'px;",

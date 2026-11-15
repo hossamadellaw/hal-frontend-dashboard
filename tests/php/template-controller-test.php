@@ -323,8 +323,8 @@ if ( ! is_resource( $proc ) ) {
  * stay byte-identical — their conversion belongs to the later language
  * round, and this assertion guards that boundary. */
 hal_tc_check( 'T14-OPTIONAL-TAG',
-	3 === substr_count( $tc_posts, "hossam_t( 'Optional' )" ) && false === strpos( $tc_posts, 'اختياري' ),
-	"the card tag uses hossam_t( 'Optional' ) — once on the AI card and, since the v1.1.4 item 7 head unification, on the Metadata and Tags cards — and the Arabic tag is gone",
+	6 === substr_count( $tc_posts, "hossam_t( 'Optional' )" ) && false === strpos( $tc_posts, 'اختياري' ),
+	"the card tag uses hossam_t( 'Optional' ) — v1.1.5 item 21 renewal (value update, not strictness): the six-card workspace exists in BOTH contexts, so the tag renders on the AI, Metadata and Tags cards twice (write + edit) — and the Arabic tag is gone",
 	'tag source mismatch' );
 hal_tc_check( 'T14-CARD-DESC',
 	false !== strpos( $tc_posts, 'Optional assistant for proofreading, translation and SEO — results appear inside this panel.' ) && false === strpos( $tc_posts, 'مساعد اختياري' ),

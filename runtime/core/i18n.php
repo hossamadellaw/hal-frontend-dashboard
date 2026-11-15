@@ -248,6 +248,24 @@ add_action( 'init', function(): void {
         'Tags',
         'No tags yet.',
         'Tags power related-article linking — keep them short and specific.',
+        // v1.1.5 item 16 (S-9/S-10/S-11): the live Tags card strings — the
+        // add row, the chip removal, the suggestion scope lines, and the
+        // tags-cap rejection path (adapter + ajax). English sources through
+        // the same hash-gated mechanism.
+        'Add a tag…',
+        'Add',
+        'Remove tag',
+        'Remove tag: %s',
+        'Up to 15 tags per article.',
+        'Too many tags — up to 15 tags per article.',
+        'Suggested from published articles in the selected categories.',
+        'Used in %d published articles in this scope.',
+        'Invalid tags.',
+        'Article tags are invalid.',
+        'Article tags could not be saved.',
+        // v1.1.5 item 18-4 (D-OWNER-4=A): the interactive AI card icon —
+        // a focus link only, zero new action.
+        'Jump to the AI actions',
         'Languages & Translation',
         'Translation creates a linked draft in the target language — edit it and publish it like any article.',
         'Open translation',
@@ -628,6 +646,18 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'w7AddBlock' => hossam_t('Add block'),
             'w7SaveDraft' => hossam_t('Save as Draft'),
             'w7Discard' => hossam_t('Discard Changes'),
+            // v1.1.5 item 16: the live Tags card keys — the values match the
+            // registered literals verbatim (the triple ledger).
+            'tagsCap' => hossam_t('Up to 15 tags per article.'),
+            'tagRemoveNamed' => hossam_t('Remove tag'),
+            // v1.1.5 item 18-1: the live SEO guidance keys — the same server
+            // rules, the same registered literals.
+            'seoSugKw' => hossam_t('Set a focus keyword so the score has a target.'),
+            'seoSugTitle' => hossam_t('Write the SEO title — it is the headline search results show.'),
+            'seoSugTitleLen' => hossam_t('Keep the SEO title between 50 and 60 characters.'),
+            'seoSugDesc' => hossam_t('Write the meta description — it is the summary line under the title.'),
+            'seoSugDescLen' => hossam_t('Keep the meta description between 120 and 160 characters.'),
+            'seoSugNoindex' => hossam_t('This page is set to noindex — it will not appear in search results.'),
 
             // v1.1.3 W7: the nine swatch color-name keys - values match the
             // posts.js swatch-row fallbacks verbatim.

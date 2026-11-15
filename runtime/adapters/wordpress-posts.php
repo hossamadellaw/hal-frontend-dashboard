@@ -51,7 +51,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'hossam_create_article' ) ) {
 	/**
-	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int} $data
+	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int,tags?:array<int|string>} $data
 	 * @return int|WP_Error
 	 */
 	function hossam_create_article( array $data ) {
@@ -174,7 +174,7 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 
 if ( ! function_exists( 'hossam_update_article' ) ) {
 	/**
-	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int} $data
+	 * @param array{title?:string,content?:string,status?:string,excerpt?:string,categories?:array<int,int>,thumbnail_id?:int,tags?:array<int|string>} $data
 	 * @return bool|WP_Error
 	 */
 	function hossam_update_article( int $post_id, array $data ) {
@@ -247,6 +247,10 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 		$restore_main       = count( $postarr ) > 1;
 		$restore_categories = isset( $data['categories'] );
 		$restore_thumbnail  = isset( $data['thumbnail_id'] );
+		// v1.1.5 item 16: the tags key joins the compensation contract — any
+		// state the update touches is snapshotted and re-verified, tags now
+		// included.
+		$restore_tags       = isset( $data['tags'] );
 		$orig_post          = [
 			'post_title'   => (string) $post->post_title,
 			'post_content' => (string) $post->post_content,
@@ -258,6 +262,10 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			return new WP_Error( 'hossam_snapshot_failed', __( 'Article state could not be read before saving.', 'hal-frontend-dashboard' ) );
 		}
 		$orig_thumbnail  = $restore_thumbnail && function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $post_id ) : 0;
+		$orig_tags       = $restore_tags && function_exists( 'wp_get_post_tags' ) ? wp_get_post_tags( $post_id, [ 'fields' => 'ids' ] ) : [];
+		if ( is_wp_error( $orig_tags ) ) {
+			$orig_tags = [];
+		}
 
 		if ( $restore_main ) {
 			$result = wp_update_post( $postarr, true );
@@ -275,7 +283,9 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 				$orig_thumbnail,
 				$restore_main,
 				$restore_categories,
-				$restore_thumbnail
+				$restore_thumbnail,
+				$orig_tags,
+				$restore_tags
 			);
 			if ( ! $compensated ) {
 				return new WP_Error(
@@ -348,6 +358,45 @@ if ( ! function_exists( 'hossam_validate_article_taxonomy_and_thumbnail' ) ) {
 	 * @return array{resolved_category_ids:array<int,int>}|true|WP_Error
 	 */
 	function hossam_validate_article_taxonomy_and_thumbnail( array $data, string $target_language = '' ) {
+		// v1.1.5 item 16 (S-10): the tags gate runs FIRST (the categories
+		// branch below returns early on every path, so a gate placed after it
+		// would never see a categories+tags request): the numeric cap is a
+		// hard, explicit server rejection (WP_Error in the categories-gate
+		// style, never a silent drop), every entry must be scalar, and a
+		// free-text name carries sanitize_text_field plus a hard length cap.
+		// The empty-after-sanitize entry is the documented empty-set marker
+		// (the explicit "clear all tags" signal) — handled at the apply step.
+		if ( isset( $data['tags'] ) ) {
+			if ( ! is_array( $data['tags'] ) ) {
+				return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+			}
+			if ( count( $data['tags'] ) > 15 ) {
+				return new WP_Error( 'hossam_invalid_tags', __( 'Too many tags — up to 15 tags per article.', 'hal-frontend-dashboard' ) );
+			}
+			foreach ( $data['tags'] as $tag_item ) {
+				if ( ! is_scalar( $tag_item ) ) {
+					return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+				}
+				if ( is_numeric( $tag_item ) ) {
+					// The categories pattern (term_exists in the gate): a
+					// numeric entry must already exist in post_tag — an
+					// unknown id rejects BEFORE any write (zero silent drop).
+					$tag_term_id = absint( $tag_item );
+					if ( $tag_term_id < 1 || ! term_exists( $tag_term_id, 'post_tag' ) ) {
+						return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+					}
+					continue;
+				}
+				$tag_name = sanitize_text_field( (string) $tag_item );
+				if ( '' === $tag_name ) {
+					continue;
+				}
+				$tag_len = function_exists( 'mb_strlen' ) ? mb_strlen( $tag_name ) : strlen( $tag_name );
+				if ( $tag_len > 200 ) {
+					return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+				}
+			}
+		}
 		if ( isset( $data['categories'] ) ) {
 			if ( ! is_array( $data['categories'] ) ) {
 				return new WP_Error( 'hossam_invalid_categories', __( 'Article categories are invalid.', 'hal-frontend-dashboard' ) );
@@ -514,8 +563,13 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 	 * Restores and then re-reads every state touched by an article update.
 	 * A successful Core return alone is not enough to claim compensation.
 	 *
+	 * v1.1.5 item 16: the tags state joins the compensation contract (the
+	 * two trailing parameters default to the untouched historical behavior —
+	 * existing positional callers stay valid).
+	 *
 	 * @param array{post_title:string,post_content:string,post_status:string,post_excerpt:string} $orig_post
 	 * @param array<int,int>   $orig_categories
+	 * @param array<int,int>   $orig_tags
 	 */
 	function hossam_restore_article_snapshot(
 		int $post_id,
@@ -524,7 +578,9 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 		int $orig_thumbnail,
 		bool $restore_main,
 		bool $restore_categories,
-		bool $restore_thumbnail
+		bool $restore_thumbnail,
+		array $orig_tags = [],
+		bool $restore_tags = false
 	): bool {
 		$all_restored = true;
 		if ( $restore_main ) {
@@ -579,6 +635,23 @@ if ( ! function_exists( 'hossam_restore_article_snapshot' ) ) {
 			}
 		}
 
+		// v1.1.5 item 16: the tags rollback — same shape as the categories
+		// rollback (restore + re-read + compare).
+		if ( $restore_tags ) {
+			$tags_restore = function_exists( 'wp_set_post_tags' ) ? wp_set_post_tags( $post_id, array_values( array_map( 'absint', $orig_tags ) ) ) : false;
+			$current_tags = function_exists( 'wp_get_post_tags' ) ? wp_get_post_tags( $post_id, [ 'fields' => 'ids' ] ) : [];
+			$expected_tags = array_values( array_map( 'absint', $orig_tags ) );
+			if ( is_array( $current_tags ) ) {
+				$current_tags  = array_values( array_map( 'absint', $current_tags ) );
+				sort( $current_tags );
+				sort( $expected_tags );
+			}
+			if ( false === $tags_restore || is_wp_error( $tags_restore ) || ! is_array( $current_tags ) || $current_tags !== $expected_tags ) {
+				$all_restored = false;
+				error_log( 'Hossam Dashboard tag rollback failed for post ' . $post_id );
+			}
+		}
+
 		return $all_restored;
 	}
 }
@@ -588,7 +661,18 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 	 * Shared by create/update: validates categories against the real taxonomy and
 	 * the featured image against the real attachment before writing either one.
 	 *
-	 * @param array{categories?:array<int,int>,thumbnail_id?:int} $data
+	 * v1.1.5 item 16: the single tags[] key settles beside the categories
+	 * write — every entry resolves through the ready WordPress term
+	 * interfaces (numeric ids must term-exist; free names are
+	 * sanitize_text_field'd and then get_term_by → wp_insert_term, the
+	 * categories verification pattern), and the resolved id set writes
+	 * through wp_set_post_tags with a read-back verification. An entry that
+	 * sanitizes to an empty string is the documented empty-set marker: the
+	 * key present with only markers is an explicit "clear all tags" save
+	 * (never the keep-contract); the key absent keeps the current tags
+	 * untouched (the categories keep-contract symmetry).
+	 *
+	 * @param array{categories?:array<int,int>,thumbnail_id?:int,tags?:array<int|string>} $data
 	 */
 	function hossam_apply_article_taxonomy_and_thumbnail( int $post_id, array $data ) {
 		if ( isset( $data['categories'] ) && is_array( $data['categories'] ) ) {
@@ -636,6 +720,81 @@ if ( ! function_exists( 'hossam_apply_article_taxonomy_and_thumbnail' ) ) {
 				if ( function_exists( 'get_post_thumbnail_id' ) && 0 !== (int) get_post_thumbnail_id( $post_id ) ) {
 					return new WP_Error( 'hossam_thumbnail_failed', __( 'The featured image could not be saved.', 'hal-frontend-dashboard' ) );
 				}
+			}
+		}
+
+		// v1.1.5 item 16 (S-10): the tags write beside wp_set_post_categories —
+		// resolution through the ready term interfaces, one wp_set_post_tags
+		// write, and a read-back verification (the categories pattern). No
+		// silent drop anywhere: an unknown numeric id, an unresolvable insert
+		// and a failed write are all explicit WP_Error rejections.
+		if ( isset( $data['tags'] ) && is_array( $data['tags'] ) ) {
+			$resolved_tag_ids = array();
+			$has_entries      = false;
+			foreach ( $data['tags'] as $tag_item ) {
+				if ( ! is_scalar( $tag_item ) ) {
+					return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+				}
+				if ( is_numeric( $tag_item ) ) {
+					$tag_term_id = absint( $tag_item );
+					if ( $tag_term_id < 1 || ! term_exists( $tag_term_id, 'post_tag' ) ) {
+						return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+					}
+					$resolved_tag_ids[] = $tag_term_id;
+					$has_entries        = true;
+					continue;
+				}
+				$tag_name = sanitize_text_field( (string) $tag_item );
+				if ( '' === $tag_name ) {
+					continue; // the documented empty-set marker — never a user tag
+				}
+				$has_entries = true;
+				$existing    = function_exists( 'get_term_by' ) ? get_term_by( 'name', $tag_name, 'post_tag' ) : false;
+				if ( $existing && isset( $existing->term_id ) ) {
+					$resolved_tag_ids[] = (int) $existing->term_id;
+					continue;
+				}
+				if ( ! function_exists( 'wp_insert_term' ) ) {
+					return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+				}
+				$inserted = wp_insert_term( $tag_name, 'post_tag' );
+				if ( is_wp_error( $inserted ) || empty( $inserted['term_id'] ) ) {
+					return new WP_Error( 'hossam_invalid_tags', __( 'Article tags are invalid.', 'hal-frontend-dashboard' ) );
+				}
+				$resolved_tag_ids[] = (int) $inserted['term_id'];
+			}
+			$resolved_tag_ids = array_values( array_unique( array_map( 'absint', $resolved_tag_ids ) ) );
+			if ( ! $has_entries ) {
+				// The explicit empty set (only markers): clears all tags,
+				// verified by re-reading.
+				$tags_result = function_exists( 'wp_set_post_tags' ) ? wp_set_post_tags( $post_id, array() ) : true;
+				if ( false === $tags_result || is_wp_error( $tags_result ) ) {
+					return is_wp_error( $tags_result )
+						? $tags_result
+						: new WP_Error( 'hossam_tags_failed', __( 'Article tags could not be saved.', 'hal-frontend-dashboard' ) );
+				}
+				$stored_tags = function_exists( 'wp_get_post_tags' ) ? wp_get_post_tags( $post_id, [ 'fields' => 'ids' ] ) : [];
+				if ( is_wp_error( $stored_tags ) || ! is_array( $stored_tags ) || ! empty( $stored_tags ) ) {
+					return new WP_Error( 'hossam_tags_failed', __( 'Article tags could not be saved.', 'hal-frontend-dashboard' ) );
+				}
+				return true;
+			}
+			if ( ! function_exists( 'wp_set_post_tags' ) ) {
+				return new WP_Error( 'hossam_tags_failed', __( 'Article tags could not be saved.', 'hal-frontend-dashboard' ) );
+			}
+			$tags_result = wp_set_post_tags( $post_id, $resolved_tag_ids );
+			if ( false === $tags_result || is_wp_error( $tags_result ) ) {
+				return is_wp_error( $tags_result )
+					? $tags_result
+					: new WP_Error( 'hossam_tags_failed', __( 'Article tags could not be saved.', 'hal-frontend-dashboard' ) );
+			}
+			$stored_tags     = function_exists( 'wp_get_post_tags' ) ? wp_get_post_tags( $post_id, [ 'fields' => 'ids' ] ) : $resolved_tag_ids;
+			$stored_compare  = is_array( $stored_tags ) ? array_values( array_map( 'absint', $stored_tags ) ) : [];
+			$expected_compare = array_values( array_map( 'absint', $resolved_tag_ids ) );
+			sort( $stored_compare );
+			sort( $expected_compare );
+			if ( $stored_compare !== $expected_compare ) {
+				return new WP_Error( 'hossam_tags_failed', __( 'Article tags could not be saved.', 'hal-frontend-dashboard' ) );
 			}
 		}
 

@@ -76,6 +76,7 @@ function b16_unquote( string $token ): string {
 }
 
 $posts_src  = b16_read( 'runtime/templates/dashboard/posts.php' );
+$posts_js   = b16_read( 'runtime/assets/js/modules/posts.js' );
 $i18n_src   = b16_read( 'runtime/core/i18n.php' );
 $css_src    = b16_read( 'runtime/assets/css/dashboard.css' );
 
@@ -88,11 +89,11 @@ b16_check(
 );
 b16_check(
 	'B16-S2-side-stack',
-	2 === substr_count( $posts_src, 'hossam-write-side-stack' )
-		&& false !== strpos( $posts_src, '<div class="hossam-write-side-stack">' )
-		&& false !== strpos( $posts_src, '</div><!-- /hossam-write-side-stack -->' ),
-	'the side column is one stack wrapping the AI card and the three display holders',
-	'the side stack open/close pair is missing or duplicated (count=' . substr_count( $posts_src, 'hossam-write-side-stack' ) . ')'
+	4 === substr_count( $posts_src, 'hossam-write-side-stack' )
+		&& 2 === substr_count( $posts_src, '<div class="hossam-write-side-stack">' )
+		&& 2 === substr_count( $posts_src, '</div><!-- /hossam-write-side-stack -->' ),
+	'one stack per context (v1.1.5 item 14/21 renewal: write + edit — value update, not strictness)',
+	'the side stack open/close pairs missing or duplicated (count=' . substr_count( $posts_src, 'hossam-write-side-stack' ) . ' expected 4)'
 );
 $stack_open  = strpos( $posts_src, '<div class="hossam-write-side-stack">' );
 $stack_close = strpos( $posts_src, '</div><!-- /hossam-write-side-stack -->' );
@@ -102,11 +103,11 @@ b16_check(
 	'B16-S3-stack-order',
 	false !== $stack_open && false !== $stack_close && false !== $form_pos && false !== $ai_card_pos
 		&& $form_pos < $stack_open && $ai_card_pos > $stack_open && $ai_card_pos < $stack_close,
-	'source order: form column first, then the side stack containing the AI card and the holders',
+	'source order: the form wraps the workspace and the side stack holds the AI card and the holders (v1.1.5 item 15-1: the form wraps the grid)',
 	'the form/side-stack source order is wrong (form=' . ( false !== $form_pos ? 'ok' : 'missing' )
 		. ' stack=' . ( false !== $stack_open ? 'ok' : 'missing' ) . ')'
 );
-foreach ( [ 'hossam-publishing-holder', 'hossam-metadata-holder', 'hossam-tags-holder' ] as $holder_id ) {
+foreach ( [ 'hossam-publishing-holder', 'hossam-metadata-holder', 'hossam-tags-holder', 'hossam-translations-holder', 'hossam-seo-holder' ] as $holder_id ) {
 	b16_check(
 		'B16-S4-' . $holder_id,
 		false !== strpos( $posts_src, 'id="' . $holder_id . '"' )
@@ -117,9 +118,54 @@ foreach ( [ 'hossam-publishing-holder', 'hossam-metadata-holder', 'hossam-tags-h
 }
 b16_check(
 	'B16-S5-aside-grid',
-	false !== strpos( $posts_src, 'class="hossam-write-workspace hossam-write-has-aside"' ),
-	'the workspace carries the aside grid unconditionally (the side column is permanent)',
+	2 === substr_count( $posts_src, 'class="hossam-write-workspace hossam-write-has-aside"' ),
+	'the workspace carries the aside grid unconditionally in BOTH contexts (v1.1.5 item 21-1 renewal)',
 	'the workspace still keys the aside grid on the AI gate'
+);
+/* v1.1.5 item 15-1: the form wraps the two-column workspace — the side stack
+   is a DOM descendant of the create form, so every card field stays a child
+   of the form the posts.js contract queries. */
+$create_form_pos = strpos( $posts_src, 'id="hossam-post-create-form"' );
+$create_form_end = ( false !== $create_form_pos ) ? strpos( $posts_src, '</form>' ) : false;
+b16_check(
+	'B16-S6-form-wraps-grid',
+	false !== $create_form_pos && false !== $create_form_end
+		&& $create_form_pos < $stack_open && $stack_close < $create_form_end,
+	'the create form wraps the whole two-column workspace (the side stack is inside the form — the fields inside the cards stay form children)',
+	'the form does not wrap the side stack'
+);
+foreach ( [ 'hossam-edit-metadata-holder', 'hossam-edit-tags-holder', 'hossam-edit-translations-holder', 'hossam-edit-seo-holder', 'hossam-edit-publishing-holder' ] as $holder_id ) {
+	b16_check(
+		'B16-S7-' . $holder_id,
+		false !== strpos( $posts_src, 'id="' . $holder_id . '"' ),
+		'the edit-context holder "' . $holder_id . '" is present (v1.1.5 item 21 — the six cards exist in both contexts with unique ids)',
+		'the edit holder "' . $holder_id . '" is missing'
+	);
+}
+/* v1.1.5 item 19: the excerpt sits directly under the title in both
+   contexts; the edit title adopts the write shell markup. */
+foreach ( [ 'hossam-new-title', 'hossam-edit-title' ] as $title_id ) {
+	$title_pos = strpos( $posts_src, 'id="' . $title_id . '"' );
+	$excerpt_id = 'hossam-new-title' === $title_id ? 'hossam-new-excerpt' : 'hossam-edit-excerpt';
+	$content_id = 'hossam-new-title' === $title_id ? 'hossam-new-content' : 'hossam-edit-content';
+	$excerpt_pos = ( false !== $title_pos ) ? strpos( $posts_src, 'id="' . $excerpt_id . '"', $title_pos ) : false;
+	$content_pos = ( false !== $title_pos ) ? strpos( $posts_src, 'id="' . $content_id . '"', $title_pos ) : false;
+	b16_check(
+		'B16-S8-excerpt-' . $title_id,
+		false !== $title_pos && false !== $excerpt_pos && false !== $content_pos
+			&& $excerpt_pos < $content_pos,
+		'the ' . $title_id . ' context renders the excerpt directly under the title and before the content (v1.1.5 item 19-1)',
+		'the excerpt position deviated for ' . $title_id
+	);
+}
+b16_check(
+	'B16-S9-edit-title-shell',
+	false !== strpos( $posts_src, 'id="hossam-edit-title" name="title"' )
+		&& false !== strpos( $posts_src, 'hossam-write-title-shell' )
+		&& substr_count( $posts_src, 'hossam-write-title-shell' ) >= 2
+		&& substr_count( $posts_src, 'hossam-write-h1-badge' ) >= 2,
+	'the edit title adopts the write shell markup (shell + H1 badge + policy hint) with the edit field id/name/value contract unchanged (v1.1.5 item 19-2)',
+	'the edit title shell markup is missing'
 );
 
 /* ── ARGS: zero template_args expansion ── */
@@ -247,14 +293,44 @@ b16_check(
 );
 b16_check(
 	'B16-D3-save-contract',
-	false !== strpos( $seo_form, 'name="post_id"' )
-		&& false !== strpos( $seo_form, 'name="title"' )
-		&& false !== strpos( $seo_form, 'name="focus_keyword"' )
-		&& false !== strpos( $seo_form, 'name="description"' )
-		&& false !== strpos( $seo_form, 'name="robots[]"' )
-		&& false !== strpos( $seo_form, 'hossamSaveSeo(this)' ),
-	'the SEO save contract fields/ids/handler are verbatim (hossamSaveSeo untouched)',
+	false !== strpos( $seo_form, 'name="seo_post_id"' )
+		&& false !== strpos( $seo_form, 'name="seo_title"' )
+		&& false !== strpos( $seo_form, 'name="seo_focus_keyword"' )
+		&& false !== strpos( $seo_form, 'name="seo_description"' )
+		&& false !== strpos( $seo_form, 'name="seo_robots[]"' )
+		&& false !== strpos( $seo_form, "hossamSaveSeo(document.getElementById('hossam-edit-seo-form'))" )
+		&& false !== strpos( $seo_form, 'type="button"' ),
+	'the SEO save contract carries the distinguished internal names (v1.1.5 item 21-3 — the nested-form constraint) with a type="button" save calling the existing handler',
 	'the SEO save contract fields changed'
+);
+/* v1.1.5 item 21-3: the wire format is byte-identical — hossamSaveSeo reads
+   the distinguished names and appends the SAME wire keys the endpoint
+   consumes. */
+b16_check(
+	'B16-D3-wire-format',
+	false !== strpos( $posts_js, 'fd.append("post_id",pid?pid.value:"0")' )
+		&& false !== strpos( $posts_js, 'if(title) fd.append("title",title.value);' )
+		&& false !== strpos( $posts_js, 'if(kw) fd.append("focus_keyword",kw.value);' )
+		&& false !== strpos( $posts_js, 'if(desc) fd.append("description",desc.value);' )
+		&& false !== strpos( $posts_js, 'fd.append("robots[]",rv);' )
+		&& false !== strpos( $posts_js, 'const pid=form.querySelector(\'[name="seo_post_id"]\')' ),
+	'the hossamSaveSeo wire keys are byte-identical before/after (title/focus_keyword/description/robots[]/post_id — the endpoint contract untouched)',
+	'the SEO wire format drifted'
+);
+/* v1.1.5 item 21-3: zero nested form — the SEO container is a div carrying
+   the same id, and no form element exists inside the edit form. */
+$edit_form_pos = strpos( $posts_src, 'id="hossam-post-edit-form"' );
+$edit_form_end = ( false !== $edit_form_pos ) ? strpos( $posts_src, '</form>', $edit_form_pos ) : false;
+$edit_form_src = ( false !== $edit_form_pos && false !== $edit_form_end )
+	? substr( $posts_src, $edit_form_pos, $edit_form_end - $edit_form_pos )
+	: '';
+b16_check(
+	'B16-D3-no-nested-form',
+	'' !== $edit_form_src
+		&& 0 === substr_count( $edit_form_src, '<form' )
+		&& 1 === substr_count( $posts_src, '<div id="hossam-edit-seo-form">' ),
+	'zero nested form inside hossam-post-edit-form (the SEO group is the non-form container with the same addressable id)',
+	'a nested form or the container id is missing'
 );
 
 /* ── CHANNEL: token-based extraction of both sides ── */

@@ -197,6 +197,9 @@ $GLOBALS['B5_CAPS']       = array();
 $GLOBALS['B5_HTTP']       = array( 'calls' => array() );
 $GLOBALS['B5_UPLOAD']     = array( 'result' => 0, 'calls' => 0 );
 $GLOBALS['B5_TERMS']      = array();
+// v1.1.5 item 16: the tags fixtures (the post_tag boundary).
+$GLOBALS['B5_TAG_NAMES']  = array();
+$GLOBALS['B5_POST_TAGS']  = array();
 $GLOBALS['B5_POSTS']      = array();
 $GLOBALS['B5_MEDIA']      = array( 'image_ids' => array(), 'meta' => array() );
 $GLOBALS['B5_SHORTCODES'] = array();
@@ -770,6 +773,74 @@ if ( ! function_exists( 'wp_set_post_categories' ) ) {
 if ( ! function_exists( 'wp_get_post_categories' ) ) {
 	function wp_get_post_categories( int $post_id, array $args = array() ) {
 		return $GLOBALS['B5_POST_CATEGORIES'][ $post_id ] ?? array();
+	}
+}
+// v1.1.5 item 16: the post_tag boundary stubs — the resolution/creation/set
+// read-back trio, mirroring the categories stubs.
+if ( ! function_exists( 'get_term_by' ) ) {
+	function get_term_by( string $field, $value, string $taxonomy = '' ) {
+		if ( 'name' !== $field || 'post_tag' !== $taxonomy ) {
+			return false;
+		}
+		$tid = array_search( (string) $value, $GLOBALS['B5_TAG_NAMES'], true );
+		if ( false === $tid ) {
+			return false;
+		}
+		$term           = new stdClass();
+		$term->term_id  = (int) $tid;
+		$term->name     = (string) $value;
+		$term->taxonomy = 'post_tag';
+		return $term;
+	}
+}
+if ( ! function_exists( 'wp_insert_term' ) ) {
+	function wp_insert_term( string $term, string $taxonomy = '', array $args = array() ) {
+		if ( 'post_tag' !== $taxonomy || '' === trim( $term ) ) {
+			return new WP_Error( 'invalid_term', 'Invalid term.' );
+		}
+		if ( in_array( $term, $GLOBALS['B5_TAG_NAMES'], true ) ) {
+			return new WP_Error( 'term_exists', 'Term already exists.' );
+		}
+		$next = empty( $GLOBALS['B5_TAG_NAMES'] ) ? 90 : ( max( array_keys( $GLOBALS['B5_TAG_NAMES'] ) ) + 1 );
+		$GLOBALS['B5_TAG_NAMES'][ $next ] = $term;
+		return array( 'term_id' => $next, 'term_taxonomy_id' => $next );
+	}
+}
+if ( ! function_exists( 'wp_set_post_tags' ) ) {
+	function wp_set_post_tags( int $post_id, array $tags = array(), bool $append = false ) {
+		if ( ! empty( $GLOBALS['B5_POSTS_FAIL_TAGS'] ) ) {
+			return false;
+		}
+		$ids = array();
+		foreach ( $tags as $tag ) {
+			if ( is_numeric( $tag ) ) {
+				$ids[] = (int) $tag;
+			} else {
+				$tid = array_search( (string) $tag, $GLOBALS['B5_TAG_NAMES'], true );
+				if ( false !== $tid ) {
+					$ids[] = (int) $tid;
+				}
+			}
+		}
+		$GLOBALS['B5_POST_TAGS'][ $post_id ] = array_values( array_unique( $ids ) );
+		return $GLOBALS['B5_POST_TAGS'][ $post_id ];
+	}
+}
+if ( ! function_exists( 'wp_get_post_tags' ) ) {
+	function wp_get_post_tags( int $post_id, array $args = array() ) {
+		$ids = $GLOBALS['B5_POST_TAGS'][ $post_id ] ?? array();
+		if ( isset( $args['fields'] ) && 'ids' === $args['fields'] ) {
+			return $ids;
+		}
+		$out = array();
+		foreach ( $ids as $tid ) {
+			$term           = new stdClass();
+			$term->term_id  = (int) $tid;
+			$term->name     = $GLOBALS['B5_TAG_NAMES'][ $tid ] ?? ( 'tag-' . $tid );
+			$term->taxonomy = 'post_tag';
+			$out[]          = $term;
+		}
+		return $out;
 	}
 }
 if ( ! function_exists( 'get_post_meta' ) ) {
@@ -1404,6 +1475,27 @@ function b5_mode_posts( string $project ): void {
 		'create success → {post_id,edit_url} with the draft authored by the current user, sanitized title, categories applied',
 		'got ' . json_encode( $r ) );
 
+	// v1.1.5 item 16 (S-10): the single tags[] key in the create path.
+	b5_begin_case( array( 'title' => 'x', 'tags' => 'nope' ), 3, true, array( 'edit_posts' => true ) );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	b5_check( 'P-C400TG1', b5_exit_is( $r, 400, false ) && 'Invalid tags.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'create with a non-array tags field → 400 Invalid tags.', 'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'title' => 'x', 'tags' => array( 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p' ) ), 3, true, array( 'edit_posts' => true ) );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	b5_check( 'P-C400TG2', b5_exit_is( $r, 400, false ) && 'Too many tags — up to 15 tags per article.' === ( b5_exit_data( $r )['message'] ?? '' ),
+		'S-10: sixteen tags on the create path → an explicit 400 with the cap message (never a silent drop)', 'got ' . json_encode( $r ) );
+
+	b5_begin_case( array( 'title' => 'x', 'tags' => array( 'legal', 'courts' ) ), 3, true, array( 'edit_posts' => true ) );
+	$GLOBALS['B5_TAG_NAMES'] = array( 90 => 'legal' );
+	$GLOBALS['B5_TERMS']['post_tag'] = array( 90 );
+	$r = b5_call_ajax( 'wp_ajax_hossam_create_article' );
+	$data = b5_exit_data( $r );
+	$new_id = (int) ( $data['post_id'] ?? 0 );
+	b5_check( 'P-COKTG', b5_exit_is( $r, 200, true ) && $new_id >= 1 && array( 90, 91 ) === ( $GLOBALS['B5_POST_TAGS'][ $new_id ] ?? array() ),
+		'create carries the tags[] key through the existing endpoint — the existing name resolves (90) and the free name inserts (91) beside the categories contract',
+		'got ' . json_encode( $r ) . ' tags=' . json_encode( $GLOBALS['B5_POST_TAGS'][ $new_id ] ?? null ) );
+
 	// update_article.
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New' ) );
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
@@ -1430,6 +1522,26 @@ function b5_mode_posts( string $project ): void {
 	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
 	b5_check( 'P-UOK', b5_exit_is( $r, 200, true ) && 'New' === $updated->post_title,
 		'update success path applies the sanitized title via the real adapter', 'got ' . json_encode( $r ) );
+
+	// v1.1.5 item 16: the single tags[] key in the update path — the replace
+	// write and the explicit empty set.
+	b5_begin_case( array( 'post_id' => '6', 'tags' => array( 'legal' ) ), 3, true, array( 'edit_post_6' => true ) );
+	b5_post( 6, 'post', 'publish', 3, 'Old' );
+	$GLOBALS['B5_TAG_NAMES'] = array( 90 => 'legal' );
+	$GLOBALS['B5_TERMS']['post_tag'] = array( 90 );
+	$GLOBALS['B5_POST_TAGS'][6] = array( 90, 91 );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	b5_check( 'P-UOKTG', b5_exit_is( $r, 200, true ) && array( 90 ) === ( $GLOBALS['B5_POST_TAGS'][6] ?? array() ),
+		'update carries the tags[] key through the existing endpoint — the set replaces (the removed chip leaves the stored set)',
+		'got ' . json_encode( $r ) . ' tags=' . json_encode( $GLOBALS['B5_POST_TAGS'][6] ?? null ) );
+
+	b5_begin_case( array( 'post_id' => '6', 'tags' => array( '' ) ), 3, true, array( 'edit_post_6' => true ) );
+	b5_post( 6, 'post', 'publish', 3, 'Old' );
+	$GLOBALS['B5_POST_TAGS'][6] = array( 90 );
+	$r = b5_call_ajax( 'wp_ajax_hossam_update_article' );
+	b5_check( 'P-UOKTG2', b5_exit_is( $r, 200, true ) && array() === ( $GLOBALS['B5_POST_TAGS'][6] ?? array() ),
+		'the explicit empty-set marker clears all tags on the update path (the emptied chip rack is a real save, never the keep-contract)',
+		'got ' . json_encode( $r ) . ' tags=' . json_encode( $GLOBALS['B5_POST_TAGS'][6] ?? null ) );
 
 	b5_begin_case( array( 'post_id' => '6', 'title' => 'New' ), 3, true, array( 'edit_post_6' => true ) );
 	$stale = b5_post( 6, 'post', 'publish', 3, 'Old' );

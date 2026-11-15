@@ -331,11 +331,14 @@ const scoreEl = makeNode('span');
 scoreEl.textContent = '—';
 meterSb.__elements['hossam-edit-seo-score'] = scoreEl;
 const formStub = {
+  // v1.1.5 item 21-3 renewal (value update, not strictness): the SEO group
+  // is the non-form container with the distinguished internal names — the
+  // wire keys the probe asserts below stay byte-identical.
   querySelector(sel) {
-    if (sel === '[name="post_id"]') { return { value: '9' }; }
-    if (sel === '[name="title"]') { return { value: 'SEO Title' }; }
-    if (sel === '[name="focus_keyword"]') { return { value: 'kw' }; }
-    if (sel === '[name="description"]') { return { value: 'desc' }; }
+    if (sel === '[name="seo_post_id"]') { return { value: '9' }; }
+    if (sel === '[name="seo_title"]') { return { value: 'SEO Title' }; }
+    if (sel === '[name="seo_focus_keyword"]') { return { value: 'kw' }; }
+    if (sel === '[name="seo_description"]') { return { value: 'desc' }; }
     return null;
   },
   querySelectorAll() { return []; },
