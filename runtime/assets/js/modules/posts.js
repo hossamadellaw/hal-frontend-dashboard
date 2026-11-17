@@ -762,6 +762,16 @@ function hossamRichWp(){
   }catch(e){}
   return null;
 }
+/* [v1.1.7 item 1] Pure seed helper: an empty parsed state on an empty
+   field yields exactly one empty paragraph; any parsed state on non-empty
+   content passes through untouched; a missing factory degrades to today's
+   behavior (zero blocks — never throws). */
+function hossamRichSeedBlocks(parsed, html, createBlock){
+  var blocks=(parsed&&parsed.length)?parsed:[];
+  if(blocks.length||String(html==null?'':html).trim()!=='') return blocks;
+  var nb=(typeof createBlock==='function')?createBlock('core/paragraph',{}):null;
+  return nb?[nb]:[];
+}
 /* [B9-09] v1.1 A6/D6: the probe signal = an actually visible frame with ready
    content — the mere presence of an iframe element is not enough (the v4 gate
    requires visibility + content). An unavailable/incomplete document = not
@@ -912,6 +922,10 @@ function hossamRichInitEditor(containerId){
     var initialBlocks=[];
     var parseFailed=false;
     try{initialBlocks=blocksPkg.parse(initialHtml)||[];}catch(parseErr){parseFailed=true;}
+    /* [v1.1.7 item 1] seed one empty paragraph on an empty field — the hidden
+       appender (item 20 styles) leaves no clickable path to the first block,
+       so a zero-block mount is a dead canvas; the seed restores click-and-type. */
+    initialBlocks=hossamRichSeedBlocks(initialBlocks, initialHtml, blocksPkg.createBlock);
     if(parseFailed||((!initialBlocks||!initialBlocks.length)&&String(initialHtml).trim()!=='')){
       failFallback(parseFailed?'parse-error':'parse-empty');
       return false;
@@ -1021,6 +1035,24 @@ function hossamRichInitEditor(containerId){
         if(rec){ rec.api={keep:keep,reparse:function(){ try{ var ta=docRef.getElementById(rec.textareaId); var parsed=blocksPkg.parse(ta?(ta.value||''):'')||[]; keep(parsed); return parsed; }catch(e){ return null; } }}; }
       function handleChange(next){keep(next);}
       function handleInput(next){keep(next);}
+      /* [v1.1.7 item 1-b] reseed-on-empty: zero live blocks = the dead canvas
+         (the appender is hidden) — one empty paragraph is re-mounted in
+         place. The ref latch fires once per zero-state and re-arms when the
+         count returns above zero, so a later delete-all reseeds by design.
+         Component-scoped: it ends with the component — no wp.data
+         subscription is left behind, and the Discard/reparse path ([] on an
+         empty field) reseeds through the same effect. */
+      var reseedEffect=el.useEffect, reseedRef=el.useRef;
+      var reseedLatch=reseedRef(false);
+      reseedEffect(function(){
+        try{
+          if(blocks&&blocks.length){ reseedLatch.current=false; return; }
+          if(reseedLatch.current) return;
+          reseedLatch.current=true;
+          var nb=blocksPkg.createBlock?blocksPkg.createBlock('core/paragraph',{}):null;
+          if(nb) keep([nb]);
+        }catch(e){}
+      },[blocks]);
       function insertImage(img){
         try{
           var nb=blocksPkg.createBlock?blocksPkg.createBlock('core/image',{id:img.id,url:img.url,caption:img.caption||''}):null;

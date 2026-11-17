@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.6
+Stable tag: 1.1.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.6.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.7.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,13 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.7 =
+* Writing is fixed: an empty article now opens with a ready-to-type paragraph, so clicking into the content area and typing works again on every device - the hidden starter that a previous cleanup had removed is no longer the only way to begin.
+* Clearing all content and typing again works too: an emptied canvas remounts a fresh paragraph in place instead of going dead.
+* The full editor toolbar is inventoried and its behavior is measured against real typed text, with fixes routed through the official editor channels.
+* A new acceptance rule: editor surfaces are only reported as working after real typed interaction is verified end to end (typed, saved, and read back from the saved article).
+* Version identity 1.1.7 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 15.
 
 = 1.1.6 =
 * The editor toolbar drawer now slides fully into view on phones: the open rule carries the panel scope in both text directions, so formatting tools stay reachable on small screens while the backdrop, focus, and Escape behavior are unchanged.

@@ -222,7 +222,9 @@ function makeSandbox(opts) {
       return { type, props: Object.assign({}, props || {}), children: Array.prototype.slice.call(arguments, 2) };
     },
     createPortal(node, target) { return { __portal: true, node, target }; },
-    useState(initial) { return [initial, function noop() {}]; },
+    useState(initial) { const cell = { v: initial }; return [cell.v, function set(next) { cell.v = next; }]; },
+    useEffect(fn) { try { const cleanup = fn(); return typeof cleanup === 'function' ? cleanup : undefined; } catch (e) { return undefined; } },
+    useRef(initial) { return { current: initial }; },
     createRoot(host) {
       counts.createRoot += 1;
       if (opts.createRootThrows) throw new Error('createRoot-failed');
@@ -257,7 +259,7 @@ function makeSandbox(opts) {
     blocks: {
       parse,
       serialize,
-      createBlock() { return { name: 'core/image', attributes: {} }; },
+      createBlock(name) { return { name: name || 'core/image', attributes: {} }; },
       registerCoreBlocks: register,
     },
     blockEditor: {
@@ -946,6 +948,53 @@ testO6();
 testO7();
 testO8();
 testI20();
+
+/* v1.1.7 item 1 — the pure seed helper + the seeded mount on an empty field
+   (the hidden appender left no clickable path to the first block). */
+function testSeed() {
+  const sb = makeSandbox();
+  loadPosts(sb);
+  const createBlock = (name) => ({ name: name || 'core/image', attributes: {} });
+  const seeded = sb.hossamRichSeedBlocks([], '', createBlock);
+  check('B9R-SEED-pure-empty',
+    Array.isArray(seeded) && seeded.length === 1 && seeded[0].name === 'core/paragraph',
+    'an empty parsed state on an empty field seeds exactly one empty paragraph',
+    `got: ${JSON.stringify(seeded)}`);
+  const parsed = [{ name: 'core/paragraph', attributes: { content: 'x' } }];
+  const passed = sb.hossamRichSeedBlocks(parsed, 'x', createBlock);
+  check('B9R-SEED-pure-content',
+    passed === parsed && passed.length === 1,
+    'parsed content passes through untouched (same reference)',
+    'parsed content was replaced');
+  const noFactory = sb.hossamRichSeedBlocks([], '', undefined);
+  check('B9R-SEED-pure-no-factory',
+    Array.isArray(noFactory) && noFactory.length === 0,
+    'a missing factory degrades to zero blocks without throwing',
+    `got: ${JSON.stringify(noFactory)}`);
+  const sb2 = makeSandbox();
+  const { id } = registerPanel(sb2, 'new');
+  loadPosts(sb2);
+  const ok = initEditor(sb2, id);
+  const mounting = stateOf(sb2, id);
+  check('B9R-SEED-mount-empty-field',
+    ok === true && mounting && Array.isArray(mounting.blocks) && mounting.blocks.length === 1
+      && mounting.blocks[0].name === 'core/paragraph',
+    'an empty field mounts exactly one seeded paragraph (the canvas is writable from the first click)',
+    `mounting blocks: ${JSON.stringify((mounting.blocks || []).map((b) => b.name))}`);
+  const sb3 = makeSandbox();
+  const r3 = registerPanel(sb3, 'edit');
+  r3.panel.textarea.value = '<!-- wp:paragraph --><p>real content</p><!-- /wp:paragraph -->';
+  loadPosts(sb3);
+  initEditor(sb3, 'hossam-rich-editor-edit');
+  const m3 = stateOf(sb3, 'hossam-rich-editor-edit');
+  check('B9R-SEED-content-passthrough',
+    m3 && Array.isArray(m3.blocks) && m3.blocks.length === 1 && m3.blocks[0].name === 'core/paragraph'
+      && m3.blocks[0].attributes && m3.blocks[0].attributes.content === '<!-- wp:paragraph --><p>real content</p><!-- /wp:paragraph -->',
+    'a field with content parses normally (the seed does not touch parsed blocks)',
+    `got: ${JSON.stringify((m3.blocks || []).map((b) => ({ n: b.name, a: b.attributes && String(b.attributes.content || '').slice(0, 30) })))}`);
+}
+
+testSeed();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
