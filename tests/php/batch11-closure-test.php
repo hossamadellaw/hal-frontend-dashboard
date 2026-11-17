@@ -357,6 +357,92 @@ b11c_check(
     'foreign package enforced'
 );
 
+/* ════════════════ AUTO: CR-3 (v1.1.6) the wp-config circuit breaker ════════════════ */
+/* Subprocess rows (constants cannot be undefined in this process) — the same
+   skeleton as B11C-AUTO-CARRIER-ONLY above, with the breaker constant defined
+   before the bridge loads. Absent/falsey constant = fail-open (unchanged
+   behavior, covered by every pre-existing row here); truthy constant = the
+   offer is never forced to true; a foreign basename never reaches the
+   breaker at all (the gate returns first). The child is launched through
+   proc_open with an argument LIST (no shell string is ever built). */
+
+$b11c_run_case = static function ( string $case_file ): int {
+    $descriptors = array(
+        1 => array( 'pipe', 'w' ),
+        2 => array( 'pipe', 'w' ),
+    );
+    $proc = proc_open( array( 'php', $case_file ), $descriptors, $pipes );
+    if ( ! is_resource( $proc ) ) {
+        return 125;
+    }
+    stream_get_contents( $pipes[1] );
+    stream_get_contents( $pipes[2] );
+    fclose( $pipes[1] );
+    fclose( $pipes[2] );
+    return proc_close( $proc );
+};
+
+$b14_breaker_on = $WS . '/breaker-on-case.php';
+file_put_contents(
+    $b14_breaker_on,
+    "<?php\nerror_reporting(0);\ndefine('ABSPATH', " . var_export(ABSPATH, true) . ");\n"
+    . "function wp_parse_url(string \$url, int \$c = -1) { return parse_url(\$url, \$c); }\n"
+    . "define('HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0');\n"
+    . "define('HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE', true);\n"
+    . "require " . var_export($PROJECT . '/includes/class-update-bridge.php', true) . ";\n"
+    . '$offer = ' . var_export($offer, true) . ";\n"
+    . "\$r = HAL_Frontend_Dashboard_Update_Bridge::filter_auto_update(false, \$offer);\n"
+    . "exit((\$r !== true && false === \$r) ? 0 : 1);\n"
+);
+$breaker_on_code = $b11c_run_case( $b14_breaker_on );
+b11c_check(
+    'B11C-AUTO-BREAKER-ON',
+    0 === $breaker_on_code,
+    'truthy breaker constant: a valid higher offer is never forced to true (passes through)',
+    'subprocess exit: ' . $breaker_on_code
+);
+
+$b14_breaker_false = $WS . '/breaker-false-case.php';
+file_put_contents(
+    $b14_breaker_false,
+    "<?php\nerror_reporting(0);\ndefine('ABSPATH', " . var_export(ABSPATH, true) . ");\n"
+    . "function wp_parse_url(string \$url, int \$c = -1) { return parse_url(\$url, \$c); }\n"
+    . "define('HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0');\n"
+    . "define('HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE', false);\n"
+    . "require " . var_export($PROJECT . '/includes/class-update-bridge.php', true) . ";\n"
+    . '$offer = ' . var_export($offer, true) . ";\n"
+    . "exit(true === HAL_Frontend_Dashboard_Update_Bridge::filter_auto_update(false, \$offer) ? 0 : 1);\n"
+);
+$breaker_false_code = $b11c_run_case( $b14_breaker_false );
+b11c_check(
+    'B11C-AUTO-BREAKER-EXPLICIT-FALSE',
+    0 === $breaker_false_code,
+    'explicit false breaker constant = fail-open, identical to the absent constant (offer enforced)',
+    'subprocess exit: ' . $breaker_false_code
+);
+
+$b14_breaker_foreign = $WS . '/breaker-foreign-case.php';
+$foreign_offer = $offer;
+$foreign_offer['plugin'] = 'some-other-plugin/other.php';
+$foreign_offer['slug'] = 'some-other-plugin';
+file_put_contents(
+    $b14_breaker_foreign,
+    "<?php\nerror_reporting(0);\ndefine('ABSPATH', " . var_export(ABSPATH, true) . ");\n"
+    . "function wp_parse_url(string \$url, int \$c = -1) { return parse_url(\$url, \$c); }\n"
+    . "define('HAL_FRONTEND_DASHBOARD_VERSION', '1.0.0');\n"
+    . "define('HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE', true);\n"
+    . "require " . var_export($PROJECT . '/includes/class-update-bridge.php', true) . ";\n"
+    . '$offer = ' . var_export($foreign_offer, true) . ";\n"
+    . "exit(false === HAL_Frontend_Dashboard_Update_Bridge::filter_auto_update(false, \$offer) ? 0 : 1);\n"
+);
+$breaker_foreign_code = $b11c_run_case( $b14_breaker_foreign );
+b11c_check(
+    'B11C-AUTO-BREAKER-FOREIGN',
+    0 === $breaker_foreign_code,
+    'truthy breaker constant: a foreign-basename offer returns the passed value untouched (zero cross-plugin effect)',
+    'subprocess exit: ' . $breaker_foreign_code
+);
+
 /* ════════════════ CHAIN: connected update via the real import path ════════════════ */
 
 if (!defined('WP_PLUGIN_DIR')) { define('WP_PLUGIN_DIR', $WS . '/wp-plugins'); }

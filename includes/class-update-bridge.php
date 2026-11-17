@@ -182,12 +182,24 @@ if ( ! class_exists( 'HAL_Frontend_Dashboard_Update_Bridge', false ) ) {
 	 * package. Everything else (including ambiguity) passes $update
 	 * through untouched.
 	 *
+	 * CR-3 (v1.1.6): a truthy HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE
+	 * wp-config constant (checked right after the basename gate) passes
+	 * $update through instead of forcing true — fail-open when the constant
+	 * is absent or falsey, and manual updates are unaffected either way.
+	 *
 	 * @param mixed $update
 	 * @param mixed $item
 	 * @return mixed
 	 */
 	public static function filter_auto_update( $update, $item ) {
 		if ( self::PLUGIN_BASENAME !== self::item_field( $item, 'plugin' ) ) {
+			return $update;
+		}
+		// CR-3 (v1.1.6): the wp-config circuit breaker. Truthy constant means
+		// the auto-update offer for THIS plugin is never forced to true —
+		// $update passes through and WordPress's own default (no auto-update)
+		// applies. Absent or falsey constant = unchanged behavior.
+		if ( defined( 'HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE' ) && (bool) constant( 'HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE' ) ) {
 			return $update;
 		}
 		$slug = self::item_field( $item, 'slug' );
