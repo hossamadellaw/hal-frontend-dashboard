@@ -95,10 +95,10 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The editor toolbar drawer now slides fully into view on phones: the open rule carries the panel scope in both text directions, so formatting tools stay reachable on small screens while the backdrop, focus, and Escape behavior are unchanged.'
-'* A wp-config circuit breaker is available: defining HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE as true stops automatic updates of this plugin only (manual updates are unaffected), while leaving the constant out keeps the current behavior.'
-'* The release sequence gate now requires each release to be exactly the latest published sequence plus one, with clearer block and success messages.'
-'* CI runs a weekly scheduled dependency review that compares the locked plugin-update-checker version against the upstream latest release and fails loudly when an update is available or the upstream cannot be reached.'
+'* Writing is fixed: an empty article now opens with a ready-to-type paragraph, so clicking into the content area and typing works again on every device - the hidden starter that a previous cleanup had removed is no longer the only way to begin.'
+'* Clearing all content and typing again works too: an emptied canvas remounts a fresh paragraph in place instead of going dead.'
+'* The full editor toolbar is inventoried and its behavior is measured against real typed text, with fixes routed through the official editor channels.'
+'* A new acceptance rule: editor surfaces are only reported as working after real typed interaction is verified end to end (typed, saved, and read back from the saved article).'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
