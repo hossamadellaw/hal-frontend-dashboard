@@ -1528,6 +1528,64 @@ if ('' !== $gate_program) {
     );
 }
 
+/* ════════════════ SEQ-GATE: CR-4 (v1.1.6) the published+1 strictness ════════════════ */
+/* The sequence gate's php -r expression is extracted from the ACTUAL
+   release.yml source ($workflow above, CRLF-normalized, anchored on the
+   SEQ_OK line that reads release_sequence) and executed against a manifest
+   with published=8 across the five-case matrix: 9 → yes, 10/8/7/0 → no.
+   The child is launched through proc_open with an argument LIST and an
+   explicit SEQ environment entry (no shell string is ever built). */
+
+$seq_expr = '';
+foreach (explode("\n", $workflow) as $seq_gate_line) {
+    if (false === strpos($seq_gate_line, 'SEQ_OK=') || false === strpos($seq_gate_line, 'release_sequence')) { continue; }
+    if (1 === preg_match("/php -r '([^']+)'/", $seq_gate_line, $seq_mm)) { $seq_expr = $seq_mm[1]; break; }
+}
+b11c_check(
+    'B11C-SEQ-GATE-EXTRACT',
+    '' !== $seq_expr && false !== strpos($seq_expr, 'release_sequence') && false !== strpos($seq_expr, '=== $old + 1'),
+    'the sequence gate expression extracts from the workflow source and carries the published+1 strict equality',
+    'extracted: ' . ('' === $seq_expr ? 'nothing' : 'an expression without the strict equality')
+);
+$seq_gate_run = static function ( string $expr, string $seq ) use ( $WS ): string {
+    $seq_wd = $WS . '/seq-gate-run';
+    b11c_rmdir($seq_wd);
+    @mkdir($seq_wd, 0777, true);
+    $manifest_path = $seq_wd . '/runtime-manifest.json';
+    file_put_contents($manifest_path, '{"release_sequence": 8}');
+    $env = getenv();
+    $env['SEQ'] = $seq;
+    $descriptors = array(
+        1 => array( 'pipe', 'w' ),
+        2 => array( 'pipe', 'w' ),
+    );
+    $proc = proc_open( array( 'php', '-r', $expr, $manifest_path ), $descriptors, $pipes, null, $env );
+    if ( ! is_resource( $proc ) ) { return 'spawn-failed'; }
+    $out = stream_get_contents( $pipes[1] );
+    stream_get_contents( $pipes[2] );
+    fclose( $pipes[1] );
+    fclose( $pipes[2] );
+    proc_close( $proc );
+    return trim( (string) $out );
+};
+$seq_matrix = array(
+    'B11C-SEQ-GATE-NEXT'  => array( '9', 'yes' ),
+    'B11C-SEQ-GATE-SKIP'  => array( '10', 'no' ),
+    'B11C-SEQ-GATE-EQUAL' => array( '8', 'no' ),
+    'B11C-SEQ-GATE-BELOW' => array( '7', 'no' ),
+    'B11C-SEQ-GATE-INVALID' => array( '0', 'no' ),
+);
+foreach ($seq_matrix as $seq_row_id => $seq_case) {
+    [$seq_in, $seq_want] = $seq_case;
+    $seq_got = ('' !== $seq_expr) ? $seq_gate_run($seq_expr, $seq_in) : 'not-run';
+    b11c_check(
+        $seq_row_id,
+        $seq_want === $seq_got,
+        "published=8 + SEQ={$seq_in} → {$seq_want} (the published+1 matrix)",
+        "got: {$seq_got}"
+    );
+}
+
 /* ════════════════ PUC-UPDATE: no-asset → no update (item 7) ════════════════ */
 
 $bridge_source = (string) file_get_contents($PROJECT . '/includes/class-update-bridge.php');
