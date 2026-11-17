@@ -95,12 +95,10 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The editor cards follow the owner-ordered layout (Metadata, Tags, Translations Hub, SEO & SERP, AI Assistant, Publishing) and every card is live: Metadata carries the featured image and category, Tags suggests site tags from the same category under a hard 15-tag limit, Translations exposes its action buttons, the SEO counters update while writing, and the AI card icon is a real button.'
-'* The article excerpt sits directly under the title in both the write and edit editors, and the title carries the plugin styling in both contexts.'
-'* All add-block controls inside the writing canvas are hidden through the official editor styles channel, so the toolbar button remains the only add path and the writing body stays clean.'
-'* The edit editor now mounts the same six-card side column, unified heads, and bottom action bar as the write editor, and the articles table shows the author name and site link beside the admin actions.'
-'* Opening More inside the phone drawer keeps the backdrop, focus, and Escape behavior in sync with the drawer state.'
-'* AI generation is repaired end to end: the pinned model moves to gemini-3.6-flash verified against the live provider list, the provider-live probe now checks that the pinned model is still offered, and a stale configured model fails loudly instead of silently.'
+'* The editor toolbar drawer now slides fully into view on phones: the open rule carries the panel scope in both text directions, so formatting tools stay reachable on small screens while the backdrop, focus, and Escape behavior are unchanged.'
+'* A wp-config circuit breaker is available: defining HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE as true stops automatic updates of this plugin only (manual updates are unaffected), while leaving the constant out keeps the current behavior.'
+'* The release sequence gate now requires each release to be exactly the latest published sequence plus one, with clearer block and success messages.'
+'* CI runs a weekly scheduled dependency review that compares the locked plugin-update-checker version against the upstream latest release and fails loudly when an update is available or the upstream cannot be reached.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"

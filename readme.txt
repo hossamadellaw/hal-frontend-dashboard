@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.5
+Stable tag: 1.1.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.5.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.6.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,13 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.6 =
+* The editor toolbar drawer now slides fully into view on phones: the open rule carries the panel scope in both text directions, so formatting tools stay reachable on small screens while the backdrop, focus, and Escape behavior are unchanged.
+* A wp-config circuit breaker is available: defining HAL_FRONTEND_DASHBOARD_DISABLE_AUTO_UPDATE as true stops automatic updates of this plugin only (manual updates are unaffected), while leaving the constant out keeps the current behavior.
+* The release sequence gate now requires each release to be exactly the latest published sequence plus one, with clearer block and success messages.
+* CI runs a weekly scheduled dependency review that compares the locked plugin-update-checker version against the upstream latest release and fails loudly when an update is available or the upstream cannot be reached.
+* Version identity 1.1.6 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 14.
 
 = 1.1.5 =
 * The editor cards follow the owner-ordered layout (Metadata, Tags, Translations Hub, SEO & SERP, AI Assistant, Publishing) and every card is live: Metadata carries the featured image and category, Tags suggests site tags from the same category under a hard 15-tag limit, Translations exposes its action buttons, the SEO counters update while writing, and the AI card icon is a real button.
