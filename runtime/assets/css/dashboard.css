@@ -1436,8 +1436,11 @@ dialog.hossam-oeb-dialog .hossam-oeb-gate-note{
   }
   [dir="rtl"] #panel-write .hossam-pro-toolbar-container,
   [dir="rtl"] #panel-edit-article .hossam-pro-toolbar-container { transform: translateX(110%); }
-  .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
-  [dir="rtl"] .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  /* [FX-1 v1.1.6] the drawer open rule is re-scoped with the panel IDs so it
+     outranks the ID-scoped off-canvas transform above (specificity 1,2,0 and
+     1,3,0 vs 1,1,0) — the open state machine in posts.js is unchanged. */
+  #panel-write .hossam-pro-toolbar-container.hossam-pt-more-open, #panel-edit-article .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
+  [dir="rtl"] #panel-write .hossam-pro-toolbar-container.hossam-pt-more-open, [dir="rtl"] #panel-edit-article .hossam-pro-toolbar-container.hossam-pt-more-open { transform: translateX(0); }
   /* v1.1.4 item 4: the drawer backdrop is a real clickable element (the pseudo
      element was not targetable) — clicking it closes the drawer and restores
      focus to the external trigger. */

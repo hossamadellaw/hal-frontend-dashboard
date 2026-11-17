@@ -108,7 +108,7 @@ jobs:
           echo "full_sha=$FULL_SHA" >> "$GITHUB_OUTPUT"
           echo "identity: version=$VERSION sha=$FULL_SHA"
 
-      - name: Gate 8.3 — release sequence above latest published
+      - name: Gate 8.3 — release sequence equals latest published + 1
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -139,13 +139,13 @@ jobs:
               echo "release:blocked:sequence_unverifiable (cannot fetch $LATEST manifest)" >&2
               exit 1
             fi
-            SEQ_OK="$(SEQ="$SEQ" php -r '$m = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); $old = (int) ($m["release_sequence"] ?? 0); $new = (int) getenv("SEQ"); echo ($old >= 1 && $new > $old) ? "yes" : "no";' "$SEQ_DIR/runtime-manifest.json")"
+            SEQ_OK="$(SEQ="$SEQ" php -r '$m = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); $old = (int) ($m["release_sequence"] ?? 0); $new = (int) getenv("SEQ"); echo ($old >= 1 && $new === $old + 1) ? "yes" : "no";' "$SEQ_DIR/runtime-manifest.json")"
             if [[ "$SEQ_OK" != "yes" ]]; then
-              echo "release:blocked:sequence_not_above_published ($SEQ <= published sequence)" >&2
+              echo "release:blocked:sequence_not_published_plus_one ($SEQ must equal published sequence + 1)" >&2
               exit 1
             fi
           fi
-          echo "sequence: $SEQ above latest release $LATEST"
+          echo "sequence: $SEQ = published $LATEST + 1"
 
       - name: Gate 8.3 — composer validate, locked install, audit, licenses
         shell: bash

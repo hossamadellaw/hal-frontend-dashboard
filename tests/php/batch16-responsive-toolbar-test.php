@@ -108,6 +108,18 @@ b16r_check(
 	'the open/backdrop rules are missing'
 );
 b16r_check(
+	'B16R-DRAWER-OPEN-SCOPE',
+	// [FX-1 v1.1.6] the open rule carries the panel IDs (LTR and RTL) so it
+	// outranks the ID-scoped off-canvas transform; the old text survives only
+	// as a literal suffix of the grouped selector, so the negative half is
+	// checked line-anchored (a bare strpos absence test would false-fail).
+	1 === preg_match_all( '/^[ \t]*#panel-write \\.hossam-pro-toolbar-container\\.hossam-pt-more-open, #panel-edit-article \\.hossam-pro-toolbar-container\\.hossam-pt-more-open \\{ transform: translateX\\(0\\); \\}$/m', (string) $w7_css )
+		&& 1 === preg_match_all( '/^[ \t]*\\[dir="rtl"\\] #panel-write \\.hossam-pro-toolbar-container\\.hossam-pt-more-open, \\[dir="rtl"\\] #panel-edit-article \\.hossam-pro-toolbar-container\\.hossam-pt-more-open \\{ transform: translateX\\(0\\); \\}$/m', (string) $w7_css )
+		&& 0 === preg_match_all( '/^[ \t]*\\.hossam-pro-toolbar-container\\.hossam-pt-more-open \{/m', (string) $w7_css ),
+	'the drawer open rule is scoped with #panel-write and #panel-edit-article in both directions so it outranks the off-canvas transform; no un-scoped open rule remains',
+	'the drawer open rule lost its panel-ID scope or an un-scoped open rule remains'
+);
+b16r_check(
 	'B16R-P3-bottom-bar',
 	false !== strpos( $w7_css, '.action-bottom-bar { display: none; }' )
 		&& false !== strpos( $w7_css, 'position: sticky; bottom: 0' )

@@ -12,6 +12,10 @@ name: Checks
 # fully-green run (36326433458) proved the suite on ubuntu-latest; the main
 # ruleset now binds the `Build and test` check. Manual dispatch retained
 # for evidence runs.
+# TRIGGER NOTE (2026-11-17, CR-5): a weekly schedule (Wednesdays 06:30 UTC)
+# runs the full Checks cycle on main, including the PUC upstream review step
+# below — a fail-closed review signal for the locked plugin-update-checker
+# version. push/PR behavior is unchanged.
 on:
   push:
     branches:
@@ -20,6 +24,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * 3'
 
 permissions: {}
 
@@ -111,6 +117,31 @@ jobs:
             echo "composer: " . count($names) . " locked packages covered by THIRD-PARTY-NOTICES.txt\n";
           '
           test ! -d vendor/yahnis-elsts/plugin-update-checker || echo 'puc locked copy present for runtime/vendor staging'
+
+      - name: PUC upstream review
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # CR-5 (v1.1.6): a fail-closed review signal for the locked PUC
+          # version — scheduled/dispatch runs only; push/PR runs skip this
+          # step entirely. No token, no secrets, read-only upstream query.
+          LOCKED="$(php -r '$lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR); foreach (array_merge($lock["packages"] ?? [], $lock["packages-dev"] ?? []) as $p) { if ("yahnis-elsts/plugin-update-checker" === $p["name"]) { echo ltrim((string) $p["version"], "v"); break; } }')"
+          UPSTREAM=""
+          for attempt in 1 2; do
+            UPSTREAM="$(curl -fsS --max-time 30 https://api.github.com/repos/YahnisElsts/plugin-update-checker/releases/latest | php -r '$m = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo ltrim((string) ($m["tag_name"] ?? ""), "v");' 2>/dev/null || true)"
+            if [ -n "$UPSTREAM" ]; then break; fi
+            sleep 5
+          done
+          if [ -z "$UPSTREAM" ]; then
+            echo "checks:puc:upstream_unreachable" >&2
+            exit 1
+          fi
+          if [ "$(printf '%s\n%s\n' "$LOCKED" "$UPSTREAM" | sort -V | tail -n 1)" != "$LOCKED" ]; then
+            echo "checks:puc:update_available (locked $LOCKED, upstream $UPSTREAM)" >&2
+            exit 1
+          fi
+          echo "checks:puc:up_to_date ($LOCKED)"
 
       - name: php -l and node --check
         shell: bash
