@@ -1054,6 +1054,9 @@ function hossamRichInitEditor(containerId){
        it), skip multi-clicks, skip drags (mousedown-to-click distance),
        apply the seven-rule exclusion chain, re-check the block count stamped
        at mousedown, detach on unmount, and only act on a ready record. */
+        /* [v1.1.12] the block types whose last text field can receive the caret
+       through selectBlock(-1) — structural, state-independent. */
+    var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details'];
     function HossamClickBridge(props){
       if(!wp0.data||typeof wp0.data.useRegistry!=='function') return null;
       var useRef=el.useRef, useEffect=el.useEffect;
@@ -1143,8 +1146,13 @@ function hossamRichInitEditor(containerId){
             var actions=registry.dispatch('core/block-editor');
             var lastNode=list[list.length-1];
             var lastId=lastNode.getAttribute('data-block');
+            /* [v1.1.12 hotfix — live-measured] the contenteditable attribute is
+               state-dependent (Gutenberg renders it only on the focused rich
+               text), so the probe must be structural: the block TYPE decides.
+               Types without a text field keep the append fallback. */
+            var lastType=lastNode.getAttribute('data-type')||'';
             if(y>=lastNode.getBoundingClientRect().bottom){
-              if(lastId&&lastNode.querySelector('[contenteditable="true"]')){
+              if(lastId&&HOSSAM_CLICK_TEXT_TYPES.indexOf(lastType)!==-1){
                 actions.selectBlock(lastId,-1);
                 return;
               }

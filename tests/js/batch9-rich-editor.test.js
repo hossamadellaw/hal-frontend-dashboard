@@ -1124,7 +1124,8 @@ function testClickRegions() {
     && bridgeChunk.indexOf('.getBoundingClientRect().bottom') !== -1
     && bridgeChunk.indexOf('actions.selectBlock(lastId,-1)') !== -1
     && bridgeChunk.indexOf('actions.selectBlock(firstId,0)') !== -1
-    && bridgeChunk.indexOf("lastNode.querySelector(") !== -1
+    && bridgeChunk.indexOf('HOSSAM_CLICK_TEXT_TYPES.indexOf(lastType)') !== -1
+    && source.indexOf("var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details']") !== -1
     && bridgeChunk.indexOf('actions.insertDefaultBlock({},undefined,idx)') !== -1;
   check('B9R-CLICK-REGIONS',
     regionsOk,
