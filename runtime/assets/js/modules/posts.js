@@ -1012,7 +1012,14 @@ function hossamRichInitEditor(containerId){
        inserter families are hidden inside the canvas so the writing body
        stays clean and the toolbar button remains the only add path (the
        pre-save serialize reads block state, never this DOM). */
-    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-default-block-appender,.block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}';
+    /* v1.1.8 item 1: the default appender leaves the hide list and is restyled
+       as an invisible full-height click layer (260px, transparent text,
+       cursor:text) — clicking anywhere in the blank canvas creates a paragraph
+       through Gutenberg's native insertDefaultBlock path. Nested block-list
+       appenders stay hidden, the UA paragraph margins on __content are zeroed
+       (the isolated iframe has no content.scss), and the appender's internal
+       quick-inserter "+" is hidden (item 20 stays chrome-free). */
+    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}.block-list-appender{display:block!important;margin:0;padding:0;}.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}.block-editor-default-block-appender .block-editor-inserter{display:none!important;}';
     function HossamRichApp(){
       var useState=el.useState;
       var state=useState(initialBlocks);

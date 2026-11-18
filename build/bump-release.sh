@@ -95,10 +95,9 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* Writing is fixed: an empty article now opens with a ready-to-type paragraph, so clicking into the content area and typing works again on every device - the hidden starter that a previous cleanup had removed is no longer the only way to begin.'
-'* Clearing all content and typing again works too: an emptied canvas remounts a fresh paragraph in place instead of going dead.'
-'* The full editor toolbar is inventoried and its behavior is measured against real typed text, with fixes routed through the official editor channels.'
-'* A new acceptance rule: editor surfaces are only reported as working after real typed interaction is verified end to end (typed, saved, and read back from the saved article).'
+'* Clicking anywhere in the content area now writes: the invisible starter area below the text is a full-height click zone routed through the editor native insert path, so typing works from the first click on every device - not only at the top line.'
+'* On phones and tablets the whole content area is clickable again instead of only a thin first line.'
+'* The cleanup stays clean: no starter prompt, no icon, no visual chrome - the click zone is fully transparent, and nested in-canvas starters remain hidden.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
