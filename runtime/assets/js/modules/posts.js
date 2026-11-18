@@ -1732,7 +1732,7 @@ function hossamToolbarRichEdit(containerId,fn){
     var value=wp0.richText.create({html:htmlIn});
     var out=fn(wp0.richText,value,start,end);
     if(out===null||out===undefined) return false;
-    reg.dispatch('core/block-editor').updateBlockAttributes(cid,{content:wp0.richText.toString(out)});
+    reg.dispatch('core/block-editor').updateBlockAttributes(cid,{content:wp0.richText.toHTMLString({value:out})});
     try{ reg.dispatch('core/block-editor').selectionChange(cid,'content',start,end); }catch(e1){}
     return true;
   }catch(e){ return false; }

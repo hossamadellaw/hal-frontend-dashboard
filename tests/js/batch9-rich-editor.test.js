@@ -1162,7 +1162,7 @@ testToolbarUnified();
 function testWave2Channel() {
   const richEditOk = source.indexOf('function hossamToolbarRichEdit(') !== -1
     && source.indexOf('wp0.richText.create({html:htmlIn})') !== -1
-    && source.indexOf('updateBlockAttributes(cid,{content:wp0.richText.toString(out)})') !== -1
+    && source.indexOf('updateBlockAttributes(cid,{content:wp0.richText.toHTMLString({value:out})})') !== -1
     && source.indexOf(".selectionChange(cid,'content',start,end)") !== -1
     && source.indexOf('toHTMLString') !== -1;
   const formatsOk = source.indexOf("hossamToolbarApplyFormat(containerId,'core/strikethrough')") !== -1
