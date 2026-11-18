@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.10
+Stable tag: 1.1.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.10.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.11.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,14 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.11 =
+* Clicking in the empty area of the content now places the caret at the end of what is written, so writing always continues from where the content ends instead of dropping a floating paragraph in the middle; a cleared article still starts from the top.
+* The editor body is now writing-only: the floating editor toolbars that used to appear over the text are gone, and the single fixed toolbar above the content is the only one.
+* The previously unresponsive formatting tools now work through the editor official channels: strikethrough, subscript, superscript, clear formatting, highlight, text color, change case, and left/center/right alignment.
+* Headings and the legal quote now produce real editor heading and quote blocks.
+* Writing direction follows the site language switcher: the Arabic dashboard writes right-to-left and the English dashboard left-to-right.
+* Version identity 1.1.11 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 19.
 
 = 1.1.10 =
 * Clicking in the empty area below the content now reliably starts a new paragraph: the click-surface check covers the whole editor frame, so the first click lands exactly where the writer points - on desktop, phone, and tablet.

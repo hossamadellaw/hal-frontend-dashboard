@@ -95,7 +95,11 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* Clicking in the empty area below the content now reliably starts a new paragraph: the click-surface check covers the whole editor frame, so the first click lands exactly where the writer points - on desktop, phone, and tablet.'
+'* Clicking in the empty area of the content now places the caret at the end of what is written, so writing always continues from where the content ends instead of dropping a floating paragraph in the middle; a cleared article still starts from the top.'
+'* The editor body is now writing-only: the floating editor toolbars that used to appear over the text are gone, and the single fixed toolbar above the content is the only one.'
+'* The previously unresponsive formatting tools now work through the editor official channels: strikethrough, subscript, superscript, clear formatting, highlight, text color, change case, and left/center/right alignment.'
+'* Headings and the legal quote now produce real editor heading and quote blocks.'
+'* Writing direction follows the site language switcher: the Arabic dashboard writes right-to-left and the English dashboard left-to-right.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
