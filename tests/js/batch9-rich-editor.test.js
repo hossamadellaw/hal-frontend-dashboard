@@ -922,16 +922,27 @@ testB5();
 testB6();
 testB7();
 function testI20(){
-  /* v1.1.5 item 20: the contentCss channel carries the four in-canvas
-     add-UI hide families (the official BlockCanvas styles route only) and
-     the parent stylesheet does not pretend to cross the iframe boundary. */
-  var families=['.block-editor-default-block-appender','.block-list-appender','.block-editor-block-list__empty-block-inserter','.block-editor-block-list__insertion-point'];
+  /* v1.1.5 item 20 + v1.1.8 item 1: the contentCss channel keeps the canvas
+     chrome-free — the three add-UI families stay display:none (the nested
+     block-list-appender scoped to inside-blocks), the DEFAULT appender leaves
+     the hide list and is restyled as an invisible full-height click layer
+     (260px, transparent text, cursor:text) so clicking anywhere in the blank
+     canvas writes through Gutenberg's native insertDefaultBlock path, and the
+     appender's internal quick-inserter "+" stays hidden. The parent
+     stylesheet does not pretend to cross the iframe boundary. */
+  var hiddenFamilies=['.block-list-appender','.block-editor-block-list__empty-block-inserter','.block-editor-block-list__insertion-point'];
   var cssStart=source.indexOf('var contentCss=');
-  var cssChunk=cssStart===-1?'':source.slice(cssStart, cssStart+900);
-  var allIn=families.every(function(f){ return cssChunk.indexOf(f)!==-1 && cssChunk.indexOf('display:none')!==-1; });
-  check('I20-CSS-FAMILIES', allIn, 'contentCss hides the four in-canvas add-UI families (item 20 — the canvas stays clean, the toolbar button is the only add path)', 'contentCss families missing');
+  var cssChunk=cssStart===-1?'':source.slice(cssStart, cssStart+1200);
+  var hiddenScoped=cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}')!==-1;
+  var appenderLayer=cssChunk.indexOf('.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}')!==-1
+    && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}')!==-1
+    && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-inserter{display:none!important;}')!==-1;
+  var appenderNotHidden=cssChunk.indexOf('.block-editor-default-block-appender,')===-1 && cssChunk.indexOf('.block-editor-default-block-appender{display:none')===-1;
+  check('I20-CSS-FAMILIES', hiddenScoped && appenderLayer && appenderNotHidden,
+    'contentCss keeps the nested/empty-block/insertion-point families hidden and restyles the default appender as the invisible click layer (v1.1.8 — click anywhere writes)',
+    'the hide families or the appender click-layer rules are wrong');
   var css = require('node:fs').readFileSync(path.join(projectRoot,'runtime','assets','css','dashboard.css'),'utf8');
-  var parentCrosses = families.some(function(f){ return css.indexOf(f)!==-1; });
+  var parentCrosses = hiddenFamilies.concat(['.block-editor-default-block-appender']).some(function(f){ return css.indexOf(f)!==-1; });
   check('I20-CHANNEL-DISCIPLINE', !parentCrosses, 'the in-canvas hide families live only in the official styles channel, never in the parent stylesheet', 'families found in parent css');
 }
 
@@ -995,6 +1006,27 @@ function testSeed() {
 }
 
 testSeed();
+
+/* v1.1.8 item 1 — the default appender is the invisible click layer: clicking
+   anywhere in the blank canvas writes (Gutenberg's native insertDefaultBlock
+   path), while the visual chrome stays hidden. */
+function testSeedAppender() {
+  const cssStart = source.indexOf('var contentCss=');
+  const cssChunk = cssStart === -1 ? '' : source.slice(cssStart, cssStart + 1200);
+  const appenderLayer = cssChunk.indexOf('.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}') !== -1
+    && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}') !== -1
+    && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-inserter{display:none!important;}') !== -1
+    && cssChunk.indexOf('.block-list-appender{display:block!important;margin:0;padding:0;}') !== -1;
+  const nestedHidden = cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}') !== -1;
+  // (the rule keeps its trailing semicolon inside the concatenated contentCss)
+  const appenderInHideList = /display:none!important;\}\.block-editor-default-block-appender[,{}]/.test(cssChunk) || cssChunk.indexOf('.block-editor-default-block-appender,.block-list-appender') !== -1;
+  check('B9R-SEED-APPENDER-CLICKABLE',
+    appenderLayer && nestedHidden && !appenderInHideList,
+    'the default appender is the restyled invisible click layer (root wrapper unhidden, nested appenders scoped-hidden, internal inserter hidden, margins zeroed)',
+    'the appender click-layer rules are missing or the appender is still in the hide list');
+}
+
+testSeedAppender();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
