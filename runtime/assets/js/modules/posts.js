@@ -1075,11 +1075,15 @@ function hossamRichInitEditor(containerId){
           return false;
         }
         function isSurface(t){
+          /* the empty area below the content hit-tests to the iframe's <html>
+             (the body box ends with the content), so the surface walk accepts
+             both body and the document element. */
           var n=t;
-          while(n&&n!==doc.documentElement){
-            if(n===doc.body) return true;
+          while(n){
+            if(n===doc.body||n===doc.documentElement) return true;
             var cls=n.classList;
             if(cls&&(cls.contains('is-root-container')||cls.contains('block-editor-block-list__layout'))) return true;
+            if(n===doc.documentElement) break;
             n=n.parentNode;
           }
           return false;
