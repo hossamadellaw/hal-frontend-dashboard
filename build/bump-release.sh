@@ -95,7 +95,7 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The end-of-content click is now exact for every content type: the caret lands where the text ends regardless of block state, and blocks without text (dividers, images) keep the append behavior.'
+'* The formatting tools now write through the editor official serializer: strikethrough, subscript, superscript, highlight, text color, clear formatting, change case, and alignment apply cleanly and survive saving.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
