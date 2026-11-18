@@ -889,8 +889,8 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // official heading/quote transforms, and the wave-2 rich-text channel with
 // the pinned clear lists and the textAlign alignment form.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'06aecc6644603848fd7f98c980d2681c8b0ebf7081fb0f2ce45b63004e8350bb' === $posts_js_lf_hash
-		&& '06aecc6644603848fd7f98c980d2681c8b0ebf7081fb0f2ce45b63004e8350bb' === $posts_js_head_hash,
+	'2a8e07432282d9d05ef881603a7f4ad78aadd9fd4a08c0201240d695533855dd' === $posts_js_lf_hash
+		&& '2a8e07432282d9d05ef881603a7f4ad78aadd9fd4a08c0201240d695533855dd' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, and the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
