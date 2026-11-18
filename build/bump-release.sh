@@ -95,10 +95,7 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* Clicking anywhere in the content canvas now writes: a new paragraph is created right where the writer clicked - including between existing paragraphs - through the editor official block store, on desktop, phone, and tablet.'
-'* The between-paragraph insertion affordance (the editor native insertion line) is restored, so pointing between two paragraphs behaves like the standard editor again.'
-'* The bullet and numbered list buttons now produce real lists through the official editor store instead of being silently swallowed.'
-'* The divider, collapsible section, and legal comparison table buttons now insert real editor blocks that save, render, and stay editable.'
+'* Clicking in the empty area below the content now reliably starts a new paragraph: the click-surface check covers the whole editor frame, so the first click lands exactly where the writer points - on desktop, phone, and tablet.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
