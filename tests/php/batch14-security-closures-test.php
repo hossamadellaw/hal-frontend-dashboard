@@ -873,10 +873,18 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // v1.1.7 item 1 renewal (one value for the item): the pure seed helper, the
 // mount seed call, and the reseed-on-empty effect — the pin renews raw+LF to
 // the new authorized revision.
+// v1.1.9 wave 1 renewal (one value for the wave — the consensus commitment):
+// the in-tree click bridge (a BlockCanvas child that deposits the
+// sub-registry on the state record, applies the seven-rule exclusion chain
+// and the consensus guards, and dispatches the official insertDefaultBlock
+// with the click-Y index), the insertion point leaving the contentCss hide
+// list, and the wave-1 official handlers (bullet/numbered lists via the
+// block transform, table/collapsible/divider via the block insertion) — the
+// pin renews raw+LF to the new authorized revision (posts.js ships LF).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'2b046187f1c84d1617bb56e870253745497d38f9e6b6e06aff51db0c61fc63b7' === $posts_js_lf_hash
-		&& '2b046187f1c84d1617bb56e870253745497d38f9e6b6e06aff51db0c61fc63b7' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, and the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, and the v1.1.8 item 1 invisible click-layer contentCss',
+	'821dcded4ea9198376282ab53d9e3cd305200d48c98269a2f9cdfffde6a34d91' === $posts_js_lf_hash
+		&& '821dcded4ea9198376282ab53d9e3cd305200d48c98269a2f9cdfffde6a34d91' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, and the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════

@@ -1018,8 +1018,114 @@ function hossamRichInitEditor(containerId){
        through Gutenberg's native insertDefaultBlock path. Nested block-list
        appenders stay hidden, the UA paragraph margins on __content are zeroed
        (the isolated iframe has no content.scss), and the appender's internal
-       quick-inserter "+" is hidden (item 20 stays chrome-free). */
-    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}.block-list-appender{display:block!important;margin:0;padding:0;}.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}.block-editor-default-block-appender .block-editor-inserter{display:none!important;}';
+       quick-inserter "+" is hidden (item 20 stays chrome-free).
+       [v1.1.9 item 1 — consensus correction 5] the appender layer alone can
+       never mount while blocks exist (Gutenberg renders it only on a zero
+       list, and the seed/reseed plus the store's own default-block refill
+       keep the list non-empty), so the blank-canvas click path is the in-tree
+       bridge component below. The insertion point therefore leaves the hide
+       list — the native between-blocks affordance returns; every other
+       hide-list family and the appender rules stay byte-identical. */
+    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter{display:none!important;}.block-list-appender{display:block!important;margin:0;padding:0;}.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}.block-editor-default-block-appender .block-editor-inserter{display:none!important;}';
+    /* [v1.1.9 item 1 — consensus] the blank-canvas click bridge: a component
+       INSIDE the provider tree (a BlockCanvas child, so it renders inside the
+       iframe document) — wp.data.useRegistry() here resolves the provider's
+       sub-registry, the only registry carrying this editor's block store.
+       A click on the empty canvas surface dispatches the official
+       insertDefaultBlock action on that sub-registry; the store change flows
+       back through the provider's onChange/onInput into keep() (the existing
+       sync path) and the store auto-selects the new paragraph. The same
+       effect deposits the sub-registry on the state record (rec.wpRegistry) —
+       the sanctioned channel the static toolbar (outside the React tree)
+       reads for the official wave-1 actions; a global-registry block-store
+       dispatch is undefined by design on this page. Guards (consensus):
+       attach once per editor, iframe-document listeners only, skip the
+       zero-block state (seed/reseed and the store's default-block refill own
+       it), skip multi-clicks, skip drags (mousedown-to-click distance),
+       apply the seven-rule exclusion chain, re-check the block count stamped
+       at mousedown, detach on unmount, and only act on a ready record. */
+    function HossamClickBridge(props){
+      if(!wp0.data||typeof wp0.data.useRegistry!=='function') return null;
+      var useRef=el.useRef, useEffect=el.useEffect;
+      var registry=wp0.data.useRegistry();
+      var host=useRef(null);
+      var countRef=useRef(props&&props.blocksCount?props.blocksCount:0);
+      countRef.current=props&&props.blocksCount?props.blocksCount:0;
+      useEffect(function(){
+        var rec=hossamRichState.inited[containerId]||null;
+        if(rec) rec.wpRegistry=registry;
+        return function(){
+          var r2=hossamRichState.inited[containerId];
+          if(r2&&r2.wpRegistry===registry) r2.wpRegistry=null;
+        };
+      },[registry]);
+      useEffect(function(){
+        var node=host.current;
+        if(!node||!node.ownerDocument) return;
+        var doc=node.ownerDocument;
+        var mouse={x:0,y:0,count:-1};
+        function excluded(t){
+          if(!t||t.nodeType!==1) return true;
+          if(t.closest('.block-editor-block-list__block')) return true;
+          if(t.closest('.components-popover,.components-tooltip')) return true;
+          if(t.closest('.block-editor-inserter')) return true;
+          if(t.closest('.block-editor-block-list__insertion-point')) return true;
+          if(t.closest('.block-list-appender,.block-editor-default-block-appender')) return true;
+          if(t.closest('button,a,input,select,textarea,[contenteditable="true"]')) return true;
+          return false;
+        }
+        function isSurface(t){
+          var n=t;
+          while(n&&n!==doc.documentElement){
+            if(n===doc.body) return true;
+            var cls=n.classList;
+            if(cls&&(cls.contains('is-root-container')||cls.contains('block-editor-block-list__layout'))) return true;
+            n=n.parentNode;
+          }
+          return false;
+        }
+        function indexForY(y){
+          var list=doc.querySelectorAll('.block-editor-block-list__layout.is-root-container > .block-editor-block-list__block');
+          var store=registry.select('core/block-editor');
+          for(var i=0;i<list.length;i++){
+            if(y<list[i].getBoundingClientRect().top){
+              var cid=list[i].getAttribute('data-block');
+              if(cid){ var idx=store.getBlockIndex(cid); if(idx>=0) return idx; }
+              return i;
+            }
+          }
+          return -1;
+        }
+        function onMouseDown(ev){
+          mouse.x=ev.clientX||0;
+          mouse.y=ev.clientY||0;
+          try{ mouse.count=registry.select('core/block-editor').getBlockCount(); }catch(e0){ mouse.count=-1; }
+        }
+        function onClick(ev){
+          try{
+            if(ev.detail>1) return;
+            if(Math.abs((ev.clientX||0)-mouse.x)>4||Math.abs((ev.clientY||0)-mouse.y)>4) return;
+            if(excluded(ev.target)||!isSurface(ev.target)) return;
+            if(countRef.current===0) return;
+            var rec=hossamRichState.inited[containerId];
+            if(!rec||rec.phase!=='ready'||!rec.wpRegistry) return;
+            var store=registry.select('core/block-editor');
+            if(mouse.count>=0&&store.getBlockCount()!==mouse.count) return;
+            var idx=indexForY(ev.clientY||0);
+            var actions=registry.dispatch('core/block-editor');
+            if(idx>=0) actions.insertDefaultBlock({},undefined,idx);
+            else actions.insertDefaultBlock();
+          }catch(e){}
+        }
+        doc.addEventListener('mousedown',onMouseDown,true);
+        doc.addEventListener('click',onClick,true);
+        return function(){
+          doc.removeEventListener('mousedown',onMouseDown,true);
+          doc.removeEventListener('click',onClick,true);
+        };
+      },[registry]);
+      return el.createElement('div',{ref:host,'data-hossam-click-bridge':'1',hidden:true});
+    }
     function HossamRichApp(){
       var useState=el.useState;
       var state=useState(initialBlocks);
@@ -1082,7 +1188,8 @@ function hossamRichInitEditor(containerId){
       }
       var inserterNode=Inserter?el.createElement(Inserter,{key:'ins',position:'bottom right',showInserterHelpPanel:false}):null;
       var canvasNode=el.createElement(BlockCanvas,{key:'canvas',height:'420px',styles:[{css:contentCss}]},
-        el.createElement(BlockList,null)
+        el.createElement(BlockList,null),
+        el.createElement(HossamClickBridge,{key:'clickbridge',blocksCount:blocks.length})
       );
       var toolbarNode=barChildren.length?el.createElement('div',{key:'tools',className:'hossam-rich-tools'},barChildren):null;
       /* Template positions: inserter/toolbar/canvas — portals preserve the
@@ -1493,6 +1600,50 @@ function hossamToolbarCmd(container,cmd,arg){
     return doc.execCommand(cmd,false,arg||null);
   }catch(e){return false;}
 }
+/* [v1.1.9 item 1 — consensus] the official-action bridge for the static
+   toolbar: the toolbar DOM lives outside the React tree, so the block store
+   on the GLOBAL registry is absent on this page and a global dispatch is
+   undefined by design. The sanctioned channel is the sub-registry the
+   in-tree click bridge deposits on the editor state record (rec.wpRegistry);
+   every official action reads/writes that registry, and the store changes
+   flow back through the provider's onChange/onInput into keep() (the
+   existing sync path). Store-level insertions are not undoable by the
+   legacy text-level undo — documented consensus limitation. */
+function hossamToolbarRegistry(containerId){
+  try{
+    var rec=containerId?hossamRichState.inited[containerId]:null;
+    return rec&&rec.wpRegistry?rec.wpRegistry:null;
+  }catch(e){ return null; }
+}
+function hossamToolbarTransformBlock(containerId,blockName,attributes){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var wp0=hossamRichWp();
+    if(!wp0||!wp0.blocks||typeof wp0.blocks.switchToBlockType!=='function') return false;
+    var sel=reg.select('core/block-editor');
+    var cid=sel.getSelectedBlockClientId();
+    if(!cid) return false;
+    var block=sel.getBlock(cid);
+    if(!block) return false;
+    var transformed=wp0.blocks.switchToBlockType(block,blockName);
+    if(!transformed||!transformed.length) return false;
+    if(attributes&&transformed[0]) transformed[0].attributes=Object.assign({},transformed[0].attributes||{},attributes);
+    reg.dispatch('core/block-editor').replaceBlocks([cid],transformed);
+    return true;
+  }catch(e){ return false; }
+}
+function hossamToolbarInsertBlock(containerId,blockName,attributes){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var wp0=hossamRichWp();
+    if(!wp0||!wp0.blocks||typeof wp0.blocks.createBlock!=='function') return false;
+    var nb=wp0.blocks.createBlock(blockName,attributes||{});
+    reg.dispatch('core/block-editor').insertBlocks(nb);
+    return true;
+  }catch(e){ return false; }
+}
 function hossamToolbarSelectedText(doc){
   try{ return doc.getSelection?String(doc.getSelection()):''; }catch(e){ return ''; }
 }
@@ -1672,10 +1823,14 @@ function hossamToolbarBuild(containerId,container,cfg){
     }catch(e){}
   }));
   root.appendChild(g7); root.appendChild(divider());
-  /* G8 — lists & indent */
+  /* G8 — lists & indent. [v1.1.9 item 1 — consensus wave 1] the bullet and
+     numbered lists move to the official store path (switchToBlockType →
+     core/list + replaceBlocks through rec.wpRegistry) — the legacy funnel
+     could not survive Gutenberg's controlled re-render. Multilevel and the
+     indents stay deferred unchanged (consensus). */
   var g8=group(true);
-  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
-  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){hossamToolbarCmd(container,'insertOrderedList');}));
+  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){hossamToolbarTransformBlock(containerId,'core/list');}));
+  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});}));
   g8.appendChild(btn('⫶≡',['w7Multilevel','Multilevel list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
   g8.appendChild(btn('☑≡',['w7Checklist','Checklist'],function(){hossamToolbarCmd(container,'insertHTML','☑ ');}));
   g8.appendChild(btn('⇤',['w7Outdent','Decrease indent'],function(){hossamToolbarCmd(container,'outdent');}));
@@ -1690,9 +1845,16 @@ function hossamToolbarBuild(containerId,container,cfg){
     if(txt) hossamToolbarCmd(container,'insertHTML','<sup>['+String(txt).replace(/</g,'&lt;')+']</sup>');
   }));
   g9.appendChild(btn('⊞',['w7ComparisonTable','Insert legal comparison table'],function(){
-    hossamToolbarCmd(container,'insertHTML','<table border="1" style="width:100%;border-collapse:collapse;"><tr><th style="text-align:start;"></th><th style="text-align:start;"></th></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table><p></p>');
+    /* [v1.1.9 item 1 — consensus wave 1] the official core/table block
+       through the store (insertBlocks) instead of raw HTML the engine
+       reverted — the legal comparison table becomes a real editable block. */
+    hossamToolbarInsertBlock(containerId,'core/table');
   }));
-  g9.appendChild(btn('📂',['w7Collapsible','Insert collapsible section'],function(){hossamToolbarCmd(container,'insertHTML','<details><summary></summary><p></p></details><p></p>');}));
+  g9.appendChild(btn('📂',['w7Collapsible','Insert collapsible section'],function(){
+    /* [v1.1.9 item 1 — consensus wave 1] the official core/details block
+       through the store (insertBlocks) — a real collapsible section. */
+    hossamToolbarInsertBlock(containerId,'core/details');
+  }));
   /* [W8] v1.1.4 item 8: the Add-block bridge — a toolbar button opening the
      official Inserter's own popover (zero engine touch); the internal inserter
      row is hidden by CSS (item 8's CSS-only hide, documented [B9-U6]). The
@@ -1718,7 +1880,12 @@ function hossamToolbarBuild(containerId,container,cfg){
     var sym=hossamToolbarPrompt(t('w7PromptSymbol','Legal symbol:'));
     if(sym) hossamToolbarCmd(container,'insertText',String(sym).slice(0,3));
   }));
-  g9.appendChild(btn('—',['w7Divider','Divider line'],function(){hossamToolbarCmd(container,'insertHorizontalRule');}));
+  g9.appendChild(btn('—',['w7Divider','Divider line'],function(){
+    /* [v1.1.9 item 1 — consensus wave 1] the official core/separator block
+       through the store (insertBlocks) instead of the reverted in-paragraph
+       rule. */
+    hossamToolbarInsertBlock(containerId,'core/separator');
+  }));
   root.appendChild(g9);
   /* [W8] v1.1.4 item 3 (OP-2): the More fold is admin-only — the server-side
      adminExtend flag (computed in setup.php, consumed here from cfg) gates the

@@ -922,25 +922,28 @@ testB5();
 testB6();
 testB7();
 function testI20(){
-  /* v1.1.5 item 20 + v1.1.8 item 1: the contentCss channel keeps the canvas
-     chrome-free — the three add-UI families stay display:none (the nested
-     block-list-appender scoped to inside-blocks), the DEFAULT appender leaves
-     the hide list and is restyled as an invisible full-height click layer
-     (260px, transparent text, cursor:text) so clicking anywhere in the blank
-     canvas writes through Gutenberg's native insertDefaultBlock path, and the
-     appender's internal quick-inserter "+" stays hidden. The parent
-     stylesheet does not pretend to cross the iframe boundary. */
+  /* v1.1.5 item 20 + v1.1.8 item 1 + v1.1.9 item 1: the contentCss channel
+     keeps the canvas chrome-free — the nested block-list-appender and the
+     empty-block inserter stay display:none (the appender scoped to
+     inside-blocks), the DEFAULT appender rules keep the invisible click-layer
+     styling, and — v1.1.9 consensus correction 5 — the insertion point has
+     LEFT the hide list: Gutenberg never mounts the default appender while
+     blocks exist, so the click layer alone was structurally dead; the native
+     between-blocks affordance returns and the in-tree bridge owns
+     blank-canvas clicks. The parent stylesheet does not pretend to cross the
+     iframe boundary. */
   var hiddenFamilies=['.block-list-appender','.block-editor-block-list__empty-block-inserter','.block-editor-block-list__insertion-point'];
   var cssStart=source.indexOf('var contentCss=');
   var cssChunk=cssStart===-1?'':source.slice(cssStart, cssStart+1200);
-  var hiddenScoped=cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}')!==-1;
+  var hiddenScoped=cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter{display:none!important;}')!==-1;
+  var insertionPointRestored=cssChunk.indexOf('.block-editor-block-list__insertion-point{display:none')===-1 && cssChunk.indexOf('.block-editor-block-list__insertion-point,')===-1 && cssChunk.indexOf(',.block-editor-block-list__insertion-point')===-1;
   var appenderLayer=cssChunk.indexOf('.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}')!==-1
     && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}')!==-1
     && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-inserter{display:none!important;}')!==-1;
   var appenderNotHidden=cssChunk.indexOf('.block-editor-default-block-appender,')===-1 && cssChunk.indexOf('.block-editor-default-block-appender{display:none')===-1;
-  check('I20-CSS-FAMILIES', hiddenScoped && appenderLayer && appenderNotHidden,
-    'contentCss keeps the nested/empty-block/insertion-point families hidden and restyles the default appender as the invisible click layer (v1.1.8 — click anywhere writes)',
-    'the hide families or the appender click-layer rules are wrong');
+  check('I20-CSS-FAMILIES', hiddenScoped && insertionPointRestored && appenderLayer && appenderNotHidden,
+    'contentCss keeps the nested/empty-block families hidden, the insertion point restored (v1.1.9 — native between-blocks affordance), and the default appender click-layer rules intact',
+    'the hide families, the insertion-point restoration, or the appender click-layer rules are wrong');
   var css = require('node:fs').readFileSync(path.join(projectRoot,'runtime','assets','css','dashboard.css'),'utf8');
   var parentCrosses = hiddenFamilies.concat(['.block-editor-default-block-appender']).some(function(f){ return css.indexOf(f)!==-1; });
   check('I20-CHANNEL-DISCIPLINE', !parentCrosses, 'the in-canvas hide families live only in the official styles channel, never in the parent stylesheet', 'families found in parent css');
@@ -1007,9 +1010,12 @@ function testSeed() {
 
 testSeed();
 
-/* v1.1.8 item 1 — the default appender is the invisible click layer: clicking
-   anywhere in the blank canvas writes (Gutenberg's native insertDefaultBlock
-   path), while the visual chrome stays hidden. */
+/* v1.1.8 item 1 + v1.1.9 item 1 — the default appender keeps the invisible
+   click-layer styling; the insertion point leaves the hide list (the layer
+   alone was structurally dead: Gutenberg never mounts the default appender
+   while blocks exist) and the in-tree click bridge owns blank-canvas clicks
+   (Gutenberg's native insertDefaultBlock path through the provider's
+   sub-registry). */
 function testSeedAppender() {
   const cssStart = source.indexOf('var contentCss=');
   const cssChunk = cssStart === -1 ? '' : source.slice(cssStart, cssStart + 1200);
@@ -1017,16 +1023,92 @@ function testSeedAppender() {
     && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}') !== -1
     && cssChunk.indexOf('.block-editor-default-block-appender .block-editor-inserter{display:none!important;}') !== -1
     && cssChunk.indexOf('.block-list-appender{display:block!important;margin:0;padding:0;}') !== -1;
-  const nestedHidden = cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter,.block-editor-block-list__insertion-point{display:none!important;}') !== -1;
+  const nestedHidden = cssChunk.indexOf('.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter{display:none!important;}') !== -1;
+  const insertionPointRestored = cssChunk.indexOf('.block-editor-block-list__insertion-point') === -1;
   // (the rule keeps its trailing semicolon inside the concatenated contentCss)
   const appenderInHideList = /display:none!important;\}\.block-editor-default-block-appender[,{}]/.test(cssChunk) || cssChunk.indexOf('.block-editor-default-block-appender,.block-list-appender') !== -1;
   check('B9R-SEED-APPENDER-CLICKABLE',
-    appenderLayer && nestedHidden && !appenderInHideList,
-    'the default appender is the restyled invisible click layer (root wrapper unhidden, nested appenders scoped-hidden, internal inserter hidden, margins zeroed)',
-    'the appender click-layer rules are missing or the appender is still in the hide list');
+    appenderLayer && nestedHidden && insertionPointRestored && !appenderInHideList,
+    'the default appender keeps its click-layer rules, the nested families stay scoped-hidden, and the insertion point is out of the hide list (v1.1.9)',
+    'the appender click-layer rules are missing, or the insertion point is still hidden');
 }
 
 testSeedAppender();
+
+/* v1.1.9 item 1 — the blank-canvas click bridge (consensus adoption): an
+   in-tree BlockCanvas child resolves the provider's sub-registry via
+   useRegistry, deposits it on the state record (rec.wpRegistry — the
+   sanctioned channel, since the static toolbar lives outside the React tree
+   and a global block-store dispatch is undefined on this page), attaches
+   iframe-document mousedown+click listeners with the seven-rule exclusion
+   chain and the consensus guards, and dispatches the official
+   insertDefaultBlock (with the click-Y insertion index, falling back to
+   append-at-end). */
+function testClickBridge() {
+  const bridgeStart = source.indexOf('function HossamClickBridge(');
+  const appStart = source.indexOf('function HossamRichApp(');
+  const bridgeChunk = bridgeStart !== -1 && appStart !== -1 && appStart > bridgeStart ? source.slice(bridgeStart, appStart) : '';
+  const mounted = source.indexOf("el.createElement(HossamClickBridge,{key:'clickbridge',blocksCount:blocks.length})") !== -1;
+  const chain = [
+    "t.closest('.block-editor-block-list__block')",
+    "t.closest('.components-popover,.components-tooltip')",
+    "t.closest('.block-editor-inserter')",
+    "t.closest('.block-editor-block-list__insertion-point')",
+    "t.closest('.block-list-appender,.block-editor-default-block-appender')",
+    "t.closest('button,a,input,select,textarea,[contenteditable=\"true\"]')",
+  ];
+  const chainOk = bridgeChunk !== '' && chain.every((c) => bridgeChunk.indexOf(c) !== -1);
+  const guardsOk = bridgeChunk !== ''
+    && bridgeChunk.indexOf('ev.detail>1') !== -1
+    && bridgeChunk.indexOf('countRef.current===0') !== -1
+    && bridgeChunk.indexOf("rec.phase!=='ready'") !== -1
+    && bridgeChunk.indexOf('getBlockCount()!==mouse.count') !== -1
+    && bridgeChunk.indexOf("doc.addEventListener('mousedown',onMouseDown,true)") !== -1
+    && bridgeChunk.indexOf("doc.addEventListener('click',onClick,true)") !== -1
+    && bridgeChunk.indexOf("doc.removeEventListener('mousedown',onMouseDown,true)") !== -1
+    && bridgeChunk.indexOf("doc.removeEventListener('click',onClick,true)") !== -1;
+  const registryOk = bridgeChunk.indexOf('wp0.data.useRegistry()') !== -1
+    && bridgeChunk.indexOf('rec.wpRegistry=registry') !== -1
+    && bridgeChunk.indexOf('.insertDefaultBlock(') !== -1;
+  check('B9R-CLICK-BRIDGE',
+    bridgeStart !== -1 && mounted && chainOk && guardsOk && registryOk,
+    'the click bridge is an in-tree BlockCanvas child that deposits the sub-registry, applies the seven-rule exclusion chain and consensus guards, and dispatches the official insertDefaultBlock',
+    'the click bridge is missing, unwired, or violates the consensus chain/guards');
+  const noGlobalStoreDispatch = source.indexOf("wp0.data.dispatch('core/block-editor'") === -1
+    && source.indexOf("wp.data.dispatch('core/block-editor'") === -1;
+  check('B9R-CLICK-BRIDGE-REGISTRY-DISCIPLINE',
+    noGlobalStoreDispatch && source.indexOf('function hossamToolbarRegistry(') !== -1
+      && source.indexOf('rec.wpRegistry?rec.wpRegistry:null') !== -1,
+    'no global block-store dispatch anywhere — every official action reads the deposited sub-registry (hossamToolbarRegistry)',
+    'a global block-store dispatch or a missing registry accessor was found');
+}
+
+testClickBridge();
+
+/* v1.1.9 item 1 — wave-1 toolbar handlers move to the official store path:
+   bullet/numbered lists via switchToBlockType + replaceBlocks, and the
+   divider/collapsible/table insertions via createBlock + insertBlocks —
+   all through rec.wpRegistry (the legacy funnel could not survive the
+   controlled re-render). */
+function testWave1Handlers() {
+  const listsOk = source.indexOf("hossamToolbarTransformBlock(containerId,'core/list')") !== -1
+    && source.indexOf("hossamToolbarTransformBlock(containerId,'core/list',{ordered:true})") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'insertOrderedList')") === -1;
+  // the multilevel button stays deferred (consensus) and keeps its legacy
+  // call — the bullet/numbered handlers are the only ones migrated, so the
+  // unordered-list legacy target must appear exactly once (multilevel only).
+  const legacyUnordered = source.split("hossamToolbarCmd(container,'insertUnorderedList')").length - 1;
+  const insertsOk = source.indexOf("hossamToolbarInsertBlock(containerId,'core/table')") !== -1
+    && source.indexOf("hossamToolbarInsertBlock(containerId,'core/details')") !== -1
+    && source.indexOf("hossamToolbarInsertBlock(containerId,'core/separator')") !== -1;
+  check('B9R-W1-OFFICIAL-HANDLERS',
+    listsOk && insertsOk && legacyUnordered === 1 && source.indexOf('function hossamToolbarTransformBlock(') !== -1
+      && source.indexOf('function hossamToolbarInsertBlock(') !== -1,
+    'wave-1 handlers (bullet/numbered lists, table, collapsible, divider) run on the official store path through the deposited registry; the deferred multilevel button alone keeps its legacy target',
+    'a migrated wave-1 handler still targets the legacy funnel or an official handler is missing');
+}
+
+testWave1Handlers();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

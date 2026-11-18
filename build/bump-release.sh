@@ -95,9 +95,10 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* Clicking anywhere in the content area now writes: the invisible starter area below the text is a full-height click zone routed through the editor native insert path, so typing works from the first click on every device - not only at the top line.'
-'* On phones and tablets the whole content area is clickable again instead of only a thin first line.'
-'* The cleanup stays clean: no starter prompt, no icon, no visual chrome - the click zone is fully transparent, and nested in-canvas starters remain hidden.'
+'* Clicking anywhere in the content canvas now writes: a new paragraph is created right where the writer clicked - including between existing paragraphs - through the editor official block store, on desktop, phone, and tablet.'
+'* The between-paragraph insertion affordance (the editor native insertion line) is restored, so pointing between two paragraphs behaves like the standard editor again.'
+'* The bullet and numbered list buttons now produce real lists through the official editor store instead of being silently swallowed.'
+'* The divider, collapsible section, and legal comparison table buttons now insert real editor blocks that save, render, and stay editable.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
