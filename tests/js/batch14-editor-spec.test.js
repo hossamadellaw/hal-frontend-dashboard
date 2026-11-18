@@ -504,9 +504,9 @@ for (const f of allJs) {
   ecCount += (src.match(/execCommand\s*\(/g) || []).length;
 }
 check('B14E-19-zero-postmessage-contenteditable-execcommand',
-  0 === pmCount && 0 === ceCount && 2 === ecCount,
-  'zero postMessage, zero contentEditable across the shipped JS (no cross-window channel, no alternate editing engine); v1.1.3 W7 (value update, not strictness): the professional toolbar funnels every canvas dispatch through hossamToolbarCmd - exactly two textual execCommand sites (the styleWithCSS setup and the single funnel call), the editing surface stays the official BlockCanvas only',
-  `forbidden surfaces deviated: postMessage=${pmCount} contentEditable=${ceCount} execCommand=${ecCount} (expected 2)`);
+  0 === pmCount && 1 === ceCount && 2 === ecCount,
+  'zero postMessage across the shipped JS (no cross-window channel); v1.1.3 W7 (value update, not strictness): the professional toolbar funnels every canvas dispatch through hossamToolbarCmd - exactly two textual execCommand sites (the styleWithCSS setup and the single funnel call), the editing surface stays the official BlockCanvas only; v1.1.9 (value update, not strictness): exactly one contentEditable occurrence - the lowercase attribute string inside the click-bridge exclusion-chain selector (a guard against editable surfaces, not an editing engine)',
+  `forbidden surfaces deviated: postMessage=${pmCount} contentEditable=${ceCount} execCommand=${ecCount} (expected postMessage=0 contentEditable=1 execCommand=2)`);
 
 /* ── Summary ──────────────────────────────────────────────────────── */
 
