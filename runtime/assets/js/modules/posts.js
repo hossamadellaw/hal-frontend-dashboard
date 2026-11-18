@@ -900,7 +900,6 @@ function hossamRichInitEditor(containerId){
     var BlockCanvas=be.BlockCanvas;
     var BlockList=be.BlockList;
     var Inserter=be.Inserter||be.BlockInserter||null;
-    var BlockToolbar=be.BlockToolbar||be.BlockTools||null;
     var MediaUpload=be.MediaUpload||(wp0.editor&&wp0.editor.MediaUpload)||null;
     var MediaUploadCheck=be.MediaUploadCheck||function(props){return props&&props.children?props.children:null;};
     /* Official only — ExperimentalBlockCanvas is rejected here. */
@@ -960,6 +959,12 @@ function hossamRichInitEditor(containerId){
       mediaUpload:function(o){hossamRichMediaUpload(wp0,cfg,o);},
       isRTL:!!cfg.isRtl,
       allowedBlockTypes:allowedTypes,
+      /* [v1.1.11 item 2 — consensus] the floating contextual toolbar never
+         mounts: the fixed HAL toolbar is the only formatting surface (the
+         owner's unification decision). The official switch prevents the
+         mount instead of hiding it after the fact; the contentCss hide rule
+         appended below stays as defense-in-depth. */
+      hasFixedToolbar:true,
     };
     /* [R21-a] normalize H1→H2 on paste inside the embed editor before
        serializing to the textarea — a paste handler on the official container
@@ -1026,7 +1031,12 @@ function hossamRichInitEditor(containerId){
        bridge component below. The insertion point therefore leaves the hide
        list — the native between-blocks affordance returns; every other
        hide-list family and the appender rules stay byte-identical. */
-    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter{display:none!important;}.block-list-appender{display:block!important;margin:0;padding:0;}.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}.block-editor-default-block-appender .block-editor-inserter{display:none!important;}';
+    var contentCss='html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}body{font-family:inherit;line-height:1.7;max-width:100%;}img{max-width:100%;height:auto;}table{border-collapse:collapse;width:100%;}.block-editor-block-list__block .block-list-appender,.block-editor-block-list__empty-block-inserter{display:none!important;}.block-list-appender{display:block!important;margin:0;padding:0;}.block-editor-default-block-appender{display:block!important;height:260px;margin:0;padding:0;cursor:text;}.block-editor-default-block-appender .block-editor-default-block-appender__content{height:260px;margin:0;padding:0;color:transparent!important;cursor:text;}.block-editor-default-block-appender .block-editor-inserter{display:none!important;}.block-editor-block-toolbar,.block-editor-block-contextual-toolbar{display:none!important;}';
+    /* [v1.1.11 item 2 — consensus] the trailing rule is the defense-in-depth
+       hide for the two contextual toolbar selectors only (never the wider
+       components-toolbar family — the inserter popover and the link UI live
+       there). It is appended AFTER the direction rule, which stays
+       byte-identical; settings.hasFixedToolbar already prevents the mount. */
     /* [v1.1.9 item 1 — consensus] the blank-canvas click bridge: a component
        INSIDE the provider tree (a BlockCanvas child, so it renders inside the
        iframe document) — wp.data.useRegistry() here resolves the provider's
@@ -1115,8 +1125,40 @@ function hossamRichInitEditor(containerId){
             if(!rec||rec.phase!=='ready'||!rec.wpRegistry) return;
             var store=registry.select('core/block-editor');
             if(mouse.count>=0&&store.getBlockCount()!==mouse.count) return;
-            var idx=indexForY(ev.clientY||0);
+            /* [v1.1.11 item 1 — consensus] region branching: the empty surface
+               no longer mounts a floating paragraph below the content. Below
+               the last block the caret moves to the END of the content
+               (selectBlock(last,-1) — the core places the caret in the last
+               text field of any block type); above the first block the caret
+               moves to the START of the first block (selectBlock(first,0) —
+               the recorded design decision, symmetric with the empty-state
+               start-from-the-top the owner accepts); a middle gap keeps the
+               native insertion path (insertDefaultBlock at the click index).
+               A last block without a text field (separator, image without a
+               caption) falls back to the append path — no caret can land
+               there. */
+            var list=doc.querySelectorAll('.block-editor-block-list__layout.is-root-container > .block-editor-block-list__block');
+            if(!list.length) return;
+            var y=ev.clientY||0;
             var actions=registry.dispatch('core/block-editor');
+            var lastNode=list[list.length-1];
+            var lastId=lastNode.getAttribute('data-block');
+            if(y>=lastNode.getBoundingClientRect().bottom){
+              if(lastId&&lastNode.querySelector('[contenteditable="true"]')){
+                actions.selectBlock(lastId,-1);
+                return;
+              }
+              actions.insertDefaultBlock();
+              return;
+            }
+            if(y<list[0].getBoundingClientRect().top){
+              var firstId=list[0].getAttribute('data-block');
+              if(firstId){
+                actions.selectBlock(firstId,0);
+                return;
+              }
+            }
+            var idx=indexForY(y);
             if(idx>=0) actions.insertDefaultBlock({},undefined,idx);
             else actions.insertDefaultBlock();
           }catch(e){}
@@ -1177,7 +1219,11 @@ function hossamRichInitEditor(containerId){
         }catch(e){}
       }
       var barChildren=[];
-      if(BlockToolbar) barChildren.push(el.createElement(BlockToolbar,{key:'bar'}));
+      /* [v1.1.11 item 2 — consensus] the Gutenberg BlockToolbar render is
+         removed: the fixed HAL toolbar is the only formatting surface and the
+         canvas body stays writing-only. The Media button below stays; the
+         floating contextual toolbar is prevented by settings.hasFixedToolbar
+         and hidden inside the canvas by the contentCss defense-in-depth rule. */
       if(canUpload&&MediaUpload){
         barChildren.push(el.createElement(MediaUploadCheck,{key:'muc'},
           el.createElement(MediaUpload,{
@@ -1648,6 +1694,92 @@ function hossamToolbarInsertBlock(containerId,blockName,attributes){
     return true;
   }catch(e){ return false; }
 }
+/* [v1.1.11 item 3 — consensus wave 2] the unified official formatting
+   channel: the selection is read from the sub-registry store (the only
+   registry carrying this editor's block store), the value is transformed
+   with the official rich-text API, the result is written through
+   updateBlockAttributes, and the selection is restored afterwards with the
+   four-argument selectionChange. Store-level writes are outside the reach
+   of the legacy text-level undo — the documented limitation extends here. */
+function hossamToolbarRichEdit(containerId,fn){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var wp0=hossamRichWp();
+    if(!wp0||!wp0.richText) return false;
+    var sel=reg.select('core/block-editor');
+    var cid=sel.getSelectedBlockClientId();
+    if(!cid) return false;
+    var block=sel.getBlock(cid);
+    if(!block||!block.attributes||block.attributes.content===undefined) return false;
+    var s=sel.getSelectionStart(), e=sel.getSelectionEnd();
+    if(!s||!e) return false;
+    var start=(typeof s.offset==='number')?s.offset:0;
+    var end=(typeof e.offset==='number')?e.offset:start;
+    /* the content attribute may carry a RichTextData instance on this core
+       version — serialize it to its HTML string first (Arabic text must not
+       distort through a raw-string round-trip). */
+    var htmlIn=block.attributes.content;
+    if(htmlIn&&typeof htmlIn.toHTMLString==='function') htmlIn=htmlIn.toHTMLString();
+    var value=wp0.richText.create({html:htmlIn});
+    var out=fn(wp0.richText,value,start,end);
+    if(out===null||out===undefined) return false;
+    reg.dispatch('core/block-editor').updateBlockAttributes(cid,{content:wp0.richText.toString(out)});
+    try{ reg.dispatch('core/block-editor').selectionChange(cid,'content',start,end); }catch(e1){}
+    return true;
+  }catch(e){ return false; }
+}
+function hossamToolbarApplyFormat(containerId,formatType,attrs){
+  return hossamToolbarRichEdit(containerId,function(rt,value,start,end){
+    return rt.applyFormat(value,{type:formatType,attributes:attrs||{}},start,end);
+  });
+}
+/* The pinned clear list (consensus): the inline formats the toolbar applies
+   are removed; the exceptions never are. Pinned by B9R-W2-REMOVE-EXCEPTIONS. */
+var HOSSAM_TOOLBAR_CLEAR_TYPES=['core/bold','core/italic','core/underline','core/strikethrough','core/subscript','core/superscript','core/text-color','core/code'];
+var HOSSAM_TOOLBAR_CLEAR_EXCEPTIONS=['core/link','core/image','core/footnote','core/math','core/language','core/keyboard','core/non-breaking-space','core/unknown','core/note'];
+function hossamToolbarRemoveFormat(containerId){
+  return hossamToolbarRichEdit(containerId,function(rt,value,start,end){
+    var removed=value;
+    for(var i=0;i<HOSSAM_TOOLBAR_CLEAR_TYPES.length;i++){
+      removed=rt.removeFormat(removed,start,end,HOSSAM_TOOLBAR_CLEAR_TYPES[i]);
+    }
+    return removed;
+  });
+}
+function hossamToolbarSetCase(containerId,mode){
+  return hossamToolbarRichEdit(containerId,function(rt,value,start,end){
+    var text=rt.getTextContent(value);
+    var slice=text.slice(start,end);
+    var out=slice;
+    if(mode==='upper') out=slice.toUpperCase();
+    else if(mode==='lower') out=slice.toLowerCase();
+    else if(mode==='sentence') out=slice.charAt(0).toUpperCase()+slice.slice(1).toLowerCase();
+    /* title mode is Latin-only by regex; Arabic text passes through unchanged. */
+    else if(mode==='title') out=slice.replace(/\w\S*/g,function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();});
+    else return null;
+    return rt.insert(value,out,start,end);
+  });
+}
+/* [v1.1.11 item 3 — consensus] text alignment lives in
+   style.typography.textAlign on this core version (the align attribute is
+   layout-width-only — writing to it would produce an invalid block). */
+function hossamToolbarSetAlignment(containerId,value){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var sel=reg.select('core/block-editor');
+    var cid=sel.getSelectedBlockClientId();
+    if(!cid) return false;
+    var block=sel.getBlock(cid);
+    if(!block||!block.attributes) return false;
+    var style=block.attributes.style?block.attributes.style:{};
+    var typography=style.typography?style.typography:{};
+    var merged=Object.assign({},style,{typography:Object.assign({},typography,{textAlign:value})});
+    reg.dispatch('core/block-editor').updateBlockAttributes(cid,{style:merged});
+    return true;
+  }catch(e){ return false; }
+}
 function hossamToolbarSelectedText(doc){
   try{ return doc.getSelection?String(doc.getSelection()):''; }catch(e){ return ''; }
 }
@@ -1726,7 +1858,14 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['h2','w7OptH2','Section Heading (H2)'],
     ['h3','w7OptH3','Subsection Heading (H3)'],
     ['h4','w7OptH4','Minor Detail (H4)']
-  ],function(v){hossamToolbarCmd(container,'formatBlock',v==='p'?'p':v);}));
+  ],function(v){
+    /* [v1.1.11 item 2 — consensus] official block transforms replace the
+       formatBlock funnel (whose in-paragraph structure was never a real
+       heading/quote block) before the Gutenberg block switcher disappears
+       with hasFixedToolbar. */
+    if(v==='p') hossamToolbarTransformBlock(containerId,'core/paragraph');
+    else hossamToolbarTransformBlock(containerId,'core/heading',{level:parseInt(String(v).slice(1),10)||2});
+  }));
   root.appendChild(g1); root.appendChild(divider());
   /* G2 — font family (the font names travel the channel like every label) */
   var g2=group(true);
@@ -1763,27 +1902,33 @@ function hossamToolbarBuild(containerId,container,cfg){
     }catch(e){}
   }));
   root.appendChild(g4); root.appendChild(divider());
-  /* G5 — inline formatting */
+  /* G5 — inline formatting. [v1.1.11 item 3 — consensus wave 2] the
+     strikethrough/subscript/superscript/clear tools move to the official
+     rich-text channel (registered formats + the pinned clear list); bold/
+     italic/underline stay on the legacy funnel (measured working). */
   var g5=group();
   g5.appendChild(btn('B',['w7Bold','Bold (Ctrl+B)'],function(){hossamToolbarCmd(container,'bold');}));
   g5.appendChild(btn('I',['w7Italic','Italic (Ctrl+I)'],function(){hossamToolbarCmd(container,'italic');}));
   g5.appendChild(btn('U',['w7Underline','Underline (Ctrl+U)'],function(){hossamToolbarCmd(container,'underline');}));
-  g5.appendChild(btn('S',['w7Strike','Strikethrough'],function(){hossamToolbarCmd(container,'strikeThrough');}));
-  g5.appendChild(btn('X₂',['w7Subscript','Subscript (X₂)'],function(){hossamToolbarCmd(container,'subscript');}));
-  g5.appendChild(btn('X²',['w7Superscript','Superscript (X²)'],function(){hossamToolbarCmd(container,'superscript');}));
-  g5.appendChild(btn('🧹',['w7ClearFormat','Clear formatting'],function(){hossamToolbarCmd(container,'removeFormat');}));
+  g5.appendChild(btn('S',['w7Strike','Strikethrough'],function(){hossamToolbarApplyFormat(containerId,'core/strikethrough');}));
+  g5.appendChild(btn('X₂',['w7Subscript','Subscript (X₂)'],function(){hossamToolbarApplyFormat(containerId,'core/subscript');}));
+  g5.appendChild(btn('X²',['w7Superscript','Superscript (X²)'],function(){hossamToolbarApplyFormat(containerId,'core/superscript');}));
+  g5.appendChild(btn('🧹',['w7ClearFormat','Clear formatting'],function(){hossamToolbarRemoveFormat(containerId);}));
   root.appendChild(g5); root.appendChild(divider());
   /* G6 — color, highlight, case, grow/shrink */
   var g6=group();
+  /* [v1.1.11 item 3 — consensus wave 2] color and highlight migrate to the
+     official core/text-color format (style color / background-color) through
+     the unified channel. */
   g6.appendChild(menu('A',['w7TextColor','Text color'],'w7TextColor','Text color',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){hossamToolbarCmd(container,'foreColor',c);});
-    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarCmd(container,'foreColor',c);});
+    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
+    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
   }));
   g6.appendChild(menu('🖍️',['w7Highlight','Highlight'],'w7Highlight','Highlight',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){hossamToolbarCmd(container,'hiliteColor',c);});
-    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarCmd(container,'hiliteColor',c);});
+    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
+    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
@@ -1793,15 +1938,11 @@ function hossamToolbarBuild(containerId,container,cfg){
         mi.type='button';
         mi.addEventListener('click',function(){
           try{
-            var d=hossamToolbarDoc(container); if(!d) return;
-            var s=d.getSelection&&d.getSelection(); if(!s||s.isCollapsed) return;
-            var txt=hossamToolbarSelectedText(d);
-            var out=txt;
-            if(item[3]==='sentence') out=txt.charAt(0).toUpperCase()+txt.slice(1).toLowerCase();
-            else if(item[3]==='lower') out=txt.toLowerCase();
-            else if(item[3]==='upper') out=txt.toUpperCase();
-            else if(item[3]==='title') out=txt.replace(/\w\S*/g,function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();});
-            hossamToolbarCmd(container,'insertText',out);
+            /* [v1.1.11 item 3 — consensus wave 2] the official rich-text
+               insert replaces the legacy funnel (whose DOM change was
+               reverted by the controlled re-render). Title mode is Latin-only
+               by regex; Arabic passes through unchanged. */
+            hossamToolbarSetCase(containerId,item[3]);
           }catch(e){}
         });
         m.appendChild(mi);
@@ -1813,9 +1954,14 @@ function hossamToolbarBuild(containerId,container,cfg){
   root.appendChild(g6); root.appendChild(divider());
   /* G7 — alignment & directionality */
   var g7=group(true);
-  g7.appendChild(btn('⫷',['w7AlignLeft','Align left'],function(){hossamToolbarCmd(container,'justifyLeft');}));
-  g7.appendChild(btn('≡',['w7AlignCenter','Center align'],function(){hossamToolbarCmd(container,'justifyCenter');}));
-  g7.appendChild(btn('⫸',['w7AlignRight','Align right'],function(){hossamToolbarCmd(container,'justifyRight');}));
+  /* [v1.1.11 item 3 — consensus wave 2] left/center/right write the official
+     style.typography.textAlign through the sub-registry. Justify full stays
+     deferred (no official per-paragraph text-justify value on this core
+     version — the align:'full' value means layout width, not text
+     alignment). */
+  g7.appendChild(btn('⫷',['w7AlignLeft','Align left'],function(){hossamToolbarSetAlignment(containerId,'left');}));
+  g7.appendChild(btn('≡',['w7AlignCenter','Center align'],function(){hossamToolbarSetAlignment(containerId,'center');}));
+  g7.appendChild(btn('⫸',['w7AlignRight','Align right'],function(){hossamToolbarSetAlignment(containerId,'right');}));
   g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarCmd(container,'justifyFull');}));
   g7.appendChild(btn('⇄',['w7Direction','Switch paragraph direction'],function(){
     try{
@@ -1842,7 +1988,11 @@ function hossamToolbarBuild(containerId,container,cfg){
   root.appendChild(g8); root.appendChild(divider());
   /* G9 — legal specialized elements (insert HTML into the editable body) */
   var g9=group(true);
-  g9.appendChild(btn('❝',['w7LegalQuote','Legal statutory clause'],function(){hossamToolbarCmd(container,'formatBlock','blockquote');}));
+  g9.appendChild(btn('❝',['w7LegalQuote','Legal statutory clause'],function(){
+    /* [v1.1.11 item 2 — consensus] the official core/quote transform — a
+       real quote block like the heading path above. */
+    hossamToolbarTransformBlock(containerId,'core/quote');
+  }));
   g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){hossamToolbarCmd(container,'insertHTML','<div style="border-inline-start:3px solid #C5A028;background:#FDF6B2;padding:8px 10px;">⚠️ </div>');}));
   g9.appendChild(btn('🔖',['w7Footnote','Insert footnote and citation'],function(){
     var txt=hossamToolbarPrompt(t('w7PromptFootnote','Footnote text:'));

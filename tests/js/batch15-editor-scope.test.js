@@ -189,16 +189,22 @@ check('B15S-4-wp-format-library-not-critical',
 /* ── C2-POSTS — posts.js untouched by C2 ─────────────────────────── */
 
 const postsSrc = readFile('modules/posts.js');
-const toolbarManual = postsSrc.includes('el.createElement(BlockToolbar,{key:\'bar\'})')
-  && postsSrc.includes("'hossam-rich-tools'");
+const toolsRowStays = postsSrc.includes("'hossam-rich-tools'");
+const mediaStays = postsSrc.includes("key:'muc'");
+const fixedToolbarSetting = postsSrc.includes('hasFixedToolbar:true');
+const toolbarManual = postsSrc.includes('el.createElement(BlockToolbar,{key:' + String.fromCharCode(39,92,39) + 'bar' + String.fromCharCode(39,92,39) + '})');
+/* v1.1.11 (value update, not strictness): the manual BlockToolbar render is
+   GONE - the fixed HAL toolbar is the only formatting surface and the
+   floating contextual toolbar is prevented by settings.hasFixedToolbar. The
+   .hossam-rich-tools row stays (it carries the Media button). */
 check('B15S-5-postsjs-untouched-by-c2',
   0 === postsLedger.innerHTML && 0 === postsLedger.insertAdjacentHTML
     && 0 === (postsSrc.match(/escAttr/g) || []).length
-    && toolbarManual
+    && !toolbarManual && toolsRowStays && mediaStays && fixedToolbarSetting
     && postsSrc.includes('[B9-09]')
     && postsSrc.includes("var ROBOTS_CLOSED=['index','noindex','follow','nofollow']"),
-  'posts.js is untouched by C2: innerHTML family 0, escAttr 0, the manual BlockToolbar render inside .hossam-rich-tools stays the only toolbar surface, and the batch14 contracts ([B9-09] marker, robots closed-list) still hold',
-  `posts.js deviated: innerHTML=${postsLedger.innerHTML} insertAdjacentHTML=${postsLedger.insertAdjacentHTML} escAttr=${(postsSrc.match(/escAttr/g) || []).length} toolbar=${toolbarManual}`);
+  'posts.js is untouched by C2: innerHTML family 0, escAttr 0, the manual BlockToolbar render is removed (v1.1.11 unification: the fixed toolbar is the only surface, hasFixedToolbar prevents the floating mount, the tools row stays for the Media button), and the batch14 contracts ([B9-09] marker, robots closed-list) still hold',
+  `posts.js deviated: innerHTML=${postsLedger.innerHTML} insertAdjacentHTML=${postsLedger.insertAdjacentHTML} escAttr=${(postsSrc.match(/escAttr/g) || []).length} toolbarStillRendered=${toolbarManual} toolsRow=${toolsRowStays} media=${mediaStays} fixedSetting=${fixedToolbarSetting}`);
 
 /* ── EXECCMD — zero execCommand across runtime/, two methods ─────── */
 

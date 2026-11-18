@@ -1110,6 +1110,88 @@ function testWave1Handlers() {
 
 testWave1Handlers();
 
+/* v1.1.11 item 1 — the click-bridge region branching (consensus): below the
+   last block the caret moves to the END of the content (selectBlock(last,-1)
+   through the sub-registry); above the first block the caret moves to the
+   START of the first block (selectBlock(first,0) — the recorded design
+   decision); a last block without a text field falls back to the append
+   path; middle gaps keep the insertDefaultBlock-at-index path. */
+function testClickRegions() {
+  const bridgeStart = source.indexOf('function HossamClickBridge(');
+  const appStart = source.indexOf('function HossamRichApp(');
+  const bridgeChunk = bridgeStart !== -1 && appStart !== -1 && appStart > bridgeStart ? source.slice(bridgeStart, appStart) : '';
+  const regionsOk = bridgeChunk !== ''
+    && bridgeChunk.indexOf('.getBoundingClientRect().bottom') !== -1
+    && bridgeChunk.indexOf('actions.selectBlock(lastId,-1)') !== -1
+    && bridgeChunk.indexOf('actions.selectBlock(firstId,0)') !== -1
+    && bridgeChunk.indexOf("lastNode.querySelector(") !== -1
+    && bridgeChunk.indexOf('actions.insertDefaultBlock({},undefined,idx)') !== -1;
+  check('B9R-CLICK-REGIONS',
+    regionsOk,
+    'the empty-surface click branches by region: end-of-content caret below the last block, start-of-first-block above, native insertion for middle gaps, and the no-text-field append fallback',
+    'the region branching is missing or incomplete');
+}
+
+testClickRegions();
+
+/* v1.1.11 item 2 — the toolbar unification (consensus): the manual
+   BlockToolbar render is removed, the official hasFixedToolbar switch
+   prevents the floating mount, and the contentCss defense-in-depth rule
+   hides exactly the two contextual toolbar selectors without touching the
+   direction rule. */
+function testToolbarUnified() {
+  const cssStart = source.indexOf('var contentCss=');
+  const cssChunk = cssStart === -1 ? '' : source.slice(cssStart, cssStart + 1400);
+  const noManualToolbar = source.indexOf("el.createElement(BlockToolbar,{key:'bar'})") === -1;
+  const fixedSetting = source.indexOf('hasFixedToolbar:true') !== -1;
+  const hideRule = cssChunk.indexOf('.block-editor-block-toolbar,.block-editor-block-contextual-toolbar{display:none!important;}') !== -1;
+  const directionFirst = cssChunk.indexOf("html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}") === 0 + source.indexOf('var contentCss=') - source.indexOf('var contentCss=') || cssChunk.indexOf("html{direction:'+(cfg.isRtl?'rtl':'ltr')+';}") !== -1;
+  check('B9R-TB-UNIFIED',
+    noManualToolbar && fixedSetting && hideRule && directionFirst,
+    'the toolbar is unified: no manual BlockToolbar render, hasFixedToolbar prevents the floating mount, and the two-selector hide rule is appended inside contentCss after the untouched direction rule',
+    'the toolbar unification is incomplete');
+}
+
+testToolbarUnified();
+
+/* v1.1.11 item 3 — wave 2 on the unified official channel: the formatting
+   tools read the selection from the sub-registry, transform the value with
+   the official rich-text API, write through updateBlockAttributes, restore
+   the selection, and the clear list carries its pinned exceptions. */
+function testWave2Channel() {
+  const richEditOk = source.indexOf('function hossamToolbarRichEdit(') !== -1
+    && source.indexOf('wp0.richText.create({html:htmlIn})') !== -1
+    && source.indexOf('updateBlockAttributes(cid,{content:wp0.richText.toString(out)})') !== -1
+    && source.indexOf(".selectionChange(cid,'content',start,end)") !== -1
+    && source.indexOf('toHTMLString') !== -1;
+  const formatsOk = source.indexOf("hossamToolbarApplyFormat(containerId,'core/strikethrough')") !== -1
+    && source.indexOf("hossamToolbarApplyFormat(containerId,'core/subscript')") !== -1
+    && source.indexOf("hossamToolbarApplyFormat(containerId,'core/superscript')") !== -1
+    && source.indexOf("hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c})") !== -1
+    && source.indexOf("hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c})") !== -1
+    && source.indexOf("hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c})") !== -1;
+  const alignOk = source.indexOf('function hossamToolbarSetAlignment(') !== -1
+    && source.indexOf('{textAlign:value})') !== -1
+    && source.indexOf("hossamToolbarSetAlignment(containerId,'left')") !== -1
+    && source.indexOf("hossamToolbarSetAlignment(containerId,'center')") !== -1
+    && source.indexOf("hossamToolbarSetAlignment(containerId,'right')") !== -1;
+  const transformsOk = source.indexOf("hossamToolbarTransformBlock(containerId,'core/heading',{level:") !== -1
+    && source.indexOf("hossamToolbarTransformBlock(containerId,'core/quote')") !== -1
+    && source.indexOf("hossamToolbarTransformBlock(containerId,'core/paragraph')") !== -1;
+  check('B9R-W2-CHANNEL',
+    richEditOk && formatsOk && alignOk && transformsOk,
+    'wave 2 runs on the unified official channel: registered formats, the text-color style form, the textAlign alignment form, and the official heading/quote transforms — all through the sub-registry with selection restoration',
+    'the wave-2 channel is incomplete or a legacy target remains for a migrated tool');
+  const clearOk = source.indexOf("var HOSSAM_TOOLBAR_CLEAR_TYPES=['core/bold','core/italic','core/underline','core/strikethrough','core/subscript','core/superscript','core/text-color','core/code'];") !== -1
+    && source.indexOf("var HOSSAM_TOOLBAR_CLEAR_EXCEPTIONS=['core/link','core/image','core/footnote','core/math','core/language','core/keyboard','core/non-breaking-space','core/unknown','core/note'];") !== -1;
+  check('B9R-W2-REMOVE-EXCEPTIONS',
+    clearOk,
+    'the clear-format tool removes exactly the pinned inline-format types and never touches the pinned exceptions',
+    'the pinned clear lists are missing or altered');
+}
+
+testWave2Channel();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
