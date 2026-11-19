@@ -98,6 +98,13 @@ let _navTimer;
 
 function nav(el, panelId){
   if(!panelId) return;
+  /* [v1.1.14 item 1] the internal navigation guard reads the same dirty flag
+     the beforeunload warning uses — leaving the writing form with unsaved
+     changes asks first. The WPML language switcher navigates fully and is
+     covered by beforeunload automatically (defect C). */
+  try{
+    if(window.hossamWriteDirty&&!window.confirm(t('unsavedLeave','You have unsaved changes in the writing form — leave anyway?'))) return;
+  }catch(e){}
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   if(el) el.classList.add('active');

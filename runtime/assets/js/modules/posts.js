@@ -49,6 +49,152 @@ function hossamPostToastLabel(status){
   return t('draftSaved','Draft saved');
 }
 
+/* ══════════════════════════════════════════════════════════════
+   [v1.1.14 item 1] the unified writing-rescue layer (Wave A contract):
+   the write vault, the single dirty flag, the redirect governor and the
+   black-box recorder. The restore banner, the official edit autosave and
+   the pagehide recorder wiring live at the bottom of the file; the D1
+   decision card lives in hossamShowPostSuccessCard; the second-save
+   interception and the save-commit capture live in hossamCreateArticle.
+   Rules honored: sessionStorage only (the localStorage upgrade stays an
+   owner privacy decision), the vault is the write context (the edit panel
+   rescues through /autosaves), English-only code, zero new editor-id
+   references, zero counted-token additions.
+   ══════════════════════════════════════════════════════════════ */
+var HOSSAM_VAULT_PREFIX='hossamWriteVault';
+var HOSSAM_VAULT_TTL=86400000; /* stamped; a vault older than 24h never revives */
+var HOSSAM_VAULT_DEBOUNCE=1000;
+var HOSSAM_AUTOSAVE_DEBOUNCE=10000;
+var HOSSAM_DIAG_KEY='hossamWriteDiagLog';
+var hossamWriteVaultTimer=null;
+var hossamAutosaveTimer=null;
+var hossamWriteRedirectTimer=null;
+var hossamWriteRedirectArmed=false;
+var hossamWriteLastCreate=null;
+var hossamDiagErrors=[];
+window.hossamWriteDirty=false;
+function hossamWriteLang(){
+  try{return String((document.documentElement&&document.documentElement.lang)||'').toLowerCase().split('-')[0]||'x';}catch(e){return 'x';}
+}
+function hossamWriteVaultKey(){
+  return HOSSAM_VAULT_PREFIX+':write:'+hossamWriteLang();
+}
+/* Every named form field is captured: title, serialized content, excerpt,
+   status, featured image id, the checked categories and the tags[] mirror. */
+function hossamWriteCollect(form){
+  var out={};
+  try{
+    if(!form||!form.elements) return out;
+    for(var i=0;i<form.elements.length;i++){
+      var fld=form.elements[i];
+      if(!fld||!fld.name) continue;
+      if(fld.type==='button'||fld.type==='submit') continue;
+      var n=fld.name;
+      if(fld.type==='checkbox'){
+        if(fld.checked){(out[n]=out[n]||[]).push(fld.value);}
+        continue;
+      }
+      if(n==='categories[]'||n==='tags[]'){
+        (out[n]=out[n]||[]).push(fld.value);
+        continue;
+      }
+      out[n]=fld.value;
+    }
+  }catch(e){}
+  return out;
+}
+/* Empty = nothing beyond the editor's seed paragraph and zero-value fields:
+   an empty-seeded form never writes a vault. */
+function hossamWriteVaultEmpty(payload){
+  try{
+    var f=payload&&payload.fields?payload.fields:{};
+    for(var k in f){
+      if(!Object.prototype.hasOwnProperty.call(f,k)) continue;
+      var v=f[k];
+      if(Object.prototype.toString.call(v)==='[object Array]'){
+        for(var j=0;j<v.length;j++){if(String(v[j]).trim()!=='')return false;}
+        continue;
+      }
+      if(k==='content'){
+        var txt=String(v==null?'':v).replace(/<!--[\s\S]*?-->/g,'').replace(/<[^>]*>/g,'').trim();
+        if(txt!=='') return false;
+        continue;
+      }
+      /* [v1.1.14 - the audit note 4] the untouched default status is not
+         content: a form with only the draft default writes no vault. */
+      if(k==='status'&&String(v==null?'':v).trim()==='draft'){
+        continue;
+      }
+      if(k==='thumbnail_id'){
+        var tv=String(v==null?'':v).trim();
+        if(tv!==''&&tv!=='0') return false;
+        continue;
+      }
+      if(String(v==null?'':v).trim()!=='') return false;
+    }
+  }catch(e){return true;}
+  return true;
+}
+function hossamWriteVaultSave(form){
+  try{
+    if(!form||form.id!=='hossam-post-create-form') return;
+    if(!window.hossamWriteDirty) return;
+    /* [v1.1.14 item 1 - the advisory correction 1] the serialized block state
+       is the truth in official mode (the textarea holds only the seed until a
+       save syncs it) - the vault capture syncs the editor into the textarea
+       before collecting, so the debounced rescue never stores a stale body. */
+    if(typeof hossamSyncRichEditorToTextarea==='function'){try{hossamSyncRichEditorToTextarea(form);}catch(eVS){}}
+    var payload={v:1,ctx:'write',lang:hossamWriteLang(),ts:Date.now(),bound:(form.getAttribute('data-hossam-bound-post')||''),fields:hossamWriteCollect(form)};
+    if(hossamWriteVaultEmpty(payload)) return;
+    sessionStorage.setItem(hossamWriteVaultKey(),JSON.stringify(payload));
+  }catch(e){}
+}
+function hossamWriteVaultClear(form){
+  try{
+    if(form&&form.id!=='hossam-post-create-form') return;
+    sessionStorage.removeItem(hossamWriteVaultKey());
+  }catch(e){}
+}
+/* [v1.1.14 item 2] the redirect governor: the post-save and translation
+   timers are cancelled by the first user input after the save (the intent
+   the pre-existing code comment documented) and the D1 decision card
+   governs what happens next. */
+function hossamWriteCancelRedirect(){
+  try{
+    if(hossamWriteRedirectTimer){clearTimeout(hossamWriteRedirectTimer);hossamWriteRedirectTimer=null;}
+    hossamWriteRedirectArmed=false;
+  }catch(e){}
+}
+function hossamWriteClearDirty(){
+  try{
+    window.hossamWriteDirty=false;
+    hossamWriteCancelRedirect();
+  }catch(e){}
+}
+/* One cadence for both rescue channels: the debounced write-vault capture
+   (create form) and the debounced official edit autosave. Each channel
+   self-guards to its own form. */
+function hossamWriteMarkDirty(){
+  try{
+    window.hossamWriteDirty=true;
+    window.hossamDiagLastInput=Date.now();
+    hossamWriteCancelRedirect();
+    if(!hossamWriteVaultTimer){
+      hossamWriteVaultTimer=setTimeout(function(){hossamWriteVaultTimer=null;try{hossamWriteVaultSave(document.getElementById('hossam-post-create-form'));}catch(e1){}},HOSSAM_VAULT_DEBOUNCE);
+    }
+    if(!hossamAutosaveTimer){
+      hossamAutosaveTimer=setTimeout(function(){hossamAutosaveTimer=null;try{hossamWriteAutosave();}catch(e2){}},HOSSAM_AUTOSAVE_DEBOUNCE);
+    }
+  }catch(e){}
+}
+/* Recorder ring: the last five errors (console + window + rejection). */
+function hossamDiagLogError(text){
+  try{
+    hossamDiagErrors.push({ts:Date.now(),text:String(text).slice(0,300)});
+    if(hossamDiagErrors.length>5) hossamDiagErrors=hossamDiagErrors.slice(-5);
+  }catch(e){}
+}
+
 /* [Core-first] Create → hossam_create_article */
 async function hossamCreateArticle(form){
   if(!window.hossamAjax || !form) return false;
@@ -84,6 +230,19 @@ async function hossamCreateArticle(form){
   /* [B9-05] + [B9-06] P1: send the value when it is not empty — zero '0'
      is sent explicitly for removal (no '0' exclusion, and never -1). */
   if(thumb&&thumb.value!==''){fd.append("thumbnail_id",thumb.value);}
+  /* [v1.1.14 item 1+2] the save-commit capture: the vault snapshots every
+     field right before the request, so a failed save still rescues. The D1
+     guard: a bound form routes to the update path; a saved-but-unbound form
+     is intercepted with the same decision card — a second create save is
+     never silently executed (the duplicate-draft window stays closed). */
+  try{hossamWriteVaultSave(form);}catch(eVault){}
+  try{
+    if(form.getAttribute('data-hossam-bound-post')&&typeof hossamUpdateArticle==='function'){return hossamUpdateArticle(form);}
+    if(form.getAttribute('data-hossam-saved-post')&&hossamWriteLastCreate){
+      hossamShowPostSuccessCard(form,hossamWriteLastCreate,hossamPostToastLabel(status?status.value:'draft'));
+      return true;
+    }
+  }catch(eD1){}
   let netError=false,resp=null,d=null;
   try{
     resp=await fetch(hossamAjax.ajaxurl,{method:"POST",body:fd});
@@ -93,13 +252,22 @@ async function hossamCreateArticle(form){
     showToast(hossamPostToastLabel(status?status.value:'draft'),'success');
     /* [B9-06] P1: a success card with clickable links is shown before any
        automatic redirect; the create transition (edit_url) is delayed until
-       user interaction (a clickable link) or a short timeout. */
+       user interaction (a clickable link) or a short timeout.
+       [v1.1.14 item 2 — the governor] the documented intent above is now
+       enforced: the timer below is cancelled by the first keydown/mousedown/
+       form input after the save and by both D1 card buttons, and the D1
+       decision card governs what happens next (owner-adopted default). */
+    if(form.id==='hossam-post-create-form'){hossamWriteLastCreate=d;}
+    try{form.setAttribute('data-hossam-last-saved',String(Date.now()));}catch(eStamp){}
+    hossamWriteClearDirty();
+    hossamWriteVaultClear(form);
     hossamShowPostSuccessCard(form,d,hossamPostToastLabel(status?status.value:'draft'));
     if(d.data&&d.data.edit_url){
       const editUrl=d.data.edit_url;
-      setTimeout(()=>{window.location.href=editUrl;},6000);
+      hossamWriteRedirectArmed=true;
+      hossamWriteRedirectTimer=setTimeout(function(){hossamWriteRedirectTimer=null;hossamWriteRedirectArmed=false;window.location.href=editUrl;},6000);
     }
-    else if(!hossamPostSuccessLinks(d).length){location.reload();}
+    else if(!hossamPostSuccessLinks(d).length){/* v1.1.14 item 2: unreachable on creation — edit_url is always returned by hossam_create_article; kept for the response-less edge only. */location.reload();}
     return true;
   }
   showToast((d&&d.data&&d.data.message)||t('networkError','Network error'),'error');
@@ -149,6 +317,13 @@ async function hossamUpdateArticle(form){
   }catch(e){netError=true;}
   if(d&&d.success){
     showToast(t('updated','Updated'),'success');
+    /* [v1.1.14 item 1 - the audit corrections] a successful update feeds the
+       rescue layer on both paths (the edit form and the bound create form):
+       the dirty flag clears, the saved marker stamps, and the write vault
+       clears (a no-op on the edit form by its guard). */
+    try{form.setAttribute('data-hossam-last-saved',String(Date.now()));}catch(eStamp2){}
+    hossamWriteClearDirty();
+    hossamWriteVaultClear(form);
     /* [B9-06] P1: the update shows the success card with its links instead of
        an instant reload — the links stay usable with no automatic redirect. */
     hossamShowPostSuccessCard(form,d,t('updated','Updated'));
@@ -336,6 +511,49 @@ function hossamShowPostSuccessCard(form,d,message){
     s.textContent=t('seoLink','SEO');
     card.appendChild(s);
   }
+  /* [v1.1.14 item 2 — the D1 decision card (owner-adopted default)] the
+     create form has no post_id: the card carries the two decision buttons.
+     Continue writing binds the form to the created post (the hidden post_id
+     input + the bound marker) so further saves update instead of
+     duplicating; Open in editor navigates to the edit panel now. Both cancel
+     the pending redirect. */
+  try{
+    if(form.id==='hossam-post-create-form'&&d&&d.data&&d.data.edit_url){
+      form.setAttribute('data-hossam-saved-post',String(d.data.post_id||''));
+      var d1Wrap=document.createElement('div');
+      d1Wrap.className='hossam-d1-actions';
+      var continueBtn=document.createElement('button');
+      continueBtn.type='button';
+      continueBtn.className='btn btn-sm btn-outline';
+      continueBtn.style.marginInlineEnd='6px';
+      continueBtn.textContent=t('d1Continue','Continue writing');
+      continueBtn.addEventListener('click',function(){
+        try{
+          hossamWriteCancelRedirect();
+          var pid=String((d.data&&d.data.post_id)||'');
+          if(!pid){try{var u1=new URL(d.data.edit_url,location.href);pid=u1.searchParams.get('post_id')||'';}catch(eU1){pid='';}}
+          if(pid){
+            var hidden=form.querySelector('[name="post_id"]');
+            if(!hidden){hidden=document.createElement('input');hidden.type='hidden';hidden.name='post_id';form.appendChild(hidden);}
+            hidden.value=pid;
+            form.setAttribute('data-hossam-bound-post',pid);
+          }
+          var mine=form.querySelector('[data-hossam-vault-card="d1"]');
+          if(mine&&mine.parentNode) mine.parentNode.removeChild(mine);
+        }catch(eD1b){}
+      });
+      var openBtn=document.createElement('button');
+      openBtn.type='button';
+      openBtn.className='btn btn-sm';
+      openBtn.style.marginInlineEnd='6px';
+      openBtn.textContent=t('d1OpenEditor','Open in editor');
+      openBtn.addEventListener('click',function(){try{hossamWriteCancelRedirect();window.location.href=d.data.edit_url;}catch(eD1c){}});
+      d1Wrap.appendChild(continueBtn);
+      d1Wrap.appendChild(openBtn);
+      card.setAttribute('data-hossam-vault-card','d1');
+      card.appendChild(d1Wrap);
+    }
+  }catch(eD1a){}
   /* [R38] v1.1.0 (H1 §7-1): the official editor (OEB) open link in the success
      card — present conditionally with the server-side oeb_url (esc_url) in
      the create/update responses only.
@@ -690,14 +908,18 @@ async function translateArticle(postId, lang, btn){
          the edit_url hop is delayed so the result stays usable. */
       hossamShowTranslationResult(btn||null,d);
       const newId=d.data&&(d.data.translated_id||d.data.post_id);
+      /* [v1.1.14 item 2] the same governor treatment: both 4-second hops are
+         cancelled by the first user input after the result shows. */
       if(d.data&&d.data.edit_url){
         const editUrl=d.data.edit_url;
-        setTimeout(()=>{window.location.href=editUrl;},4000);
+        hossamWriteRedirectArmed=true;
+        hossamWriteRedirectTimer=setTimeout(function(){hossamWriteRedirectTimer=null;hossamWriteRedirectArmed=false;window.location.href=editUrl;},4000);
       }else if(newId){
         const u=new URL(location.href);
         u.searchParams.set('panel','edit-article');
         u.searchParams.set('post_id',newId);
-        setTimeout(()=>{window.location.href=u.toString();},4000);
+        hossamWriteRedirectArmed=true;
+        hossamWriteRedirectTimer=setTimeout(function(){hossamWriteRedirectTimer=null;hossamWriteRedirectArmed=false;window.location.href=u.toString();},4000);
       }else{
         location.reload();
       }
@@ -1196,6 +1418,10 @@ function hossamRichInitEditor(containerId){
         var live=hossamRichState.inited[containerId]||null;
         if(live&&(live.phase==='mounting'||live.phase==='ready')) live.blocks=next;
         setBlocks(next);
+        /* [v1.1.14 item 1] every editor commit feeds the rescue layer: the
+           dirty flag (beforeunload + the nav() guard read it), the debounced
+           write-vault capture and the debounced edit autosave. */
+        try{hossamWriteMarkDirty();}catch(eRes){}
       }
         /* [W7] v1.1.3: the toolbar-side handle - reparse (Discard) and
            keep reuse the existing parse/keep paths only. */
@@ -1239,7 +1465,7 @@ function hossamRichInitEditor(containerId){
             allowedTypes:['image'],
             render:function(renderProps){
               var open=renderProps&&renderProps.open;
-              return el.createElement('button',{type:'button',className:'btn btn-sm',onClick:function(){if(typeof open==='function'){open();}else{hossamRichOpenLibrary(insertImage);}}},'Media');
+              return el.createElement('button',{type:'button',className:'btn btn-sm',onClick:function(){if(typeof open==='function'){open();}else{hossamRichOpenLibrary(insertImage);}}},t('mediaLabel','Media'));
             },
           })
         ));
@@ -1410,6 +1636,203 @@ function hossamSyncRichEditorToTextarea(form){
     st.initialHtml=out;
   }catch(e){}
 }
+/* [v1.1.14 item 1] restore banner: never silent. Shown when a fresh vault
+   exists on load; refused over newer saved content (timestamp comparison);
+   Restore re-applies the captured fields, Discard drops the vault. */
+function hossamWriteRestoreBanner(form){
+  try{
+    if(!form||form.id!=='hossam-post-create-form') return;
+    var raw=sessionStorage.getItem(hossamWriteVaultKey());
+    if(!raw) return;
+    var payload=null;
+    try{payload=JSON.parse(raw);}catch(eP){payload=null;}
+    if(!payload||payload.v!==1||!payload.fields||!payload.ts||(Date.now()-payload.ts)>HOSSAM_VAULT_TTL||hossamWriteVaultEmpty(payload)){
+      sessionStorage.removeItem(hossamWriteVaultKey());
+      return;
+    }
+    var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    if(savedAt&&payload.ts<=savedAt){sessionStorage.removeItem(hossamWriteVaultKey());return;}
+    var old=form.querySelector('[data-hossam-vault-banner]');
+    if(old&&old.parentNode) old.parentNode.removeChild(old);
+    var banner=document.createElement('div');
+    banner.className='hossam-vault-restore-banner info-card';
+    banner.setAttribute('data-hossam-vault-banner','1');
+    var msg=document.createElement('p');
+    if(payload.bound){
+      msg.textContent=t('vaultRestoreBoundPrompt','Restore your unsaved edits to the saved article from {time}?').replace('{time}',new Date(payload.ts).toLocaleString());
+    }else{
+      msg.textContent=t('vaultRestorePrompt','Restore unsaved draft from {time}?').replace('{time}',new Date(payload.ts).toLocaleString());
+    }
+    banner.appendChild(msg);
+    var restoreBtn=document.createElement('button');
+    restoreBtn.type='button';
+    restoreBtn.className='btn btn-sm btn-outline';
+    restoreBtn.style.marginInlineEnd='6px';
+    restoreBtn.textContent=t('vaultRestore','Restore');
+    restoreBtn.addEventListener('click',function(){try{hossamWriteVaultApply(form,payload);banner.parentNode.removeChild(banner);}catch(eR){}});
+    var discardBtn=document.createElement('button');
+    discardBtn.type='button';
+    discardBtn.className='btn btn-sm btn-ghost';
+    discardBtn.textContent=t('vaultDiscard','Discard');
+    discardBtn.addEventListener('click',function(){try{sessionStorage.removeItem(hossamWriteVaultKey());banner.parentNode.removeChild(banner);}catch(eD){}});
+    banner.appendChild(restoreBtn);
+    banner.appendChild(discardBtn);
+    form.insertBefore(banner,form.firstChild);
+  }catch(e){}
+}
+/* Restore applies the captured fields. The banner's payload must still BE
+   the live vault (timestamp equality) and must not be older than the last
+   saved content — both re-checked at click time. The tags[] mirror values
+   are restored as data (the chips UI rebuilds on the next tag interaction —
+   the honest limitation: saved tags beat lost tags). */
+function hossamWriteVaultApply(form,payload){
+  try{
+    var raw=sessionStorage.getItem(hossamWriteVaultKey());
+    if(!raw) return;
+    var live=null;
+    try{live=JSON.parse(raw);}catch(eP2){return;}
+    if(!live||!live.ts||live.ts!==payload.ts) return;
+    var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    if(savedAt&&live.ts<=savedAt) return;
+    var f=live.fields||{};
+    function setVal(name,val){var fld=form.querySelector('[name="'+name+'"]');if(fld) fld.value=(val==null?'':val);}
+    setVal('title',f.title);
+    setVal('excerpt',f.excerpt);
+    setVal('status',f.status);
+    setVal('thumbnail_id',f.thumbnail_id);
+    var boxes=form.querySelectorAll('input[name="categories[]"]');
+    for(var i=0;i<boxes.length;i++){boxes[i].checked=false;}
+    var cats=Object.prototype.toString.call(f['categories[]'])==='[object Array]'?f['categories[]']:[];
+    for(var c=0;c<cats.length;c++){
+      for(var k2=0;k2<boxes.length;k2++){if(String(boxes[k2].value)===String(cats[c])){boxes[k2].checked=true;break;}}
+    }
+    var mirrors=form.querySelectorAll('input[name="tags[]"]');
+    var tags=Object.prototype.toString.call(f['tags[]'])==='[object Array]'?f['tags[]']:[];
+    for(var m=0;m<mirrors.length;m++){if(mirrors[m]&&mirrors[m].parentNode) mirrors[m].parentNode.removeChild(mirrors[m]);}
+    for(var t2=0;t2<tags.length;t2++){
+      var mi=document.createElement('input');
+      mi.type='hidden';mi.name='tags[]';mi.value=String(tags[t2]);
+      form.appendChild(mi);
+    }
+    var content=String(f.content==null?'':f.content);
+    var holder=form.querySelector('.hossam-rich-editor');
+    var rec=(holder&&holder.id)?hossamRichState.inited[holder.id]:null;
+    var wp0=hossamRichWp();
+    var applied=false;
+    if(rec&&rec.ready&&rec.api&&typeof rec.api.keep==='function'&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function'){
+      try{var parsed=wp0.blocks.parse(content)||[];rec.api.keep(parsed);applied=true;}catch(eK){applied=false;}
+    }
+    if(!applied){
+      var ta=form.querySelector('[name="content"]');
+      if(ta) ta.value=content;
+    }
+    /* [v1.1.14 - the independent audit correction 2] the binding survives the
+       reload through the vault: a bound restore re-binds the form so the next
+       save updates the same article (the duplicate window stays closed across
+       page loads), and the banner names it explicitly. */
+    if(String(live.bound||'')!==''){
+      var hidden2=form.querySelector('[name="post_id"]');
+      if(!hidden2){hidden2=document.createElement('input');hidden2.type='hidden';hidden2.name='post_id';form.appendChild(hidden2);}
+      hidden2.value=String(live.bound);
+      form.setAttribute('data-hossam-bound-post',String(live.bound));
+    }
+    hossamWriteMarkDirty();
+  }catch(e){}
+}
+/* [v1.1.14 item 1] the edit-context rescue: the official autosaves endpoint
+   through wp.apiFetch with the official wp_rest nonce (issued server-side
+   decoupled from upload_files in setup.php). Debounced; failures land in
+   the recorder, never as toasts. */
+function hossamWriteAutosave(){
+  try{
+    var form=document.getElementById('hossam-post-edit-form');
+    if(!form||!window.hossamWriteDirty) return;
+    var pid=form.querySelector('[name="post_id"]');
+    var id=pid?parseInt(pid.value,10):0;
+    if(!id||id<1) return;
+    var cfg=hossamRichConfig();
+    if(!cfg||!cfg.restNonce||!cfg.restRoot) return;
+    var wp0=hossamRichWp();
+    if(!wp0||!wp0.apiFetch) return;
+    try{
+      if(!window.hossamApiFetchWired){
+        if(cfg.restNonce&&wp0.apiFetch.createNonceMiddleware) wp0.apiFetch.use(wp0.apiFetch.createNonceMiddleware(cfg.restNonce));
+        if(cfg.restRoot&&wp0.apiFetch.createRootURLMiddleware) wp0.apiFetch.use(wp0.apiFetch.createRootURLMiddleware(cfg.restRoot));
+        window.hossamApiFetchWired=true;
+      }
+    }catch(eMw){}
+    if(typeof hossamSyncRichEditorToTextarea==='function'){try{hossamSyncRichEditorToTextarea(form);}catch(eSync){}}
+    var title=form.querySelector('[name="title"]');
+    var content=form.querySelector('[name="content"]');
+    var excerpt=form.querySelector('[name="excerpt"]');
+    wp0.apiFetch({path:'/wp/v2/posts/'+id+'/autosaves',method:'POST',data:{content:content?content.value:undefined,title:title?title.value:undefined,excerpt:excerpt?excerpt.value:undefined}})
+      .then(function(){try{form.setAttribute('data-hossam-autosaved',String(Date.now()));}catch(eA){}})
+      .catch(function(err){try{hossamDiagLogError('autosave-failed: '+String((err&&err.message)||err||'error').slice(0,200));}catch(eE){}});
+  }catch(e){}
+}
+/* [v1.1.14 item 1 — defect A] the black-box recorder: installed once; the
+   pagehide snapshot is the evidence surface the diagnosis session reads. */
+function hossamDiagInstall(){
+  try{
+    if(window.hossamDiagWired) return;
+    window.hossamDiagWired=true;
+    window.hossamDiagStart=Date.now();
+    try{
+      var origError=console.error;
+      if(typeof origError==='function'){
+        console.error=function(){
+          try{var parts=[];for(var i=0;i<arguments.length;i++){parts.push(String(arguments[i]));}hossamDiagLogError(parts.join(' '));}catch(eW){}
+          return origError.apply(console,arguments);
+        };
+      }
+    }catch(eC){}
+    window.addEventListener('error',function(ev){try{hossamDiagLogError('window.onerror: '+String((ev&&ev.message)||'error').slice(0,200));}catch(e1){}});
+    window.addEventListener('unhandledrejection',function(ev){try{hossamDiagLogError('unhandledrejection: '+String((ev&&ev.reason)||(ev&&ev.detail&&ev.detail.reason)||'rejection').slice(0,200));}catch(e2){}});
+    window.addEventListener('pagehide',function(){
+      try{
+        var navType='';
+        try{
+          var navEntries=(typeof performance==='object'&&performance.getEntriesByType)?performance.getEntriesByType('navigation'):[];
+          if(navEntries&&navEntries.length&&navEntries[0]&&navEntries[0].type) navType=String(navEntries[0].type);
+        }catch(eN){}
+        sessionStorage.setItem(HOSSAM_DIAG_KEY,JSON.stringify({
+          v:1,ts:Date.now(),navType:navType,visibility:document.visibilityState,
+          pageAgeMs:Date.now()-(window.hossamDiagStart||Date.now()),
+          lastInputAgoMs:window.hossamDiagLastInput?(Date.now()-window.hossamDiagLastInput):-1,
+          dirty:!!window.hossamWriteDirty,
+          errors:hossamDiagErrors.slice(-5)
+        }));
+      }catch(e3){}
+    });
+  }catch(e){}
+}
+/* [v1.1.14 item 1] rescue wiring (once): the per-form input listeners feed
+   the dirty flag and the debounced captures; beforeunload is conditioned on
+   the dirty flag; the governor cancel rides the first keydown/mousedown;
+   the restore banner mounts on the create form. */
+(function hossamRescueWire(){
+  try{
+    if(window.hossamRescueWired) return;
+    window.hossamRescueWired=true;
+    var createForm=document.getElementById('hossam-post-create-form');
+    var editForm=document.getElementById('hossam-post-edit-form');
+    if(createForm){
+      createForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW1){}});
+      hossamWriteRestoreBanner(createForm);
+    }
+    if(editForm){
+      editForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW2){}});
+    }
+    document.addEventListener('keydown',function(){try{if(hossamWriteRedirectArmed)hossamWriteCancelRedirect();}catch(eW3){}},true);
+    document.addEventListener('mousedown',function(){try{if(hossamWriteRedirectArmed)hossamWriteCancelRedirect();}catch(eW4){}},true);
+    window.addEventListener('beforeunload',function(ev){
+      try{
+        if(window.hossamWriteDirty){ev.preventDefault();ev.returnValue='';}
+      }catch(eW5){}
+    });
+    hossamDiagInstall();
+  }catch(e){}
+})();
 if(typeof document!=='undefined'&&document&&typeof document.addEventListener==='function'){
   document.addEventListener('DOMContentLoaded',function(){try{hossamRichInitVisible();}catch(e){}});
   /* HAL panel navigation happens in-page — capture the first panel open. */
