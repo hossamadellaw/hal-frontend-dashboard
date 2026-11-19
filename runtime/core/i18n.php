@@ -398,6 +398,7 @@ add_action( 'init', function(): void {
         'Open in editor',
         'You have unsaved changes in the writing form — leave anyway?',
         'Restore unsaved draft from {time}?',
+        'Restore your unsaved edits to the saved article from {time}?',
         'Discard',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
@@ -490,6 +491,7 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'd1OpenEditor'        => hossam_t('Open in editor'),
             'unsavedLeave'        => hossam_t('You have unsaved changes in the writing form — leave anyway?'),
             'vaultRestorePrompt'  => hossam_t('Restore unsaved draft from {time}?'),
+            'vaultRestoreBoundPrompt' => hossam_t('Restore your unsaved edits to the saved article from {time}?'),
             'vaultRestore'        => hossam_t('Restore'),
             'vaultDiscard'        => hossam_t('Discard'),
 

@@ -1218,7 +1218,13 @@ function testRescueLayer() {
     && source.indexOf("if(window.hossamWriteDirty){ev.preventDefault();ev.returnValue='';}") !== -1
     && source.indexOf('try{hossamWriteMarkDirty();}catch(eRes){}') !== -1
     && dashSrc.indexOf('window.hossamWriteDirty&&!window.confirm(') !== -1
-    && dashSrc.indexOf("t('unsavedLeave','You have unsaved changes in the writing form — leave anyway?')") !== -1;
+    && dashSrc.indexOf("t('unsavedLeave','You have unsaved changes in the writing form — leave anyway?')") !== -1
+    && (source.match(/hossamWriteClearDirty\(\);/g) || []).length === 2
+    && source.indexOf("try{hossamSyncRichEditorToTextarea(form);}catch(eVS){}") !== -1
+    && source.indexOf("bound:(form.getAttribute('data-hossam-bound-post')||'')") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-bound-post',String(live.bound));") !== -1
+    && source.indexOf("t('vaultRestoreBoundPrompt','Restore your unsaved edits to the saved article from {time}?')") !== -1
+    && source.indexOf("if(k==='status'&&String(v==null?'':v).trim()==='draft'){") !== -1;
   const governorArms = (source.match(/hossamWriteRedirectArmed=true;/g) || []).length;
   const governorOk = governorArms === 3
     && source.indexOf('function hossamWriteCancelRedirect(){') !== -1

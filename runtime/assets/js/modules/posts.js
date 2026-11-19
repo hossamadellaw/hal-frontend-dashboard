@@ -120,6 +120,11 @@ function hossamWriteVaultEmpty(payload){
         if(txt!=='') return false;
         continue;
       }
+      /* [v1.1.14 - the audit note 4] the untouched default status is not
+         content: a form with only the draft default writes no vault. */
+      if(k==='status'&&String(v==null?'':v).trim()==='draft'){
+        continue;
+      }
       if(k==='thumbnail_id'){
         var tv=String(v==null?'':v).trim();
         if(tv!==''&&tv!=='0') return false;
@@ -134,7 +139,12 @@ function hossamWriteVaultSave(form){
   try{
     if(!form||form.id!=='hossam-post-create-form') return;
     if(!window.hossamWriteDirty) return;
-    var payload={v:1,ctx:'write',lang:hossamWriteLang(),ts:Date.now(),fields:hossamWriteCollect(form)};
+    /* [v1.1.14 item 1 - the advisory correction 1] the serialized block state
+       is the truth in official mode (the textarea holds only the seed until a
+       save syncs it) - the vault capture syncs the editor into the textarea
+       before collecting, so the debounced rescue never stores a stale body. */
+    if(typeof hossamSyncRichEditorToTextarea==='function'){try{hossamSyncRichEditorToTextarea(form);}catch(eVS){}}
+    var payload={v:1,ctx:'write',lang:hossamWriteLang(),ts:Date.now(),bound:(form.getAttribute('data-hossam-bound-post')||''),fields:hossamWriteCollect(form)};
     if(hossamWriteVaultEmpty(payload)) return;
     sessionStorage.setItem(hossamWriteVaultKey(),JSON.stringify(payload));
   }catch(e){}
@@ -307,6 +317,13 @@ async function hossamUpdateArticle(form){
   }catch(e){netError=true;}
   if(d&&d.success){
     showToast(t('updated','Updated'),'success');
+    /* [v1.1.14 item 1 - the audit corrections] a successful update feeds the
+       rescue layer on both paths (the edit form and the bound create form):
+       the dirty flag clears, the saved marker stamps, and the write vault
+       clears (a no-op on the edit form by its guard). */
+    try{form.setAttribute('data-hossam-last-saved',String(Date.now()));}catch(eStamp2){}
+    hossamWriteClearDirty();
+    hossamWriteVaultClear(form);
     /* [B9-06] P1: the update shows the success card with its links instead of
        an instant reload — the links stay usable with no automatic redirect. */
     hossamShowPostSuccessCard(form,d,t('updated','Updated'));
@@ -1641,7 +1658,11 @@ function hossamWriteRestoreBanner(form){
     banner.className='hossam-vault-restore-banner info-card';
     banner.setAttribute('data-hossam-vault-banner','1');
     var msg=document.createElement('p');
-    msg.textContent=t('vaultRestorePrompt','Restore unsaved draft from {time}?').replace('{time}',new Date(payload.ts).toLocaleString());
+    if(payload.bound){
+      msg.textContent=t('vaultRestoreBoundPrompt','Restore your unsaved edits to the saved article from {time}?').replace('{time}',new Date(payload.ts).toLocaleString());
+    }else{
+      msg.textContent=t('vaultRestorePrompt','Restore unsaved draft from {time}?').replace('{time}',new Date(payload.ts).toLocaleString());
+    }
     banner.appendChild(msg);
     var restoreBtn=document.createElement('button');
     restoreBtn.type='button';
@@ -1704,6 +1725,16 @@ function hossamWriteVaultApply(form,payload){
     if(!applied){
       var ta=form.querySelector('[name="content"]');
       if(ta) ta.value=content;
+    }
+    /* [v1.1.14 - the independent audit correction 2] the binding survives the
+       reload through the vault: a bound restore re-binds the form so the next
+       save updates the same article (the duplicate window stays closed across
+       page loads), and the banner names it explicitly. */
+    if(String(live.bound||'')!==''){
+      var hidden2=form.querySelector('[name="post_id"]');
+      if(!hidden2){hidden2=document.createElement('input');hidden2.type='hidden';hidden2.name='post_id';form.appendChild(hidden2);}
+      hidden2.value=String(live.bound);
+      form.setAttribute('data-hossam-bound-post',String(live.bound));
     }
     hossamWriteMarkDirty();
   }catch(e){}

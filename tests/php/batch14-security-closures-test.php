@@ -901,9 +901,14 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // autosave through wp.apiFetch, and the pagehide black-box recorder), the
 // keep() hook feeding the rescue layer, and the 'Media' toolbar literal
 // moving to the registered i18n channel.
+// The corrections commit renewal (one value): the advisory correction 1 (the
+// vault capture syncs the editor state into the textarea before collecting),
+// the update success path feeding the rescue layer, the bound state carried
+// through the vault with the explicit bound-restore prompt, and the
+// status-default empty-skip.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'968f4f3b53603831cee73da229f648a777835f7e26bf65fefb7a0f0572c42a3a' === $posts_js_lf_hash
-		&& '968f4f3b53603831cee73da229f648a777835f7e26bf65fefb7a0f0572c42a3a' === $posts_js_head_hash,
+	'c9b3e09fa3b9db3e3ee05ab670c2802716966883a065d2648ac4e2329a4c1296' === $posts_js_lf_hash
+		&& 'c9b3e09fa3b9db3e3ee05ab670c2802716966883a065d2648ac4e2329a4c1296' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers, and the v1.1.14 Wave A rescue layer',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
