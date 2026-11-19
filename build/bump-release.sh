@@ -95,7 +95,10 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The formatting tools now write through the editor official serializer: strikethrough, subscript, superscript, highlight, text color, clear formatting, change case, and alignment apply cleanly and survive saving.'
+'* The writing form now rescues unsaved work on its own: every field of the article form is captured to a session vault as you type, an explicit banner offers restoring it after any page loss, and a single dirty indicator warns before leaving with unsaved changes - including the in-panel navigation.'
+'* After the first save a decision card offers continuing in place or opening the editor, the automatic redirect cancels on the first input (for saves and translations), and a second save is intercepted instead of creating a duplicate.'
+'* The edit panel now autosaves through the official autosaves endpoint, with the REST nonce issued to every writer role.'
+'* The writing-critical interface strings (the title placeholder, the heading-policy lines, the official-editor gateway, and the Media toolbar label) moved to the registered translation channel.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
