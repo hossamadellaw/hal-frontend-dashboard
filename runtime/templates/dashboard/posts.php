@@ -274,12 +274,12 @@ $hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_
           <div class="form-group mb-8 hossam-write-title-group">
             <label class="form-label" for="hossam-new-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
             <div class="hossam-write-title-shell">
-              <span class="hossam-write-h1-badge" title="<?php echo esc_attr( __( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?>">H1</span>
-              <input type="text" class="form-input hossam-write-title-input" id="hossam-new-title" name="title" maxlength="255" placeholder="<?php echo esc_attr( __( 'Enter the article title here…', 'hal-frontend-dashboard' ) ); ?>" />
+              <span class="hossam-write-h1-badge" title="<?php echo esc_attr( hossam_t( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.' ) ); ?>">H1</span>
+              <input type="text" class="form-input hossam-write-title-input" id="hossam-new-title" name="title" maxlength="255" placeholder="<?php echo esc_attr( hossam_t( 'Enter the article title here…' ) ); ?>" />
             </div>
             <div class="hossam-write-title-hint">
               <span class="hossam-write-policy-pill">H1</span>
-              <span><?php echo esc_html( __( 'H1 is reserved for the title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?></span>
+              <span><?php echo esc_html( hossam_t( 'H1 is reserved for the title only — the article body starts at H2 or above.' ) ); ?></span>
             </div>
           </div>
           <!-- (2) v1.1.5 item 19: the Excerpt group moved directly under the
@@ -698,7 +698,7 @@ $hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_
                            open button — administrators only × official from
                            get_effective_editor_mode(); absent from the DOM
                            entirely for non-admins. Text: i18n oeb_open (R41). -->
-                      <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>" title="<?php echo esc_attr( __( 'Admin gateway — opens the official editor in a separate tab, administrators only.', 'hal-frontend-dashboard' ) ); ?>"><?php echo esc_html( hossam_t( 'Manual update' ) ); ?></a>
+                      <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=edit' ) ); ?>" target="_blank" rel="noopener" class="hossam-oeb-btn js-oeb-open" data-oeb-post="<?php echo esc_attr( $post_id ); ?>" title="<?php echo esc_attr( hossam_t( 'Admin gateway — opens the official editor in a separate tab, administrators only.' ) ); ?>"><?php echo esc_html( hossam_t( 'Manual update' ) ); ?></a>
                       <?php endif; ?>
                     </div>
                     <div class="td-muted hossam-author-info">
@@ -769,8 +769,8 @@ $hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_
              __() pattern with the hal-frontend-dashboard domain (display
              only; no logic, no new path). -->
         <div class="hossam-oeb-gate-note">
-          <span class="hossam-oeb-gate-chip"><?php echo esc_html( __( 'Admin gateway', 'hal-frontend-dashboard' ) ); ?></span>
-          <span><?php echo esc_html( __( 'Opens the official editor in a separate tab — administrators only.', 'hal-frontend-dashboard' ) ); ?></span>
+          <span class="hossam-oeb-gate-chip"><?php echo esc_html( hossam_t( 'Admin gateway' ) ); ?></span>
+          <span><?php echo esc_html( hossam_t( 'Opens the official editor in a separate tab — administrators only.' ) ); ?></span>
         </div>
         <div class="hossam-oeb-dialog-head"><?php echo esc_html( hossam_t( 'Manual update' ) ); ?></div>
         <p class="hossam-oeb-status" id="hossam-oeb-dialog-status"><?php echo esc_html( hossam_t( 'Checking for updates…' ) ); ?></p>
@@ -832,12 +832,12 @@ $hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_
                     <div class="form-group mb-8 hossam-write-title-group">
                       <label class="form-label" for="hossam-edit-title"><?php echo esc_html( hossam_t( 'Title' ) ); ?></label>
                       <div class="hossam-write-title-shell">
-                        <span class="hossam-write-h1-badge" title="<?php echo esc_attr( __( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?>">H1</span>
+                        <span class="hossam-write-h1-badge" title="<?php echo esc_attr( hossam_t( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.' ) ); ?>">H1</span>
                         <input type="text" class="form-input hossam-write-title-input" id="hossam-edit-title" name="title" maxlength="255" value="<?php echo esc_attr( $the_post->post_title ); ?>" />
                       </div>
                       <div class="hossam-write-title-hint">
                         <span class="hossam-write-policy-pill">H1</span>
-                        <span><?php echo esc_html( __( 'H1 is reserved for the title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' ) ); ?></span>
+                        <span><?php echo esc_html( hossam_t( 'H1 is reserved for the title only — the article body starts at H2 or above.' ) ); ?></span>
                       </div>
                     </div>
                     <!-- v1.1.5 item 19-1: the Excerpt group directly under the

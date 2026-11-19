@@ -715,14 +715,16 @@ add_action( 'wp_enqueue_scripts', function(): void {
     // v1.0.6 §9: the rich editor settings on hossam-dashboard-posts — a separate
     // hossamRichEditor object (hossamAjax above stays as is with no change, B9-E3 intact).
     // enabled=false means the textarea stays visible; canUpload reflects upload_files
-    // (a separate condition for media); REST/Nonce is issued conditionally on the editor being enabled and upload_files;
-    // '' otherwise (uploadMedia) — no new endpoint.
-    $hossam_rich_can_upload = $hossam_rich_enabled && current_user_can( 'upload_files' );
+    // (a separate condition for media); v1.1.14 item 1: the REST nonce is
+    // decoupled from upload_files — it is issued whenever the editor is
+    // enabled so the writer role reaches the official /autosaves endpoint;
+    // REST capability checks stay server-side (WordPress core enforces
+    // edit_post per endpoint) — no new endpoint.
     wp_localize_script( 'hossam-dashboard-posts', 'hossamRichEditor', [
         'enabled'   => $hossam_rich_enabled,
         'canUpload' => current_user_can( 'upload_files' ),
         'restRoot'  => function_exists( 'rest_url' ) ? rest_url() : '',
-        'restNonce' => $hossam_rich_can_upload ? wp_create_nonce( 'wp_rest' ) : '',
+        'restNonce' => $hossam_rich_enabled ? wp_create_nonce( 'wp_rest' ) : '',
         // OEB/3 (H1 §6-3): the actual mode next to restNonce with no structural merge —
         // its source is the variable above read from get_effective_editor_mode() exclusively.
         'mode'      => $hossam_editor_mode,

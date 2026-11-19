@@ -810,12 +810,15 @@ b14_check( 'T9-NONCE-emits-only-when-enabled-and-upload_files',
 	'rich enabled + upload_files ⇒ the REAL closure emits the wp_rest nonce exactly once (restNonce non-empty, canUpload true)',
 	'emitting run deviated: rich=' . var_export( $m_tt['rich'], true ) . ' wp_rest_calls=' . $m_tt['wp_rest'] );
 
-/* (true, false) — editor enabled without upload rights: '' emitted, zero calls. */
+/* (true, false) — editor enabled without upload rights: v1.1.14 item 1
+ * (value update, not strictness) decouples the nonce from upload_files —
+ * the writer role reaches the official /autosaves endpoint; canUpload stays
+ * false and REST capability checks stay server-side. */
 $m_tf = b14s_rich_run( true, true, false );
 b14_check( 'T9-NONCE-empty-when-no-upload_files',
 	is_array( $m_tf['rich'] ) && true === $m_tf['rich']['enabled'] && false === $m_tf['rich']['canUpload']
-		&& '' === $m_tf['rich']['restNonce'] && 0 === $m_tf['wp_rest'],
-	'upload_files absent ⇒ restNonce="" (key kept, never removed) and wp_create_nonce("wp_rest") is never called',
+		&& '' !== $m_tf['rich']['restNonce'] && 1 === $m_tf['wp_rest'],
+	'v1.1.14 item 1 (value update, not strictness): upload_files absent ⇒ restNonce still issued (decoupled from upload_files — the writer role reaches the official autosaves endpoint), canUpload stays false, wp_rest called exactly once; REST capability checks stay server-side',
 	'no-upload run deviated: rich=' . var_export( $m_tf['rich'], true ) . ' wp_rest_calls=' . $m_tf['wp_rest'] );
 
 /* (feature on, no edit path) — editor disabled: no consumption surface at all, '' emitted. */
@@ -835,16 +838,18 @@ b14_check( 'T9-NONCE-empty-when-both-off',
 	'feature off + no upload_files ⇒ restNonce="" and zero wp_rest calls (the {enabled×upload_files} matrix is fully closed)',
 	'off-off run deviated: rich=' . var_export( $m_ff['rich'], true ) . ' wp_rest_calls=' . $m_ff['wp_rest'] );
 
-/* Static: exactly ONE wp_create_nonce('wp_rest') site in setup.php — conditional. */
+/* Static: exactly ONE wp_create_nonce('wp_rest') site in setup.php —
+ * conditional on the editor being enabled (v1.1.14 item 1: decoupled from
+ * upload_files, value update not strictness; the composite variable is gone). */
 $setup_src = (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/core/setup.php' );
 $nonce_sites = substr_count( $setup_src, "wp_create_nonce( 'wp_rest' )" );
-$conditional = false !== strpos( $setup_src, "'restNonce' => \$hossam_rich_can_upload ? wp_create_nonce( 'wp_rest' ) : ''" );
-$guard_line  = false !== strpos( $setup_src, '$hossam_rich_can_upload = $hossam_rich_enabled && current_user_can( \'upload_files\' );' );
+$conditional = false !== strpos( $setup_src, "'restNonce' => \$hossam_rich_enabled ? wp_create_nonce( 'wp_rest' ) : ''" );
+$decoupled   = false === strpos( $setup_src, '$hossam_rich_can_upload' );
 b14_check( 'T9-NONCE-static-single-conditional-site',
-	1 === $nonce_sites && $conditional && $guard_line,
-	'static: setup.php carries exactly one wp_create_nonce("wp_rest") site, behind the composite guard (rich_enabled && upload_files) with "" as the else branch (H3 §2.5)',
+	1 === $nonce_sites && $conditional && $decoupled,
+	'static: setup.php carries exactly one wp_create_nonce("wp_rest") site, conditioned on the editor being enabled with "" as the else branch — v1.1.14 item 1 decouples the nonce from upload_files (the writer role reaches the official autosaves endpoint; REST capability checks stay server-side) (value update, not strictness)',
 	'nonce static deviated: sites=' . $nonce_sites . ' conditional=' . var_export( $conditional, true )
-		. ' guard=' . var_export( $guard_line, true ) );
+		. ' decoupled=' . var_export( $decoupled, true ) );
 
 /* posts.js fingerprint: byte-identical to the recorded authorized revision (raw + normalized). */
 $posts_js_path = $GLOBALS['B14_PROJECT'] . '/runtime/assets/js/modules/posts.js';
@@ -888,10 +893,18 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // BlockToolbar render removed, the two-selector contentCss hide), the
 // official heading/quote transforms, and the wave-2 rich-text channel with
 // the pinned clear lists and the textAlign alignment form.
+// v1.1.14 Wave A renewal (one value for the wave — the consensus commitment):
+// the unified writing-rescue layer (the write vault with its stamped TTL and
+// the never-silent restore banner, the single dirty flag with the conditional
+// beforeunload, the redirect governor over the create and translation timers,
+// the D1 decision card with the second-save interception, the official edit
+// autosave through wp.apiFetch, and the pagehide black-box recorder), the
+// keep() hook feeding the rescue layer, and the 'Media' toolbar literal
+// moving to the registered i18n channel.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'2a8e07432282d9d05ef881603a7f4ad78aadd9fd4a08c0201240d695533855dd' === $posts_js_lf_hash
-		&& '2a8e07432282d9d05ef881603a7f4ad78aadd9fd4a08c0201240d695533855dd' === $posts_js_head_hash,
-	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, and the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers',
+	'968f4f3b53603831cee73da229f648a777835f7e26bf65fefb7a0f0572c42a3a' === $posts_js_lf_hash
+		&& '968f4f3b53603831cee73da229f648a777835f7e26bf65fefb7a0f0572c42a3a' === $posts_js_head_hash,
+	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers, and the v1.1.14 Wave A rescue layer',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 
 /* ════════════════════════════════════════════════════════════════

@@ -1193,6 +1193,58 @@ function testWave2Channel() {
 
 testWave2Channel();
 
+/* v1.1.14 item 1 — the unified writing-rescue layer (Wave A consensus):
+   the write vault (sessionStorage keyed {form}:{lang}, TTL stamped, cleared
+   on success, never-silent restore banner, refused over newer saved
+   content), the single dirty flag (beforeunload conditional + the
+   dashboard.js nav() guard), the redirect governor (the 6s create timer and
+   both 4s translation hops cancel on the first user input), the D1 decision
+   card (bind/intercept), the official edit autosave through wp.apiFetch,
+   and the black-box recorder persisted on pagehide. */
+function testRescueLayer() {
+  const dashSrc = fs.readFileSync(path.join(projectRoot, 'runtime', 'assets', 'js', 'dashboard.js'), 'utf8');
+  const vaultOk = source.indexOf("var HOSSAM_VAULT_PREFIX='hossamWriteVault'") !== -1
+    && source.indexOf('var HOSSAM_VAULT_TTL=86400000;') !== -1
+    && source.indexOf("HOSSAM_VAULT_PREFIX+':write:'+hossamWriteLang()") !== -1
+    && source.indexOf('sessionStorage.setItem(hossamWriteVaultKey(),JSON.stringify(payload))') !== -1;
+  const bannerOk = source.indexOf('function hossamWriteRestoreBanner(form){') !== -1
+    && source.indexOf("'data-hossam-vault-banner','1'") !== -1
+    && source.indexOf("t('vaultRestorePrompt','Restore unsaved draft from {time}?')") !== -1
+    && source.indexOf("t('vaultRestore','Restore')") !== -1
+    && source.indexOf("t('vaultDiscard','Discard')") !== -1
+    && source.indexOf('payload.ts<=savedAt') !== -1
+    && source.indexOf('live.ts!==payload.ts') !== -1;
+  const dirtyOk = source.indexOf('window.hossamWriteDirty=true;') !== -1
+    && source.indexOf("if(window.hossamWriteDirty){ev.preventDefault();ev.returnValue='';}") !== -1
+    && source.indexOf('try{hossamWriteMarkDirty();}catch(eRes){}') !== -1
+    && dashSrc.indexOf('window.hossamWriteDirty&&!window.confirm(') !== -1
+    && dashSrc.indexOf("t('unsavedLeave','You have unsaved changes in the writing form — leave anyway?')") !== -1;
+  const governorArms = (source.match(/hossamWriteRedirectArmed=true;/g) || []).length;
+  const governorOk = governorArms === 3
+    && source.indexOf('function hossamWriteCancelRedirect(){') !== -1
+    && source.indexOf('if(hossamWriteRedirectArmed)hossamWriteCancelRedirect();') !== -1
+    && source.indexOf("if(form.getAttribute('data-hossam-bound-post')&&typeof hossamUpdateArticle==='function'){return hossamUpdateArticle(form);}") !== -1
+    && source.indexOf("if(form.getAttribute('data-hossam-saved-post')&&hossamWriteLastCreate){") !== -1;
+  const d1Ok = source.indexOf("form.setAttribute('data-hossam-saved-post',String(d.data.post_id||''));") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-bound-post',pid);") !== -1
+    && source.indexOf("t('d1Continue','Continue writing')") !== -1
+    && source.indexOf("t('d1OpenEditor','Open in editor')") !== -1;
+  const autosaveOk = source.indexOf("path:'/wp/v2/posts/'+id+'/autosaves'") !== -1
+    && source.indexOf('function hossamWriteAutosave(){') !== -1
+    && source.indexOf('window.hossamApiFetchWired') !== -1;
+  const recorderOk = source.indexOf("var HOSSAM_DIAG_KEY='hossamWriteDiagLog';") !== -1
+    && source.indexOf('sessionStorage.setItem(HOSSAM_DIAG_KEY,JSON.stringify({') !== -1
+    && source.indexOf("window.addEventListener('pagehide'") !== -1
+    && source.indexOf('lastInputAgoMs:') !== -1
+    && source.indexOf('function hossamDiagInstall(){') !== -1;
+  check('B9R-W3-RESCUE-LAYER',
+    vaultOk && bannerOk && dirtyOk && governorOk && d1Ok && autosaveOk && recorderOk,
+    'the unified writing-rescue layer is wired: the write vault with its stamped TTL and never-silent restore banner (refused over newer saved content), the single dirty flag feeding beforeunload and the dashboard.js nav() guard, the redirect governor over all three timers with the D1 bind/intercept pair, the official edit autosave through wp.apiFetch, and the pagehide black-box recorder',
+    'the rescue layer is missing or incomplete');
+}
+
+testRescueLayer();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

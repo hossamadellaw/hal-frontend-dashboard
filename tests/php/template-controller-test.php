@@ -341,9 +341,9 @@ hal_tc_check( 'T14-CARD-BLOCK-ENGLISH',
 	'Arabic __() inside the AI card block' );
 hal_tc_check( 'T14-LEGACY-BOUNDARY',
 	0 === preg_match_all( '/__\(\s*\'[^\']*[\x{0600}-\x{06FF}]/u', $tc_posts )
-		&& false !== strpos( $tc_posts, "__( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.', 'hal-frontend-dashboard' )" )
-		&& false !== strpos( $tc_posts, "__( 'Admin gateway', 'hal-frontend-dashboard' )" ),
-	'the legacy Arabic strings outside the card block are now the approved English sources — zero Arabic __() remains in the template',
+		&& false !== strpos( $tc_posts, "hossam_t( 'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.' )" )
+		&& false !== strpos( $tc_posts, "hossam_t( 'Admin gateway' )" ),
+	'v1.1.14 item 3 (D4 = hossam_t, value update not strictness): the legacy English sources moved to the registered channel — the heading-policy lines, the title placeholder and the OEB gateway texts render through hossam_t — and zero Arabic __() remains in the template',
 	'legacy source pins changed' );
 $tc_i18n = (string) file_get_contents( $project . '/runtime/core/i18n.php' );
 hal_tc_check( 'T14-I18N-SOURCES',

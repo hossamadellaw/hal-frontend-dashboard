@@ -382,6 +382,23 @@ add_action( 'init', function(): void {
         'Write the meta description — it is the summary line under the title.',
         'Keep the meta description between 120 and 160 characters.',
         'This page is set to noindex — it will not appear in search results.',
+        // v1.1.14 item 3 (D4 = hossam_t): the writing-critical __() sources
+        // move to the registered channel — the title placeholder, the H1
+        // policy lines, the OEB gateway texts — plus the Media toolbar
+        // literal and the rescue-layer JS keys (the triple ledger: literal
+        // here + map key below + matching fallback).
+        'Heading policy: H1 is reserved for the main title only — the article body starts at H2 or above.',
+        'Enter the article title here…',
+        'H1 is reserved for the title only — the article body starts at H2 or above.',
+        'Admin gateway — opens the official editor in a separate tab, administrators only.',
+        'Admin gateway',
+        'Opens the official editor in a separate tab — administrators only.',
+        'Media',
+        'Continue writing',
+        'Open in editor',
+        'You have unsaved changes in the writing form — leave anyway?',
+        'Restore unsaved draft from {time}?',
+        'Discard',
     ];
     $hash = substr( md5( serialize($strings) ), 0, 12 );
     if ( get_option('hossam_i18n_v') === $hash ) return;
@@ -466,6 +483,15 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'tryAgain'            => hossam_t('Try again'),
             'translateFailed'     => hossam_t('Could not create translation.'),
             'scheduleLoadFailed'  => hossam_t('Unable to load schedule.'),
+            // v1.1.14 item 3: the Media toolbar literal + the rescue-layer keys
+            // (each source registered above in the same batch — B16T-C1/C2 pairs).
+            'mediaLabel'          => hossam_t('Media'),
+            'd1Continue'          => hossam_t('Continue writing'),
+            'd1OpenEditor'        => hossam_t('Open in editor'),
+            'unsavedLeave'        => hossam_t('You have unsaved changes in the writing form — leave anyway?'),
+            'vaultRestorePrompt'  => hossam_t('Restore unsaved draft from {time}?'),
+            'vaultRestore'        => hossam_t('Restore'),
+            'vaultDiscard'        => hossam_t('Discard'),
 
             // Missing-module keys (historic T-31). Every value here matches
             // the fallback text in the actual call inside modules/*.js
