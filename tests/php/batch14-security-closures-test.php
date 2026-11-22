@@ -906,9 +906,16 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // the update success path feeding the rescue layer, the bound state carried
 // through the vault with the explicit bound-restore prompt, and the
 // status-default empty-skip.
+// v1.1.15 Wave B renewal (one value for the wave — the consensus commitment):
+// the AR restore integrity fix (the measured defect 1): the restore apply
+// gates on the strict editor readiness (mounting defers through the waiter
+// registry with its ceiling; terminal latches and record-less surfaces take
+// the textarea fallback), the per-field explicit apply targets, the
+// post-apply verification pass with the title glue detector, and the
+// capture-suppression window.
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'c9b3e09fa3b9db3e3ee05ab670c2802716966883a065d2648ac4e2329a4c1296' === $posts_js_lf_hash
-		&& 'c9b3e09fa3b9db3e3ee05ab670c2802716966883a065d2648ac4e2329a4c1296' === $posts_js_head_hash,
+	'd33a18541e2a40cd8e09c3e70df76c71707d6debbd97a96a91fd781d81fc08ee' === $posts_js_lf_hash
+		&& 'd33a18541e2a40cd8e09c3e70df76c71707d6debbd97a96a91fd781d81fc08ee' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers, and the v1.1.14 Wave A rescue layer',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 

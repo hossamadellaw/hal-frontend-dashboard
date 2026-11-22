@@ -1251,6 +1251,55 @@ function testRescueLayer() {
 
 testRescueLayer();
 
+/* v1.1.15 item 1 — the AR restore integrity fix (measured P1): the restore
+   apply gates on the strict editor readiness (a mounting editor defers the
+   whole apply until phase==='ready'; terminal latches and record-less
+   surfaces take the textarea fallback so a fallback environment can never
+   deadlock the restore), every field lands through its own explicit target,
+   a post-apply verification pass reads every field back (the title equality
+   is the measured glue detector), and the capture-suppression window keeps
+   the debounced capture from ever re-capturing a corrupted intermediate
+   state. The identical chain runs on every locale — no language branch. */
+function testRestoreIntegrity() {
+  const applyStart = source.indexOf('function hossamWriteVaultApply(form,payload){');
+  const autosaveStart = source.indexOf('function hossamWriteAutosave(){');
+  const applyRegion = (applyStart !== -1 && autosaveStart > applyStart)
+    ? source.slice(applyStart, autosaveStart) : '';
+  const gateOk = applyRegion.indexOf("hossamVaultEditorState(rec)") !== -1
+    && applyRegion.indexOf("if(state==='mounting'&&containerId){") !== -1
+    && source.indexOf("if(rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks) return 'ready';") !== -1
+    && source.indexOf("if(rec.phase==='fallback'||rec.phase==='error'||rec.latch) return 'terminal';") !== -1
+    && source.indexOf("function hossamVaultApplyNotify(containerId){") !== -1
+    && (source.match(/hossamVaultApplyNotify\(containerId\);/g) || []).length === 4;
+  const deferOk = source.indexOf('var hossamVaultApplyWaiters={};') !== -1
+    && source.indexOf('var HOSSAM_VAULT_APPLY_WAIT_CEILING=20000;') !== -1
+    && applyRegion.indexOf('vault-apply-waiter-ceiling') !== -1
+    && applyRegion.indexOf('liveNow.ts!==live.ts') !== -1;
+  const targetsOk = applyRegion.indexOf("setVal('title',f.title);") !== -1
+    && applyRegion.indexOf("setVal('excerpt',f.excerpt);") !== -1
+    && applyRegion.indexOf("setVal('status',f.status);") !== -1
+    && applyRegion.indexOf("setVal('thumbnail_id',f.thumbnail_id);") !== -1
+    && applyRegion.indexOf('rec.api.keep(parsed);recApplied=rec;parsedApplied=parsed;') !== -1
+    && applyRegion.indexOf('if(ta) ta.value=content;') !== -1;
+  const verifyOk = source.indexOf('function hossamWriteVaultVerify(form,fields,surface,rec,wantLen){') !== -1
+    && source.indexOf("if(!fieldMatches('title')) return false;") !== -1
+    && source.indexOf('vault-apply-verify-failed') !== -1
+    && source.indexOf('vault-apply-canvas-keep-failed') !== -1;
+  const suppressOk = source.indexOf("if(form.getAttribute('data-hossam-apply-pending')==='1') return;") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-apply-pending','1');") !== -1
+    && source.indexOf("form.removeAttribute('data-hossam-apply-pending');") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-apply-failed','1');") !== -1
+    && source.indexOf("createForm.getAttribute('data-hossam-apply-failed')==='1'") !== -1;
+  const localeOk = applyRegion.indexOf('isRtl') === -1
+    && applyRegion.indexOf('hossamWriteLang()') === -1;
+  check('B9R-W4-RESTORE-INTEGRITY',
+    gateOk && deferOk && targetsOk && verifyOk && suppressOk && localeOk,
+    'the restore integrity chain is wired: the strict ready gate (mounting defers through the waiter registry with its ceiling, terminal/record-less takes the textarea fallback), the per-field explicit targets (title/excerpt/status/thumbnail_id + the canvas keep() or textarea content surface), the post-apply verification pass with the title glue detector, the capture-suppression window with the failed-verify latch cleared by real input, and the locale-blind apply chain',
+    'the restore integrity chain is missing or incomplete');
+}
+
+testRestoreIntegrity();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

@@ -64,6 +64,13 @@ function hossamPostToastLabel(status){
 var HOSSAM_VAULT_PREFIX='hossamWriteVault';
 var HOSSAM_VAULT_TTL=86400000; /* stamped; a vault older than 24h never revives */
 var HOSSAM_VAULT_DEBOUNCE=1000;
+/* [v1.1.15 item 1] the restore-apply deferral registry: while the editor is
+   still mounting, the whole apply defers until the record resolves (the
+   strict ready gate or a terminal latch) — the measured AR corruption fix.
+   The ceiling guarantees a hung mount can never deadlock the restore. */
+var hossamVaultApplyWaiters={};
+var hossamVaultApplyTimeouts={};
+var HOSSAM_VAULT_APPLY_WAIT_CEILING=20000;
 var HOSSAM_AUTOSAVE_DEBOUNCE=10000;
 var HOSSAM_DIAG_KEY='hossamWriteDiagLog';
 var hossamWriteVaultTimer=null;
@@ -139,6 +146,10 @@ function hossamWriteVaultSave(form){
   try{
     if(!form||form.id!=='hossam-post-create-form') return;
     if(!window.hossamWriteDirty) return;
+    /* [v1.1.15 item 1c] the capture-suppression window: while a restore apply
+       is pending (or a failed verify is latched), the debounced capture never
+       re-captures a corrupted intermediate state. */
+    if(form.getAttribute('data-hossam-apply-pending')==='1') return;
     /* [v1.1.14 item 1 - the advisory correction 1] the serialized block state
        is the truth in official mode (the textarea holds only the seed until a
        save syncs it) - the vault capture syncs the editor into the textarea
@@ -1536,12 +1547,14 @@ function hossamRichInitEditor(containerId){
            interface + a notice + a latched fallback, and no further sync. */
         if(textarea.value!==initialHtml){
           record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='dirty-textarea';record.latch=true;
+          hossamVaultApplyNotify(containerId);
           try{container.setAttribute('hidden','');}catch(e){}
           hossamRichNotice();
           return;
         }
         confirmed=true;
         record.ready=true;record.phase='ready';record.confirmed=true;record.probe='iframe-ready';
+        hossamVaultApplyNotify(containerId);
         textarea.classList.add('hossam-rich-hidden');
         /* [R21-a] the ready iframe document is the actual paste target inside
            the official canvas — bind the paste handler on it after the ready
@@ -1555,6 +1568,7 @@ function hossamRichInitEditor(containerId){
          fallback: hide the dead interface, keep the textarea visible, no sync. */
       try{console.warn('[HAL] rich probe: no ready iframe within '+(probeEvery*probeLimit/1000)+'s - fallback (not a clean finish)');}catch(e){}
       record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='timeout';record.latch=true;
+      hossamVaultApplyNotify(containerId);
       textarea.classList.remove('hossam-rich-hidden');
       try{container.setAttribute('hidden','');}catch(e){}
       hossamRichNotice();
@@ -1569,6 +1583,7 @@ function hossamRichInitEditor(containerId){
     try{if(host&&host.parentNode) host.parentNode.removeChild(host);}catch(e){}
     try{delete hossamRichState.roots[containerId];}catch(e){}
     hossamRichState.inited[containerId]={ready:false,phase:'error',confirmed:false,blocks:null,initialHtml:textarea.value||'',textareaId:textareaId,root:null,probe:'error',latch:true};
+    hossamVaultApplyNotify(containerId);
     try{container.setAttribute('hidden','');}catch(e){}
     try{textarea.classList.remove('hossam-rich-hidden');}catch(e){}
     hossamRichNotice();
@@ -1684,7 +1699,36 @@ function hossamWriteRestoreBanner(form){
    the live vault (timestamp equality) and must not be older than the last
    saved content — both re-checked at click time. The tags[] mirror values
    are restored as data (the chips UI rebuilds on the next tag interaction —
-   the honest limitation: saved tags beat lost tags). */
+   the honest limitation: saved tags beat lost tags).
+   [v1.1.15 item 1] the measured AR corruption fix (defect 1): the apply
+   gates on the strict editor readiness the rest of the editor uses — a
+   still-mounting editor DEFERS the whole apply until the record reaches
+   phase==='ready' (the canvas keep() path) or a terminal latch (the
+   textarea fallback stays allowed there so a fallback environment can never
+   deadlock the restore). Every field writes through its own explicit
+   target, a post-apply verification pass reads each landing back, and the
+   debounced capture is suppressed for the whole window so a corrupted
+   intermediate state is never re-captured. The identical chain runs on
+   every locale — no language branch anywhere in the apply path. */
+/* [v1.1.15 item 1a] the strict classifier: ready is the exact gate
+   hossamSyncRichEditorToTextarea uses; latched terminal records and
+   record-less surfaces take the textarea fallback; anything else alive is
+   still mounting and defers. */
+function hossamVaultEditorState(rec){
+  if(!rec) return 'none';
+  if(rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks) return 'ready';
+  if(rec.phase==='fallback'||rec.phase==='error'||rec.latch) return 'terminal';
+  return 'mounting';
+}
+/* [v1.1.15 item 1a] the transition notifier: fired at every editor record
+   transition (ready / the fallback latches / error) so a deferred restore
+   lands the moment the gate resolves instead of racing the mount. */
+function hossamVaultApplyNotify(containerId){
+  try{
+    var w=hossamVaultApplyWaiters[containerId];
+    if(typeof w==='function'){hossamVaultApplyWaiters[containerId]=null;w();}
+  }catch(e){}
+}
 function hossamWriteVaultApply(form,payload){
   try{
     var raw=sessionStorage.getItem(hossamWriteVaultKey());
@@ -1694,6 +1738,65 @@ function hossamWriteVaultApply(form,payload){
     if(!live||!live.ts||live.ts!==payload.ts) return;
     var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
     if(savedAt&&live.ts<=savedAt) return;
+    var holder=form.querySelector('.hossam-rich-editor');
+    var containerId=(holder&&holder.id)?holder.id:null;
+    var rec=containerId?hossamRichState.inited[containerId]:null;
+    var state=hossamVaultEditorState(rec);
+    if(state==='mounting'&&containerId){
+      /* [v1.1.15 item 1a] defer: the suppression window opens now and the
+         apply reruns when the record resolves — ready takes the canvas
+         path, a terminal latch takes the textarea fallback. The payload
+         identity is the attempt token: a newer attempt replaces the waiter
+         and an old ceiling can never fire a stale apply. A real user input
+         during the wait rewrites the vault, and the timestamp re-check at
+         completion drops the stale apply honestly. */
+      form.setAttribute('data-hossam-apply-pending','1');
+      if(hossamVaultApplyTimeouts[containerId]){clearTimeout(hossamVaultApplyTimeouts[containerId]);}
+      hossamVaultApplyTimeouts[containerId]=setTimeout(function(){
+        try{
+          delete hossamVaultApplyTimeouts[containerId];
+          if(hossamVaultApplyWaiters[containerId]===owner){
+            hossamVaultApplyWaiters[containerId]=null;
+            try{hossamDiagLogError('vault-apply-waiter-ceiling: the deferred restore took the textarea fallback');}catch(eD1){}
+            hossamWriteVaultApplyRun(form,live,'textarea');
+          }
+        }catch(eD2){}
+      },HOSSAM_VAULT_APPLY_WAIT_CEILING);
+      var owner=function(){
+        try{
+          if(hossamVaultApplyTimeouts[containerId]){clearTimeout(hossamVaultApplyTimeouts[containerId]);delete hossamVaultApplyTimeouts[containerId];}
+          delete hossamVaultApplyWaiters[containerId];
+          var rawNow=sessionStorage.getItem(hossamWriteVaultKey());
+          if(!rawNow){form.removeAttribute('data-hossam-apply-pending');return;}
+          var liveNow=null;
+          try{liveNow=JSON.parse(rawNow);}catch(eP4){form.removeAttribute('data-hossam-apply-pending');return;}
+          if(!liveNow||!liveNow.ts||liveNow.ts!==live.ts){form.removeAttribute('data-hossam-apply-pending');return;}
+          var savedNow=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+          if(savedNow&&liveNow.ts<=savedNow){form.removeAttribute('data-hossam-apply-pending');return;}
+          var recNow=hossamRichState.inited[containerId]||null;
+          var stateNow=hossamVaultEditorState(recNow);
+          hossamWriteVaultApplyRun(form,liveNow,stateNow==='ready'?'canvas':'textarea');
+        }catch(eW){
+          try{form.removeAttribute('data-hossam-apply-pending');}catch(eW2){}
+        }
+      };
+      hossamVaultApplyWaiters[containerId]=owner;
+      return;
+    }
+    hossamWriteVaultApplyRun(form,live,state==='ready'?'canvas':'textarea');
+  }catch(e){}
+}
+/* [v1.1.15 item 1b] the apply body: every field through its own explicit
+   target (title → the title input, excerpt/status/thumbnail_id → their
+   fields, content → the canvas keep() path behind the strict gate or the
+   textarea on a terminal/record-less surface, categories → the checked
+   boxes, tags → the hidden mirrors), then the post-apply verification
+   pass. A canvas-gated apply whose keep() failed while the editor is
+   verified-ready never re-routes the content into the hidden textarea —
+   that silent re-route is the desync family the measured defect lives in. */
+function hossamWriteVaultApplyRun(form,live,surface){
+  try{
+    form.setAttribute('data-hossam-apply-pending','1');
     var f=live.fields||{};
     function setVal(name,val){var fld=form.querySelector('[name="'+name+'"]');if(fld) fld.value=(val==null?'':val);}
     setVal('title',f.title);
@@ -1715,16 +1818,23 @@ function hossamWriteVaultApply(form,payload){
       form.appendChild(mi);
     }
     var content=String(f.content==null?'':f.content);
-    var holder=form.querySelector('.hossam-rich-editor');
-    var rec=(holder&&holder.id)?hossamRichState.inited[holder.id]:null;
-    var wp0=hossamRichWp();
-    var applied=false;
-    if(rec&&rec.ready&&rec.api&&typeof rec.api.keep==='function'&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function'){
-      try{var parsed=wp0.blocks.parse(content)||[];rec.api.keep(parsed);applied=true;}catch(eK){applied=false;}
+    var recApplied=null,parsedApplied=null;
+    if(surface==='canvas'){
+      var holder=form.querySelector('.hossam-rich-editor');
+      var rec=(holder&&holder.id)?hossamRichState.inited[holder.id]:null;
+      var wp0=hossamRichWp();
+      var ok=rec&&rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks&&rec.api&&typeof rec.api.keep==='function'&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function';
+      if(ok){
+        try{var parsed=wp0.blocks.parse(content)||[];rec.api.keep(parsed);recApplied=rec;parsedApplied=parsed;}catch(eK){recApplied=null;parsedApplied=null;}
+      }
     }
-    if(!applied){
-      var ta=form.querySelector('[name="content"]');
-      if(ta) ta.value=content;
+    if(!recApplied){
+      if(surface==='canvas'){
+        try{hossamDiagLogError('vault-apply-canvas-keep-failed');}catch(eK2){}
+      }else{
+        var ta=form.querySelector('[name="content"]');
+        if(ta) ta.value=content;
+      }
     }
     /* [v1.1.14 - the independent audit correction 2] the binding survives the
        reload through the vault: a bound restore re-binds the form so the next
@@ -1737,7 +1847,62 @@ function hossamWriteVaultApply(form,payload){
       form.setAttribute('data-hossam-bound-post',String(live.bound));
     }
     hossamWriteMarkDirty();
-  }catch(e){}
+    /* [v1.1.15 item 1b] the post-apply verification pass: every restored
+       field is read back from its own target — the title equality is the
+       measured glue detector (defect 1: canvas content landing in the
+       title). */
+    var verified=hossamWriteVaultVerify(form,f,recApplied?'canvas':'textarea',recApplied,parsedApplied?parsedApplied.length:null);
+    if(verified){
+      form.removeAttribute('data-hossam-apply-pending');
+    }else{
+      /* [v1.1.15 item 1c] a failed verify keeps the suppression window open
+         and the original vault intact — the corrupted intermediate state is
+         never re-captured; the latch clears on the next real user input. */
+      form.setAttribute('data-hossam-apply-failed','1');
+      try{hossamDiagLogError('vault-apply-verify-failed: surface='+(recApplied?'canvas':'textarea')+' the restored fields did not all land');}catch(eV2){}
+    }
+  }catch(e){
+    try{form.setAttribute('data-hossam-apply-failed','1');}catch(e2){}
+  }
+}
+/* [v1.1.15 item 1b] the verification pass: title/excerpt/status/thumbnail_id
+   read back exactly from their targets, categories and tags re-read from
+   their targets, and the content surface checked structurally — the strict
+   ready record holding exactly the applied block count on the canvas, the
+   exact payload string in the textarea. */
+function hossamWriteVaultVerify(form,fields,surface,rec,wantLen){
+  try{
+    function appliedVal(name){var fld=form.querySelector('[name="'+name+'"]');return fld?String(fld.value==null?'':fld.value):null;}
+    function fieldMatches(name){
+      var want=fields?fields[name]:undefined;
+      want=(want==null?'':String(want));
+      var got=appliedVal(name);
+      return got!==null&&got===want;
+    }
+    if(!fieldMatches('title')) return false;
+    if(!fieldMatches('excerpt')) return false;
+    if(!fieldMatches('status')) return false;
+    if(!fieldMatches('thumbnail_id')) return false;
+    function listOf(v){return Object.prototype.toString.call(v)==='[object Array]'?v.map(String):[];}
+    function setKey(arr){return arr.slice().sort().join('|');}
+    var gotCats=[];
+    var catBoxes=form.querySelectorAll('input[name="categories[]"]:checked');
+    for(var ci=0;ci<catBoxes.length;ci++){gotCats.push(String(catBoxes[ci].value));}
+    if(setKey(gotCats)!==setKey(listOf(fields?fields['categories[]']:[]))) return false;
+    var gotTags=[];
+    var tagMirrors=form.querySelectorAll('input[name="tags[]"]');
+    for(var ti=0;ti<tagMirrors.length;ti++){gotTags.push(String(tagMirrors[ti].value));}
+    if(setKey(gotTags)!==setKey(listOf(fields?fields['tags[]']:[]))) return false;
+    var wantContent=String((fields&&fields.content)==null?'':(fields&&fields.content));
+    if(surface==='canvas'){
+      if(!rec||rec.phase!=='ready'||!rec.confirmed||!rec.ready||!rec.blocks) return false;
+      if(wantLen!==null&&(!rec.blocks||rec.blocks.length!==wantLen)) return false;
+    }else{
+      var ta=form.querySelector('[name="content"]');
+      if(!ta||String(ta.value==null?'':ta.value)!==wantContent) return false;
+    }
+    return true;
+  }catch(eV){return false;}
 }
 /* [v1.1.14 item 1] the edit-context rescue: the official autosaves endpoint
    through wp.apiFetch with the official wp_rest nonce (issued server-side
@@ -1817,7 +1982,12 @@ function hossamDiagInstall(){
     var createForm=document.getElementById('hossam-post-create-form');
     var editForm=document.getElementById('hossam-post-edit-form');
     if(createForm){
-      createForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW1){}});
+      createForm.addEventListener('input',function(){try{
+        /* [v1.1.15 item 1c] a real user input clears a latched verify failure:
+           the user's own next words start an honest capture again. */
+        if(createForm.getAttribute('data-hossam-apply-failed')==='1'){createForm.removeAttribute('data-hossam-apply-failed');createForm.removeAttribute('data-hossam-apply-pending');}
+        hossamWriteMarkDirty();
+      }catch(eW1){}});
       hossamWriteRestoreBanner(createForm);
     }
     if(editForm){
