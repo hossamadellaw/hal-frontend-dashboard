@@ -1827,9 +1827,12 @@ function hossamWriteVaultApply(form,payload){
          apply reruns when the record resolves — ready takes the canvas
          path, a terminal latch takes the textarea fallback. The payload
          identity is the attempt token: a newer attempt replaces the waiter
-         and an old ceiling can never fire a stale apply. A real user input
-         during the wait rewrites the vault, and the timestamp re-check at
-         completion drops the stale apply honestly. */
+         and an old ceiling can never fire a stale apply. The capture-
+         suppression window keeps the vault intact through the whole wait (a
+         real user input marks the form dirty but its debounced capture is
+         refused while the window is open), and the timestamp re-check at
+         completion still guards the residual edges - any vault rewrite from
+         outside the suppressed capture drops the stale apply honestly. */
       form.setAttribute('data-hossam-apply-pending','1');
       if(hossamVaultApplyTimeouts[containerId]){clearTimeout(hossamVaultApplyTimeouts[containerId]);}
       hossamVaultApplyTimeouts[containerId]=setTimeout(function(){
@@ -2761,6 +2764,9 @@ function hossamToolbarBuild(containerId,container,cfg){
         }
         return;
       }
+      /* [v1.1.15 corrections C-1] the two legacy lines restored: the declaration and the body walk feed the final write below (the advisory corrections commit). */
+      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
+      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
       if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
     }catch(e){}
   }));
