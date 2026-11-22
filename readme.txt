@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.14
+Stable tag: 1.1.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.14.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.15.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,14 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.15 =
+* Restoring unsaved work is now integrity-checked: the restore waits for the editor to finish loading, every field is written to its own target and verified after the restore, and the vault can never re-capture a corrupted intermediate state.
+* The writing tools that failed silently were fixed: clear formatting removes every pinned inline format again (including strikethrough), the highlight and text-color Apply buttons respect the selected suggested color while the free picker stays intact, and the More fold plus every dropdown carries a real open/close state.
+* The restore refusal now survives a page reload: the last-saved time is kept with the article server-side and compared against the vault, so an older injected draft can no longer overwrite newer saved content.
+* Writing focus is now deterministic: the canvas receives the caret once the editor is ready, a click on an unfocused text block selects it, Enter in the title jumps into the content, and failed tool actions announce themselves and recover the selection instead of failing silently.
+* Paragraph direction switched through the direction button now uses the official paragraph attribute when the WordPress core supports it, and the single-block list behavior is documented as shipped.
+* Version identity 1.1.15 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 23.
 
 = 1.1.14 =
 * The writing form now rescues unsaved work on its own: every field of the article form is captured to a session vault as you type, an explicit banner offers restoring it after any page loss, and a single dirty indicator warns before leaving with unsaved changes - including the in-panel navigation.
