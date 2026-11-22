@@ -2343,7 +2343,8 @@ function hossamToolbarRemoveFormat(containerId){
   return hossamToolbarRichEdit(containerId,function(rt,value,start,end){
     var removed=value;
     for(var i=0;i<HOSSAM_TOOLBAR_CLEAR_TYPES.length;i++){
-      removed=rt.removeFormat(removed,start,end,HOSSAM_TOOLBAR_CLEAR_TYPES[i]);
+      /* [v1.1.15 item 2] the official signature is removeFormat(value, formatType, start, end) - the previous argument order passed the numeric start into the formatType slot, so every pinned removal was a silent no-op (the measured clear-formatting defect). */
+      removed=rt.removeFormat(removed,HOSSAM_TOOLBAR_CLEAR_TYPES[i],start,end);
     }
     return removed;
   });
@@ -2418,14 +2419,35 @@ function hossamToolbarBuild(containerId,container,cfg){
   }
   function menu(triggerSym,triggerTitle,menuTitleKey,menuTitleText,buildBody){
     var wrap=el('div','hossam-pt-dropdown');
+    /* [v1.1.15 item 2] the popover discipline: the trigger carries the open state (aria-expanded), an opening menu closes its open siblings, and the state moves as one synchronized pair. */
     var trig=btn(triggerSym,triggerTitle,function(){toggle();});
+    trig.setAttribute('aria-expanded','false');
     trig.appendChild(el('span','hossam-pt-caret','▾'));
     var m=el('div','hossam-pt-menu');
     m.appendChild(el('div','hossam-pt-menu-title',t(menuTitleKey,menuTitleText)));
     buildBody(m);
     m.style.display='none';
+    function closeSiblings(){
+      try{
+        var rootEl=wrap.closest?wrap.closest('.hossam-pro-toolbar-container'):null;
+        if(!rootEl||!rootEl.querySelectorAll) return;
+        var dds=rootEl.querySelectorAll('.hossam-pt-dropdown');
+        for(var i=0;i<dds.length;i++){
+          if(dds[i]===wrap) continue;
+          var mm=dds[i].querySelector('.hossam-pt-menu');
+          var tt=dds[i].querySelector('.hossam-pt-btn');
+          if(mm&&mm.style.display!=='none'){mm.style.display='none';}
+          if(tt&&tt.setAttribute) tt.setAttribute('aria-expanded','false');
+        }
+      }catch(e){}
+    }
     function toggle(){
-      try{ m.style.display=(m.style.display!=='none')?'none':'block'; }catch(e){}
+      try{
+        var open=(m.style.display!=='none');
+        if(!open) closeSiblings();
+        m.style.display=open?'none':'block';
+        trig.setAttribute('aria-expanded',open?'false':'true');
+      }catch(e){}
     }
     wrap.appendChild(trig); wrap.appendChild(m);
     return wrap;
@@ -2440,13 +2462,26 @@ function hossamToolbarBuild(containerId,container,cfg){
     }
     m.appendChild(row);
   }
-  function freeRow(m,pickId,apply){
+  function freeRow(m,pickId,apply,sel){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7FreePicker','Free color picker:')));
     var row=el('div','hossam-pt-free-row');
     var pick=el('input'); pick.type='color'; pick.id=pickId;
+    /* [v1.1.15 item 2] the measured Apply-lands-black defect: the Apply button sent the untouched picker default over the selected swatch. The selection state rides the menu: a picker touch marks it, a swatch click clears the mark and syncs the visible picker - the free-input Apply stays intact (a picked color always wins; no selection at all keeps the exact previous behavior). */
+    if(sel){
+      sel.syncPick=function(v){try{pick.value=v;}catch(e){}};
+      pick.addEventListener('input',function(){try{sel.pickTouched=true;}catch(e){}});
+      pick.addEventListener('change',function(){try{sel.pickTouched=true;}catch(e){}});
+    }
     var ap=el('button','btn btn-sm',t('aiApply','Apply'));
     ap.type='button';
-    ap.addEventListener('click',function(){try{apply(pick.value);}catch(e){}});
+    ap.addEventListener('click',function(){
+      try{
+        var v=pick.value;
+        if(sel&&sel.pickTouched){v=pick.value;}
+        else if(sel&&sel.swatch){v=sel.swatch;}
+        apply(v);
+      }catch(e){}
+    });
     row.appendChild(pick); row.appendChild(ap);
     m.appendChild(row);
   }
@@ -2523,13 +2558,15 @@ function hossamToolbarBuild(containerId,container,cfg){
      the unified channel. */
   g6.appendChild(menu('A',['w7TextColor','Text color'],'w7TextColor','Text color',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
-    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
+    var sel={swatch:null,pickTouched:false};
+    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){try{sel.swatch=c;sel.pickTouched=false;if(typeof sel.syncPick==='function'){sel.syncPick(c);}}catch(e){}hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
+    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});},sel);
   }));
   g6.appendChild(menu('🖍️',['w7Highlight','Highlight'],'w7Highlight','Highlight',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
-    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
+    var sel={swatch:null,pickTouched:false};
+    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){try{sel.swatch=c;sel.pickTouched=false;if(typeof sel.syncPick==='function'){sel.syncPick(c);}}catch(e){}hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
+    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
@@ -2654,6 +2691,8 @@ function hossamToolbarBuild(containerId,container,cfg){
   if(cfg&&cfg.adminExtend){
     var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
     moreBtn.type='button';
+    /* [v1.1.15 item 2] the fold state machine carries its aria state (the measured More defect: aria-expanded never mounted). */
+    moreBtn.setAttribute('aria-expanded','false');
     moreBtn.title=t('w7MoreTitle','More tools');
     moreBtn.appendChild(el('span',undefined,t('w7More','More')));
     moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
@@ -2779,6 +2818,9 @@ function hossamToolbarMount(containerId,container){
         bar.classList.remove('hossam-pt-more-open');
         backdrop.classList.remove('hossam-pt-open');
         trigger.setAttribute('aria-expanded','false');
+        /* [v1.1.15 item 2] the More fold's aria state rides the same close path. */
+        var mt=bar.querySelector('.hossam-pt-more-toggle');
+        if(mt&&mt.setAttribute) mt.setAttribute('aria-expanded','false');
         if(refocus&&trigger.focus) trigger.focus();
       }catch(e){}
     };
@@ -2819,6 +2861,8 @@ function hossamToolbarMount(containerId,container){
           try{ drawerBand=!!(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches); }catch(eM){ drawerBand=false; }
           if(drawerBand&&bar.classList.contains('hossam-pt-more-open')){ drawerClose(true); return; }
           bar.classList.toggle('hossam-pt-more-open');
+          /* [v1.1.15 item 2] the aria state is part of the fold state machine. */
+          moreSync.setAttribute('aria-expanded',bar.classList.contains('hossam-pt-more-open')?'true':'false');
         }catch(e){}
       });
     }

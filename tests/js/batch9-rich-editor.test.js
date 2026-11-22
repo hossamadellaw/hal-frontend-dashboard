@@ -1300,6 +1300,39 @@ function testRestoreIntegrity() {
 
 testRestoreIntegrity();
 
+/* v1.1.15 item 2 - the four live-measured tool failures: the clear-format
+   execution path now calls the official removeFormat signature (value,
+   formatType, start, end - the previous order passed the numeric start into
+   the formatType slot and every pinned removal was a silent no-op), the
+   color Apply reads the selected swatch through the per-menu selection state
+   without breaking the free-input path, the More fold toggle carries and
+   synchronizes its aria-expanded state, and every dropdown trigger rides the
+   single-open popover discipline with the same aria state machine. */
+function testWaveBToolFixes() {
+  const clearOk = source.indexOf('removed=rt.removeFormat(removed,HOSSAM_TOOLBAR_CLEAR_TYPES[i],start,end);') !== -1
+    && source.indexOf('rt.removeFormat(removed,start,end,') === -1;
+  const applyOk = source.indexOf('var sel={swatch:null,pickTouched:false};') !== -1
+    && (source.match(/sel\.swatch=c;sel\.pickTouched=false;/g) || []).length === 2
+    && source.indexOf("freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});},sel);") !== -1
+    && source.indexOf("freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);") !== -1
+    && source.indexOf("sel.syncPick=function(v){try{pick.value=v;}catch(e){}};") !== -1
+    && source.indexOf('if(sel&&sel.pickTouched){v=pick.value;}') !== -1
+    && source.indexOf('else if(sel&&sel.swatch){v=sel.swatch;}') !== -1;
+  const moreOk = source.indexOf("moreBtn.setAttribute('aria-expanded','false');") !== -1
+    && source.indexOf("moreSync.setAttribute('aria-expanded',bar.classList.contains('hossam-pt-more-open')?'true':'false');") !== -1
+    && source.indexOf("var mt=bar.querySelector('.hossam-pt-more-toggle');") !== -1;
+  const popoverOk = source.indexOf("trig.setAttribute('aria-expanded','false');") !== -1
+    && source.indexOf('function closeSiblings(){') !== -1
+    && source.indexOf('if(!open) closeSiblings();') !== -1
+    && source.indexOf("trig.setAttribute('aria-expanded',open?'false':'true');") !== -1;
+  check('B9R-W5-TOOL-FIXES',
+    clearOk && applyOk && moreOk && popoverOk,
+    'the wave-B tool fixes are wired: the official removeFormat argument order over the byte-exact pinned lists, the swatch-aware Apply with the intact free-input path on both color menus, the More fold aria state machine (mount + fold handler + drawer close), and the single-open popover discipline with synchronized trigger aria on every dropdown',
+    'the wave-B tool fixes are missing or incomplete');
+}
+
+testWaveBToolFixes();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
