@@ -71,6 +71,11 @@ var HOSSAM_VAULT_DEBOUNCE=1000;
 var hossamVaultApplyWaiters={};
 var hossamVaultApplyTimeouts={};
 var HOSSAM_VAULT_APPLY_WAIT_CEILING=20000;
+/* [v1.1.15 item 4] the click-bridge text-type list hoists to module scope so
+   the F-1 recovery and the deterministic-focus lifts read the same pinned
+   list (the types whose last text field can receive the caret through
+   selectBlock(-1) - structural, state-independent). */
+var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details'];
 var HOSSAM_AUTOSAVE_DEBOUNCE=10000;
 var HOSSAM_DIAG_KEY='hossamWriteDiagLog';
 var hossamWriteVaultTimer=null;
@@ -1037,6 +1042,36 @@ function hossamRichFrameReady(frame){
 function hossamSetEditorState(container,state){
   try{if(container&&container.setAttribute)container.setAttribute('data-hossam-editor-state',state);}catch(e){}
 }
+/* [v1.1.15 item 4 - focus lift 1] the programmatic caret at readiness:
+   gated three-way (write context x the single empty seeded paragraph x no
+   existing selection and no canvas interaction yet) plus the document guard
+   (a focused form field never gets its caret stolen - it never steals the
+   caret from the title mid-typing). Runs through the deposited sub-registry
+   only. */
+function hossamRichFocusAtReady(containerId){
+  try{
+    var rec=hossamRichState.inited[containerId];
+    if(!rec||rec.phase!=='ready'||!rec.wpRegistry||!rec.blocks) return;
+    /* write context only: the record's textarea id decides (no new editor-id
+       references - the B15S-7 count stays pinned). */
+    if(rec.textareaId!=='hossam-new-content') return;
+    if(rec.canvasTouched) return;
+    if(!rec.blocks.length||rec.blocks.length>1) return;
+    var b0=rec.blocks[0];
+    if(!b0||b0.name!=='core/paragraph') return;
+    var c0=b0.attributes&&b0.attributes.content;
+    var txt0=c0&&(typeof c0.toHTMLString==='function')?c0.toHTMLString():String(c0==null?'':c0);
+    if(String(txt0).replace(/<!--[\s\S]*?-->/g,'').replace(/<[^>]*>/g,'').trim()!=='') return;
+    var store=rec.wpRegistry.select('core/block-editor');
+    if(store.getSelectedBlockClientId()) return;
+    var doc0=(typeof document!=='undefined')?document:null;
+    if(doc0&&doc0.activeElement&&doc0.activeElement!==doc0.body){
+      var tn=doc0.activeElement.tagName;
+      if(tn==='INPUT'||tn==='TEXTAREA'||tn==='SELECT') return;
+    }
+    if(b0.clientId) rec.wpRegistry.dispatch('core/block-editor').selectionChange(b0.clientId,'content',0,0);
+  }catch(e){}
+}
 function hossamRichNotice(){
   try{showToast(t('richEditorUnavailable','Rich editor unavailable — using the plain text field.'),'error');}catch(e){}
 }
@@ -1289,7 +1324,6 @@ function hossamRichInitEditor(containerId){
        at mousedown, detach on unmount, and only act on a ready record. */
         /* [v1.1.12] the block types whose last text field can receive the caret
        through selectBlock(-1) — structural, state-independent. */
-    var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details'];
     function HossamClickBridge(props){
       if(!wp0.data||typeof wp0.data.useRegistry!=='function') return null;
       var useRef=el.useRef, useEffect=el.useEffect;
@@ -1350,16 +1384,36 @@ function hossamRichInitEditor(containerId){
           mouse.x=ev.clientX||0;
           mouse.y=ev.clientY||0;
           try{ mouse.count=registry.select('core/block-editor').getBlockCount(); }catch(e0){ mouse.count=-1; }
+          /* [v1.1.15 item 4 - focus lift 1] any canvas interaction cancels the at-readiness caret so it never competes with a real click. */
+          var recM=hossamRichState.inited[containerId];
+          if(recM) recM.canvasTouched=true;
         }
         function onClick(ev){
           try{
             if(ev.detail>1) return;
             if(Math.abs((ev.clientX||0)-mouse.x)>4||Math.abs((ev.clientY||0)-mouse.y)>4) return;
-            if(excluded(ev.target)||!isSurface(ev.target)) return;
-            if(countRef.current===0) return;
             var rec=hossamRichState.inited[containerId];
             if(!rec||rec.phase!=='ready'||!rec.wpRegistry) return;
             var store=registry.select('core/block-editor');
+            /* [v1.1.15 item 4 - focus lift 2] a real click on an unfocused
+               text-type block selects the block (the caret lands at the
+               block start - documented as better than dead) instead of the
+               silent exclusion. The focused rich text stays native: its
+               contenteditable surface is excluded below and the browser
+               places the caret exactly where the user clicked. */
+            var bw=ev.target&&ev.target.closest?ev.target.closest('.block-editor-block-list__block'):null;
+            if(bw){
+              var btype=bw.getAttribute('data-type')||'';
+              var bcid=bw.getAttribute('data-block')||'';
+              if(bcid&&HOSSAM_CLICK_TEXT_TYPES.indexOf(btype)!==-1
+                &&!(ev.target.closest&&ev.target.closest('[contenteditable="true"]'))
+                &&store.getSelectedBlockClientId()!==bcid){
+                registry.dispatch('core/block-editor').selectBlock(bcid,0);
+                return;
+              }
+            }
+            if(excluded(ev.target)||!isSurface(ev.target)) return;
+            if(countRef.current===0) return;
             if(mouse.count>=0&&store.getBlockCount()!==mouse.count) return;
             /* [v1.1.11 item 1 — consensus] region branching: the empty surface
                no longer mounts a floating paragraph below the content. Below
@@ -1555,6 +1609,8 @@ function hossamRichInitEditor(containerId){
         confirmed=true;
         record.ready=true;record.phase='ready';record.confirmed=true;record.probe='iframe-ready';
         hossamVaultApplyNotify(containerId);
+        /* [v1.1.15 item 4 - focus lift 1] the programmatic caret at readiness (the three-way gate lives inside). */
+        hossamRichFocusAtReady(containerId);
         textarea.classList.add('hossam-rich-hidden');
         /* [R21-a] the ready iframe document is the actual paste target inside
            the official canvas — bind the paste handler on it after the ready
@@ -2016,6 +2072,23 @@ function hossamDiagInstall(){
         hossamWriteMarkDirty();
       }catch(eW1){}});
       hossamWriteRestoreBanner(createForm);
+      var titleIn=createForm.querySelector('[name="title"]');
+      if(titleIn){
+        titleIn.addEventListener('keydown',function(ev){
+          try{
+            if((ev.key||'')!=='Enter'||ev.shiftKey) return;
+            ev.preventDefault();
+            /* [v1.1.15 item 4 - focus lift 3] Enter in the title moves the writing focus into the canvas (write context only) through the deposited sub-registry. */
+            var holder3=createForm.querySelector('.hossam-rich-editor');
+            var rec3=(holder3&&holder3.id)?hossamRichState.inited[holder3.id]:null;
+            if(!rec3||rec3.phase!=='ready'||!rec3.wpRegistry) return;
+            var blocks3=rec3.wpRegistry.select('core/block-editor').getBlocks();
+            if(blocks3&&blocks3.length){
+              rec3.wpRegistry.dispatch('core/block-editor').selectBlock(blocks3[0].clientId,0);
+            }
+          }catch(eTL){}
+        });
+      }
     }
     if(editForm){
       editForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW2){}});
@@ -2293,7 +2366,42 @@ function hossamToolbarRegistry(containerId){
     return rec&&rec.wpRegistry?rec.wpRegistry:null;
   }catch(e){ return null; }
 }
+/* [v1.1.15 item 4 - the F-1 core] the unified failure path: a silent false
+   is never the whole answer - the self-dismissing toast names the missing
+   precondition, one automatic selection recovery (selectBlock on the last
+   text-type block, -1) re-arms the operation, and a single retry runs
+   before giving up. The three official families (transform / richEdit /
+   alignment) ride the same wrapper. */
+function hossamToolbarToast(key,fallback){
+  try{ showToast(t(key,fallback),'error'); }catch(e){}
+}
+function hossamToolbarRecoverSelection(containerId){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var blocksR=reg.select('core/block-editor').getBlocks();
+    if(!blocksR||!blocksR.length) return false;
+    for(var i=blocksR.length-1;i>=0;i--){
+      if(blocksR[i]&&HOSSAM_CLICK_TEXT_TYPES.indexOf(blocksR[i].name)!==-1){
+        reg.dispatch('core/block-editor').selectBlock(blocksR[i].clientId,-1);
+        return true;
+      }
+    }
+    return false;
+  }catch(e){ return false; }
+}
+function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){
+  var ok=run();
+  if(ok) return true;
+  hossamToolbarToast(toastKey,toastText);
+  if(hossamToolbarRecoverSelection(containerId)) ok=run();
+  return ok;
+}
 function hossamToolbarTransformBlock(containerId,blockName,attributes){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarTransformBlockRun(containerId,blockName,attributes);},'toolbarNoBlock','No editable block selected');
+}
+/* [v1.1.15 item 4 - D5 documentation, owner decision 2026-11-22 (option A): the shipped list semantics are SINGLE-BLOCK - switchToBlockType on one block yields a one-item list. Documented as the official behavior; the multi-paragraph replaceBlocks extension stays deferred per the v1.1.14 deferral chain. */
+function hossamToolbarTransformBlockRun(containerId,blockName,attributes){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2330,6 +2438,9 @@ function hossamToolbarInsertBlock(containerId,blockName,attributes){
    four-argument selectionChange. Store-level writes are outside the reach
    of the legacy text-level undo — the documented limitation extends here. */
 function hossamToolbarRichEdit(containerId,fn){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarRichEditRun(containerId,fn);},'toolbarSelectFirst','Select text first');
+}
+function hossamToolbarRichEditRun(containerId,fn){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2394,6 +2505,9 @@ function hossamToolbarSetCase(containerId,mode){
    style.typography.textAlign on this core version (the align attribute is
    layout-width-only — writing to it would produce an invalid block). */
 function hossamToolbarSetAlignment(containerId,value){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarSetAlignmentRun(containerId,value);},'toolbarNoBlock','No editable block selected');
+}
+function hossamToolbarSetAlignmentRun(containerId,value){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2632,8 +2746,21 @@ function hossamToolbarBuild(containerId,container,cfg){
     try{
       var d=hossamToolbarDoc(container);
       var s=d&&d.getSelection&&d.getSelection();
-      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
-      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
+      /* [v1.1.15 item 4 - D2 per the owner's resolved kickoff decision (v1114 ledger S-D)] the official paragraph-direction path behind the getBlockSupport probe: when the live core supports the direction attribute, the switcher migrates off the legacy funnel and writes the official attribute through the sub-registry; when the probe fails, the tool stays deferred exactly like justify-full and this documented canvas-level fallback remains the shipped behavior (a separate owner decision if it ever migrates). The direction-chain bytes stay byte-preserved either way. */
+      var wpD=hossamRichWp();
+      if(wpD&&wpD.blocks&&typeof wpD.blocks.getBlockSupport==='function'&&wpD.blocks.getBlockSupport('core/paragraph','direction')){
+        var regD=hossamToolbarRegistry(containerId);
+        if(regD){
+          var selD=regD.select('core/block-editor');
+          var cidD=selD.getSelectedBlockClientId();
+          var blkD=cidD?selD.getBlock(cidD):null;
+          if(blkD&&blkD.attributes&&blkD.attributes.direction!==undefined){
+            regD.dispatch('core/block-editor').updateBlockAttributes(cidD,{direction:(blkD.attributes.direction==='rtl'?'ltr':'rtl')});
+            return;
+          }
+        }
+        return;
+      }
       if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
     }catch(e){}
   }));

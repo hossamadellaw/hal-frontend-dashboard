@@ -920,9 +920,13 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // v1.1.15 item 3 renewal: the refusal server leg (the hossam_last_saved
 // meta registration, the epoch-millisecond stamps in both save handlers,
 // and the bound edit form rendering the stamp at load).
+// v1.1.15 item 4 renewal: the Wave B focus and tools core (the three
+// deterministic focus lifts, the F-1 unified failure path with its two
+// registered i18n pairs, the D2 probed paragraph direction, and the
+// documented single-block list semantics).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'33bbfe3c5c165d0461a02d82469e72bbec60812cfd89c974ca1291ae141f4ff8' === $posts_js_lf_hash
-		&& '33bbfe3c5c165d0461a02d82469e72bbec60812cfd89c974ca1291ae141f4ff8' === $posts_js_head_hash,
+	'29d8ffa344c40358eb420d2f492fd97dca73147fdfe376241fecdf10e50545b4' === $posts_js_lf_hash
+		&& '29d8ffa344c40358eb420d2f492fd97dca73147fdfe376241fecdf10e50545b4' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers, and the v1.1.14 Wave A rescue layer',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
 /* [v1.1.15 item 3] the server-rendered refusal anchor: the meta registration

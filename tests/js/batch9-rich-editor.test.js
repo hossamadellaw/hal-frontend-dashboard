@@ -1356,6 +1356,40 @@ function testRefusalServerLeg() {
 
 testRefusalServerLeg();
 
+/* v1.1.15 item 4 - the Wave B focus and tools core: the three deterministic
+   focus lifts (the at-readiness programmatic caret with its three-way gate,
+   the click-bridge extension selecting unfocused text-type blocks, and
+   Enter-in-title moving into the canvas), the F-1 unified failure path
+   (toast + one selection recovery + one retry over the three official
+   families with the registered i18n pairs), the D2 official paragraph
+   direction behind the getBlockSupport probe with the documented fallback,
+   and the D5 shipped single-block list semantics documented. */
+function testFocusF1D2() {
+  const lift1Ok = source.indexOf('function hossamRichFocusAtReady(containerId){') !== -1
+    && source.indexOf('hossamRichFocusAtReady(containerId);') !== -1
+    && source.indexOf("if(rec.textareaId!=='hossam-new-content') return;") !== -1
+    && source.indexOf('if(rec.canvasTouched) return;') !== -1
+    && source.indexOf('if(store.getSelectedBlockClientId()) return;') !== -1;
+  const lift2Ok = source.indexOf("registry.dispatch('core/block-editor').selectBlock(bcid,0);") !== -1
+    && source.indexOf('&&store.getSelectedBlockClientId()!==bcid){') !== -1;
+  const lift3Ok = source.indexOf("titleIn.addEventListener('keydown',function(ev){") !== -1
+    && source.indexOf("if((ev.key||'')!=='Enter'||ev.shiftKey) return;") !== -1;
+  const f1Ok = source.indexOf('function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){') !== -1
+    && source.indexOf('function hossamToolbarRecoverSelection(containerId){') !== -1
+    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 3
+    && source.indexOf(",'toolbarSelectFirst','Select text first')") !== -1
+    && (source.match(/'toolbarNoBlock','No editable block selected'/g) || []).length === 2;
+  const d2Ok = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
+    && source.indexOf('updateBlockAttributes(cidD,{direction:') !== -1;
+  const d5Ok = source.indexOf('the shipped list semantics are SINGLE-BLOCK') !== -1;
+  check('B9R-W7-FOCUS-F1-D2',
+    lift1Ok && lift2Ok && lift3Ok && f1Ok && d2Ok && d5Ok,
+    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
+    'the Wave B focus and tools core is missing or incomplete');
+}
+
+testFocusF1D2();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
