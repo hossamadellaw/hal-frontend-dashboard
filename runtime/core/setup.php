@@ -545,6 +545,25 @@ add_action( 'init', function(): void {
     }
 } );
 
+/* [v1.1.15 item 3] the server-rendered refusal anchor: the last-saved stamp
+   persists as post meta and renders into the bound edit form state at load,
+   so the restore refusal survives a reload (the measured architectural
+   defect: the stamp was JS-state only). Registered with show_in_rest=false
+   and an explicit auth_callback - the meta is never publicly readable or
+   writable through REST; the stamp is epoch milliseconds matching
+   Date.now() so the JS comparison stays on one scale. */
+add_action( 'init', function(): void {
+    if ( ! function_exists( 'register_post_meta' ) ) { return; }
+    register_post_meta( 'post', 'hossam_last_saved', [
+        'type'          => 'integer',
+        'single'        => true,
+        'show_in_rest'  => false,
+        'auth_callback' => function( $allowed, $meta_key, $object_id ) {
+            return current_user_can( 'edit_post', $object_id );
+        },
+    ] );
+} );
+
 add_action( 'admin_init', function(): void {
     if (
         is_user_logged_in()

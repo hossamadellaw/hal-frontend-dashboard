@@ -370,6 +370,12 @@ function wp_update_post( array $postarr, bool $wp_error = false ) {
 	$GLOBALS['B14_INSERTS'][] = $data;
 	return (int) ( $data['ID'] ?? 0 );
 }
+/* [v1.1.15 item 3] the refusal-anchor stamp lands here in the harness: a
+   recording stub so the create/update success paths can complete. */
+function update_post_meta( $post_id, $meta_key, $meta_value ) {
+	$GLOBALS['B14_META_STAMPS'][] = array( (int) $post_id, (string) $meta_key, $meta_value );
+	return true;
+}
 function wp_delete_post( int $post_id, bool $force = false ) {
 	$GLOBALS['B14_DELETED_POSTS'][] = $post_id;
 	return true;

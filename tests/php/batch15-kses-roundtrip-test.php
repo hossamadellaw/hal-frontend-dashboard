@@ -233,6 +233,11 @@ if ( ! function_exists( 'get_post' ) ) {
 		return $GLOBALS['K15_POSTS'][ $id ] ?? null;
 	}
 }
+if ( ! function_exists( 'update_post_meta' ) ) {
+	function update_post_meta( $post_id, $meta_key, $meta_value ) {
+		return true;
+	}
+}
 if ( ! function_exists( 'wp_insert_post' ) ) {
 	function wp_insert_post( array $postarr, bool $wp_error = false ) {
 		static $next = 900;

@@ -1333,6 +1333,29 @@ function testWaveBToolFixes() {
 
 testWaveBToolFixes();
 
+/* v1.1.15 item 3 - the refusal server leg: the bound edit form carries the
+   meta stamp at load, the carrier reads it only for a bound vault whose
+   bound id matches the rendered post, and the effective comparison takes
+   the newer leg (the refusal survives a reload; the live-page JS stamp
+   stays authoritative; an unbound vault keeps the exact previous behavior). */
+function testRefusalServerLeg() {
+  const carrierOk = source.indexOf('function hossamWriteServerSavedAt(boundId){') !== -1
+    && source.indexOf("var pid=ef.querySelector('[name=\"post_id\"]');") !== -1
+    && source.indexOf('if(!pid||String(pid.value)!==String(boundId)) return 0;') !== -1
+    && source.indexOf('return (n&&n>0)?n:0;') !== -1;
+  const orderOk = (source.match(/var server\w+=hossamWriteServerSavedAt\(/g) || []).length === 3
+    && (source.match(/if\(server\w+>saved\w+\) saved\w+=server\w+;/g) || []).length === 3
+    && source.indexOf("hossamWriteServerSavedAt(payload.bound?String(payload.bound):'')") !== -1
+    && source.indexOf("hossamWriteServerSavedAt(live.bound?String(live.bound):'')") !== -1
+    && source.indexOf("hossamWriteServerSavedAt(liveNow.bound?String(liveNow.bound):'')") !== -1;
+  check('B9R-W6-REFUSAL-SERVER-LEG',
+    carrierOk && orderOk,
+    'the refusal server leg is wired: the bound-id-matched carrier reading the edit form stamp, and the newer-leg comparison order at all three refusal sites (banner render, apply entry, deferred completion)',
+    'the refusal server leg is missing or incomplete');
+}
+
+testRefusalServerLeg();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

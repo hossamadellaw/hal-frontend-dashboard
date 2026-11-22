@@ -986,6 +986,11 @@ function b6c_require_posts_stubs(): void {
 			return $post->ID;
 		}' );
 	}
+	if ( ! function_exists( 'update_post_meta' ) ) {
+		eval( 'function update_post_meta( $post_id, $meta_key, $meta_value ) {
+			return true;
+		}' );
+	}
 	if ( ! function_exists( 'wp_update_post' ) ) {
 		eval( 'function wp_update_post( array $postarr, bool $wp_error = false ) {
 			$id = (int) ( $postarr["ID"] ?? 0 );

@@ -819,7 +819,7 @@ $hossam_render_tags_card = function ( array $hossam_current_tags, array $hossam_
                        the edit branch drops its former bare one-card wrapper
                        so the writing column renders identically to the write
                        context. -->
-                   <form id="hossam-post-edit-form" onsubmit="event.preventDefault(); hossamUpdateArticle(this); return false;">
+                   <form id="hossam-post-edit-form" data-hossam-last-saved="<?php echo esc_attr( (string) (int) get_post_meta( $the_post->ID, 'hossam_last_saved', true ) ); ?>" onsubmit="event.preventDefault(); hossamUpdateArticle(this); return false;">
                     <input type="hidden" name="post_id" value="<?php echo esc_attr( $the_post->ID ); ?>" />
                     <div class="hossam-write-workspace hossam-write-has-aside">
                     <div class="hossam-write-writing-col">

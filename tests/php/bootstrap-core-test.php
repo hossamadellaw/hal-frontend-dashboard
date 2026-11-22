@@ -587,6 +587,8 @@ function hal_test_main(): void {
 		array( 'action', 'plugins_loaded', 10 ),
 		array( 'action', 'after_setup_theme', 10 ),
 		array( 'action', 'init', 10 ),
+		// [v1.1.15 item 3] the refusal-anchor init registration (setup.php, after the no-cache block, before admin_init) - value renewal, not strictness.
+		array( 'action', 'init', 10 ),
 		array( 'action', 'admin_init', 10 ),
 		array( 'action', 'wp_enqueue_scripts', 20 ),
 		// v1.0.7 REC-2: كتلة dequeue ZIP AI على HAL (بعد setup.php:754، أولوية 20).
@@ -768,9 +770,10 @@ function hal_test_main(): void {
 		'B2',
 		// تفويض المالك #1 (2026-11-02): 7→9 — audit-log.php يسجّل init مرتين (migrations + جدولة retention sweep) بإحصاء مطابق تمامًا.
 		// تفويض المالك #1 (2026-11-02): R6 — تحديث قيمة لا صرامة — 9→10 مع تسجيل init التحويل الأولي للأوتولود في class-settings-repository.php (صف R6/G5 §5-2).
-		10 === $init_registrations,
-		"init hooks registered exactly once each (10 registrations: setup LiteSpeed, i18n, 3× tables, permissions, batch-6 ai sweep scheduler, 2× audit-log init — migrations + retention scheduler, settings autoload migration init)",
-		"expected 10 init registrations after double require_once, got {$init_registrations}"
+		// [v1.1.15 item 3] 10→11 - the refusal-anchor init registration joins setup.php (value renewal, not strictness).
+		11 === $init_registrations,
+		"init hooks registered exactly once each (11 registrations: setup LiteSpeed, setup refusal-anchor, i18n, 3× tables, permissions, batch-6 ai sweep scheduler, 2× audit-log init — migrations + retention scheduler, settings autoload migration init)",
+		"expected 11 init registrations after double require_once, got {$init_registrations}"
 	);
 
 	// ── First invocation of the real registered init callbacks ──

@@ -1651,6 +1651,24 @@ function hossamSyncRichEditorToTextarea(form){
     st.initialHtml=out;
   }catch(e){}
 }
+/* [v1.1.15 item 3] the server-rendered refusal leg: the bound edit form
+   carries the meta stamp at load (the refusal now survives a reload). The
+   leg applies ONLY to a bound vault whose bound id matches the rendered
+   edit form's post - an unbound vault keeps the exact previous behavior
+   (the create form's contract is unchanged). Within a live page the JS
+   stamp on the form governs: the effective comparison reads the newer of
+   the two legs. */
+function hossamWriteServerSavedAt(boundId){
+  try{
+    if(!boundId||boundId==='') return 0;
+    var ef=document.getElementById('hossam-post-edit-form');
+    if(!ef) return 0;
+    var pid=ef.querySelector('[name="post_id"]');
+    if(!pid||String(pid.value)!==String(boundId)) return 0;
+    var n=parseInt(ef.getAttribute('data-hossam-last-saved')||'0',10);
+    return (n&&n>0)?n:0;
+  }catch(e){ return 0; }
+}
 /* [v1.1.14 item 1] restore banner: never silent. Shown when a fresh vault
    exists on load; refused over newer saved content (timestamp comparison);
    Restore re-applies the captured fields, Discard drops the vault. */
@@ -1666,6 +1684,9 @@ function hossamWriteRestoreBanner(form){
       return;
     }
     var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    /* [v1.1.15 item 3] the server-rendered leg joins the comparison (the newer leg wins - the refusal survives a reload, the live-page JS stamp stays authoritative). */
+    var serverAt=hossamWriteServerSavedAt(payload.bound?String(payload.bound):'');
+    if(serverAt>savedAt) savedAt=serverAt;
     if(savedAt&&payload.ts<=savedAt){sessionStorage.removeItem(hossamWriteVaultKey());return;}
     var old=form.querySelector('[data-hossam-vault-banner]');
     if(old&&old.parentNode) old.parentNode.removeChild(old);
@@ -1737,6 +1758,9 @@ function hossamWriteVaultApply(form,payload){
     try{live=JSON.parse(raw);}catch(eP2){return;}
     if(!live||!live.ts||live.ts!==payload.ts) return;
     var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    /* [v1.1.15 item 3] the server-rendered leg joins the comparison (the newer leg wins). */
+    var serverAt=hossamWriteServerSavedAt(live.bound?String(live.bound):'');
+    if(serverAt>savedAt) savedAt=serverAt;
     if(savedAt&&live.ts<=savedAt) return;
     var holder=form.querySelector('.hossam-rich-editor');
     var containerId=(holder&&holder.id)?holder.id:null;
@@ -1772,6 +1796,9 @@ function hossamWriteVaultApply(form,payload){
           try{liveNow=JSON.parse(rawNow);}catch(eP4){form.removeAttribute('data-hossam-apply-pending');return;}
           if(!liveNow||!liveNow.ts||liveNow.ts!==live.ts){form.removeAttribute('data-hossam-apply-pending');return;}
           var savedNow=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+          /* [v1.1.15 item 3] the server-rendered leg joins the deferred re-check too. */
+          var serverNow=hossamWriteServerSavedAt(liveNow.bound?String(liveNow.bound):'');
+          if(serverNow>savedNow) savedNow=serverNow;
           if(savedNow&&liveNow.ts<=savedNow){form.removeAttribute('data-hossam-apply-pending');return;}
           var recNow=hossamRichState.inited[containerId]||null;
           var stateNow=hossamVaultEditorState(recNow);

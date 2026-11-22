@@ -917,11 +917,34 @@ $posts_js_head_hash = hash( 'sha256', $posts_js_head );
 // removeFormat argument order over the byte-exact pinned lists, the
 // swatch-aware color Apply with the intact free-input path, the More fold
 // aria state machine, and the single-open popover discipline).
+// v1.1.15 item 3 renewal: the refusal server leg (the hossam_last_saved
+// meta registration, the epoch-millisecond stamps in both save handlers,
+// and the bound edit form rendering the stamp at load).
 b14_check( 'T9-NONCE-posts-js-fingerprint-intact',
-	'96ab2a9529235c55ac6a9051739343afc3ef9e5af6ef9cf855264221cbf51787' === $posts_js_lf_hash
-		&& '96ab2a9529235c55ac6a9051739343afc3ef9e5af6ef9cf855264221cbf51787' === $posts_js_head_hash,
+	'33bbfe3c5c165d0461a02d82469e72bbec60812cfd89c974ca1291ae141f4ff8' === $posts_js_lf_hash
+		&& '33bbfe3c5c165d0461a02d82469e72bbec60812cfd89c974ca1291ae141f4ff8' === $posts_js_head_hash,
 	'posts.js is byte-identical to the recorded authorized revision (raw + line-ending-normalized fingerprints pinned) — zero JS drift beyond the authorized rows (H3 §1.5-4), the v1.1.3 comments batch with its approved oeb_open fallback text, the W7 professional-toolbar build, the W7-A1 correction (prefixes, zen target, swatch-name keys), the v1.1.4 items 3+4 drawer surfaces, the items 5+6+7 card and context unification, the items 8-13 bridge, guard, and unification, the v1.1.7 item 1 seed helper + mount seed + reseed-on-empty effect, the v1.1.8 item 1 invisible click-layer contentCss, the v1.1.9 wave 1 click bridge + insertion-point restoration + official list/insert handlers, and the v1.1.14 Wave A rescue layer',
 	'posts.js fingerprint deviated: raw=' . $posts_js_raw_hash . ' lf=' . $posts_js_lf_hash . ' head=' . $posts_js_head_hash );
+/* [v1.1.15 item 3] the server-rendered refusal anchor: the meta registration
+   (show_in_rest=false + an edit_post auth_callback), the epoch-millisecond
+   stamps in BOTH save handlers, and the bound edit form rendering the meta
+   stamp into data-hossam-last-saved at load. */
+$wposts_src = (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/adapters/wordpress-posts.php' );
+$posts_tpl_src = (string) file_get_contents( $GLOBALS['B14_PROJECT'] . '/runtime/templates/dashboard/posts.php' );
+$meta_registered = false !== strpos( $setup_src, "register_post_meta( 'post', 'hossam_last_saved'" )
+	&& false !== strpos( $setup_src, "'show_in_rest'  => false" )
+	&& false !== strpos( $setup_src, "'auth_callback' => function( \$allowed, \$meta_key, \$object_id )" );
+$stamp_sites = substr_count( $wposts_src, "update_post_meta( \$post_id, 'hossam_last_saved', (int) round( microtime( true ) * 1000 ) )" );
+$stamp_rendered = false !== strpos( $posts_tpl_src, "data-hossam-last-saved=\"<?php echo esc_attr( (string) (int) get_post_meta( \$the_post->ID" )
+	&& false !== strpos( $posts_tpl_src, "'hossam_last_saved', true" );
+b14_check( 'T9-REFUSAL-SERVER-LEG',
+	$meta_registered && 2 === $stamp_sites && $stamp_rendered,
+	'the refusal server leg is wired: hossam_last_saved registered for post with show_in_rest=false and an edit_post auth_callback, the epoch-millisecond stamp written in both save handlers success paths, and the bound edit form rendering the meta stamp at load',
+	'the refusal server leg deviated: meta=' . var_export( $meta_registered, true )
+		. ' stamps=' . $stamp_sites
+		. ' rendered=' . var_export( $stamp_rendered, true ) );
+
+
 
 /* ════════════════════════════════════════════════════════════════
  * T9-§3 PAYMENT — Subscriber + nonce ⇒ 200 {title, enabled:true} without id
