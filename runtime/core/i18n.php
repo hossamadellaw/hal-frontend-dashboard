@@ -494,6 +494,9 @@ if ( ! function_exists( 'hossam_get_i18n_strings' ) ) {
             'vaultRestoreBoundPrompt' => hossam_t('Restore your unsaved edits to the saved article from {time}?'),
             'vaultRestore'        => hossam_t('Restore'),
             'vaultDiscard'        => hossam_t('Discard'),
+            // v1.1.15 item 4: the F-1 failure-toast keys (B16T-C1/C2 pairs).
+            'toolbarSelectFirst'  => hossam_t('Select text first'),
+            'toolbarNoBlock'      => hossam_t('No editable block selected'),
 
             // Missing-module keys (historic T-31). Every value here matches
             // the fallback text in the actual call inside modules/*.js

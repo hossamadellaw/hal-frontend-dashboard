@@ -1251,6 +1251,145 @@ function testRescueLayer() {
 
 testRescueLayer();
 
+/* v1.1.15 item 1 — the AR restore integrity fix (measured P1): the restore
+   apply gates on the strict editor readiness (a mounting editor defers the
+   whole apply until phase==='ready'; terminal latches and record-less
+   surfaces take the textarea fallback so a fallback environment can never
+   deadlock the restore), every field lands through its own explicit target,
+   a post-apply verification pass reads every field back (the title equality
+   is the measured glue detector), and the capture-suppression window keeps
+   the debounced capture from ever re-capturing a corrupted intermediate
+   state. The identical chain runs on every locale — no language branch. */
+function testRestoreIntegrity() {
+  const applyStart = source.indexOf('function hossamWriteVaultApply(form,payload){');
+  const autosaveStart = source.indexOf('function hossamWriteAutosave(){');
+  const applyRegion = (applyStart !== -1 && autosaveStart > applyStart)
+    ? source.slice(applyStart, autosaveStart) : '';
+  const gateOk = applyRegion.indexOf("hossamVaultEditorState(rec)") !== -1
+    && applyRegion.indexOf("if(state==='mounting'&&containerId){") !== -1
+    && source.indexOf("if(rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks) return 'ready';") !== -1
+    && source.indexOf("if(rec.phase==='fallback'||rec.phase==='error'||rec.latch) return 'terminal';") !== -1
+    && source.indexOf("function hossamVaultApplyNotify(containerId){") !== -1
+    && (source.match(/hossamVaultApplyNotify\(containerId\);/g) || []).length === 4;
+  const deferOk = source.indexOf('var hossamVaultApplyWaiters={};') !== -1
+    && source.indexOf('var HOSSAM_VAULT_APPLY_WAIT_CEILING=20000;') !== -1
+    && applyRegion.indexOf('vault-apply-waiter-ceiling') !== -1
+    && applyRegion.indexOf('liveNow.ts!==live.ts') !== -1;
+  const targetsOk = applyRegion.indexOf("setVal('title',f.title);") !== -1
+    && applyRegion.indexOf("setVal('excerpt',f.excerpt);") !== -1
+    && applyRegion.indexOf("setVal('status',f.status);") !== -1
+    && applyRegion.indexOf("setVal('thumbnail_id',f.thumbnail_id);") !== -1
+    && applyRegion.indexOf('rec.api.keep(parsed);recApplied=rec;parsedApplied=parsed;') !== -1
+    && applyRegion.indexOf('if(ta) ta.value=content;') !== -1;
+  const verifyOk = source.indexOf('function hossamWriteVaultVerify(form,fields,surface,rec,wantLen){') !== -1
+    && source.indexOf("if(!fieldMatches('title')) return false;") !== -1
+    && source.indexOf('vault-apply-verify-failed') !== -1
+    && source.indexOf('vault-apply-canvas-keep-failed') !== -1;
+  const suppressOk = source.indexOf("if(form.getAttribute('data-hossam-apply-pending')==='1') return;") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-apply-pending','1');") !== -1
+    && source.indexOf("form.removeAttribute('data-hossam-apply-pending');") !== -1
+    && source.indexOf("form.setAttribute('data-hossam-apply-failed','1');") !== -1
+    && source.indexOf("createForm.getAttribute('data-hossam-apply-failed')==='1'") !== -1;
+  const localeOk = applyRegion.indexOf('isRtl') === -1
+    && applyRegion.indexOf('hossamWriteLang()') === -1;
+  check('B9R-W4-RESTORE-INTEGRITY',
+    gateOk && deferOk && targetsOk && verifyOk && suppressOk && localeOk,
+    'the restore integrity chain is wired: the strict ready gate (mounting defers through the waiter registry with its ceiling, terminal/record-less takes the textarea fallback), the per-field explicit targets (title/excerpt/status/thumbnail_id + the canvas keep() or textarea content surface), the post-apply verification pass with the title glue detector, the capture-suppression window with the failed-verify latch cleared by real input, and the locale-blind apply chain',
+    'the restore integrity chain is missing or incomplete');
+}
+
+testRestoreIntegrity();
+
+/* v1.1.15 item 2 - the four live-measured tool failures: the clear-format
+   execution path now calls the official removeFormat signature (value,
+   formatType, start, end - the previous order passed the numeric start into
+   the formatType slot and every pinned removal was a silent no-op), the
+   color Apply reads the selected swatch through the per-menu selection state
+   without breaking the free-input path, the More fold toggle carries and
+   synchronizes its aria-expanded state, and every dropdown trigger rides the
+   single-open popover discipline with the same aria state machine. */
+function testWaveBToolFixes() {
+  const clearOk = source.indexOf('removed=rt.removeFormat(removed,HOSSAM_TOOLBAR_CLEAR_TYPES[i],start,end);') !== -1
+    && source.indexOf('rt.removeFormat(removed,start,end,') === -1;
+  const applyOk = source.indexOf('var sel={swatch:null,pickTouched:false};') !== -1
+    && (source.match(/sel\.swatch=c;sel\.pickTouched=false;/g) || []).length === 2
+    && source.indexOf("freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});},sel);") !== -1
+    && source.indexOf("freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);") !== -1
+    && source.indexOf("sel.syncPick=function(v){try{pick.value=v;}catch(e){}};") !== -1
+    && source.indexOf('if(sel&&sel.pickTouched){v=pick.value;}') !== -1
+    && source.indexOf('else if(sel&&sel.swatch){v=sel.swatch;}') !== -1;
+  const moreOk = source.indexOf("moreBtn.setAttribute('aria-expanded','false');") !== -1
+    && source.indexOf("moreSync.setAttribute('aria-expanded',bar.classList.contains('hossam-pt-more-open')?'true':'false');") !== -1
+    && source.indexOf("var mt=bar.querySelector('.hossam-pt-more-toggle');") !== -1;
+  const popoverOk = source.indexOf("trig.setAttribute('aria-expanded','false');") !== -1
+    && source.indexOf('function closeSiblings(){') !== -1
+    && source.indexOf('if(!open) closeSiblings();') !== -1
+    && source.indexOf("trig.setAttribute('aria-expanded',open?'false':'true');") !== -1;
+  check('B9R-W5-TOOL-FIXES',
+    clearOk && applyOk && moreOk && popoverOk,
+    'the wave-B tool fixes are wired: the official removeFormat argument order over the byte-exact pinned lists, the swatch-aware Apply with the intact free-input path on both color menus, the More fold aria state machine (mount + fold handler + drawer close), and the single-open popover discipline with synchronized trigger aria on every dropdown',
+    'the wave-B tool fixes are missing or incomplete');
+}
+
+testWaveBToolFixes();
+
+/* v1.1.15 item 3 - the refusal server leg: the bound edit form carries the
+   meta stamp at load, the carrier reads it only for a bound vault whose
+   bound id matches the rendered post, and the effective comparison takes
+   the newer leg (the refusal survives a reload; the live-page JS stamp
+   stays authoritative; an unbound vault keeps the exact previous behavior). */
+function testRefusalServerLeg() {
+  const carrierOk = source.indexOf('function hossamWriteServerSavedAt(boundId){') !== -1
+    && source.indexOf("var pid=ef.querySelector('[name=\"post_id\"]');") !== -1
+    && source.indexOf('if(!pid||String(pid.value)!==String(boundId)) return 0;') !== -1
+    && source.indexOf('return (n&&n>0)?n:0;') !== -1;
+  const orderOk = (source.match(/var server\w+=hossamWriteServerSavedAt\(/g) || []).length === 3
+    && (source.match(/if\(server\w+>saved\w+\) saved\w+=server\w+;/g) || []).length === 3
+    && source.indexOf("hossamWriteServerSavedAt(payload.bound?String(payload.bound):'')") !== -1
+    && source.indexOf("hossamWriteServerSavedAt(live.bound?String(live.bound):'')") !== -1
+    && source.indexOf("hossamWriteServerSavedAt(liveNow.bound?String(liveNow.bound):'')") !== -1;
+  check('B9R-W6-REFUSAL-SERVER-LEG',
+    carrierOk && orderOk,
+    'the refusal server leg is wired: the bound-id-matched carrier reading the edit form stamp, and the newer-leg comparison order at all three refusal sites (banner render, apply entry, deferred completion)',
+    'the refusal server leg is missing or incomplete');
+}
+
+testRefusalServerLeg();
+
+/* v1.1.15 item 4 - the Wave B focus and tools core: the three deterministic
+   focus lifts (the at-readiness programmatic caret with its three-way gate,
+   the click-bridge extension selecting unfocused text-type blocks, and
+   Enter-in-title moving into the canvas), the F-1 unified failure path
+   (toast + one selection recovery + one retry over the three official
+   families with the registered i18n pairs), the D2 official paragraph
+   direction behind the getBlockSupport probe with the documented fallback,
+   and the D5 shipped single-block list semantics documented. */
+function testFocusF1D2() {
+  const lift1Ok = source.indexOf('function hossamRichFocusAtReady(containerId){') !== -1
+    && source.indexOf('hossamRichFocusAtReady(containerId);') !== -1
+    && source.indexOf("if(rec.textareaId!=='hossam-new-content') return;") !== -1
+    && source.indexOf('if(rec.canvasTouched) return;') !== -1
+    && source.indexOf('if(store.getSelectedBlockClientId()) return;') !== -1;
+  const lift2Ok = source.indexOf("registry.dispatch('core/block-editor').selectBlock(bcid,0);") !== -1
+    && source.indexOf('&&store.getSelectedBlockClientId()!==bcid){') !== -1;
+  const lift3Ok = source.indexOf("titleIn.addEventListener('keydown',function(ev){") !== -1
+    && source.indexOf("if((ev.key||'')!=='Enter'||ev.shiftKey) return;") !== -1;
+  const f1Ok = source.indexOf('function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){') !== -1
+    && source.indexOf('function hossamToolbarRecoverSelection(containerId){') !== -1
+    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 3
+    && source.indexOf(",'toolbarSelectFirst','Select text first')") !== -1
+    && (source.match(/'toolbarNoBlock','No editable block selected'/g) || []).length === 2;
+  const d2Ok = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
+    && source.indexOf('updateBlockAttributes(cidD,{direction:') !== -1;
+  const d5Ok = source.indexOf('the shipped list semantics are SINGLE-BLOCK') !== -1;
+  check('B9R-W7-FOCUS-F1-D2',
+    lift1Ok && lift2Ok && lift3Ok && f1Ok && d2Ok && d5Ok,
+    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
+    'the Wave B focus and tools core is missing or incomplete');
+}
+
+testFocusF1D2();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

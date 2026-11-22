@@ -64,6 +64,18 @@ function hossamPostToastLabel(status){
 var HOSSAM_VAULT_PREFIX='hossamWriteVault';
 var HOSSAM_VAULT_TTL=86400000; /* stamped; a vault older than 24h never revives */
 var HOSSAM_VAULT_DEBOUNCE=1000;
+/* [v1.1.15 item 1] the restore-apply deferral registry: while the editor is
+   still mounting, the whole apply defers until the record resolves (the
+   strict ready gate or a terminal latch) — the measured AR corruption fix.
+   The ceiling guarantees a hung mount can never deadlock the restore. */
+var hossamVaultApplyWaiters={};
+var hossamVaultApplyTimeouts={};
+var HOSSAM_VAULT_APPLY_WAIT_CEILING=20000;
+/* [v1.1.15 item 4] the click-bridge text-type list hoists to module scope so
+   the F-1 recovery and the deterministic-focus lifts read the same pinned
+   list (the types whose last text field can receive the caret through
+   selectBlock(-1) - structural, state-independent). */
+var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details'];
 var HOSSAM_AUTOSAVE_DEBOUNCE=10000;
 var HOSSAM_DIAG_KEY='hossamWriteDiagLog';
 var hossamWriteVaultTimer=null;
@@ -139,6 +151,10 @@ function hossamWriteVaultSave(form){
   try{
     if(!form||form.id!=='hossam-post-create-form') return;
     if(!window.hossamWriteDirty) return;
+    /* [v1.1.15 item 1c] the capture-suppression window: while a restore apply
+       is pending (or a failed verify is latched), the debounced capture never
+       re-captures a corrupted intermediate state. */
+    if(form.getAttribute('data-hossam-apply-pending')==='1') return;
     /* [v1.1.14 item 1 - the advisory correction 1] the serialized block state
        is the truth in official mode (the textarea holds only the seed until a
        save syncs it) - the vault capture syncs the editor into the textarea
@@ -1026,6 +1042,36 @@ function hossamRichFrameReady(frame){
 function hossamSetEditorState(container,state){
   try{if(container&&container.setAttribute)container.setAttribute('data-hossam-editor-state',state);}catch(e){}
 }
+/* [v1.1.15 item 4 - focus lift 1] the programmatic caret at readiness:
+   gated three-way (write context x the single empty seeded paragraph x no
+   existing selection and no canvas interaction yet) plus the document guard
+   (a focused form field never gets its caret stolen - it never steals the
+   caret from the title mid-typing). Runs through the deposited sub-registry
+   only. */
+function hossamRichFocusAtReady(containerId){
+  try{
+    var rec=hossamRichState.inited[containerId];
+    if(!rec||rec.phase!=='ready'||!rec.wpRegistry||!rec.blocks) return;
+    /* write context only: the record's textarea id decides (no new editor-id
+       references - the B15S-7 count stays pinned). */
+    if(rec.textareaId!=='hossam-new-content') return;
+    if(rec.canvasTouched) return;
+    if(!rec.blocks.length||rec.blocks.length>1) return;
+    var b0=rec.blocks[0];
+    if(!b0||b0.name!=='core/paragraph') return;
+    var c0=b0.attributes&&b0.attributes.content;
+    var txt0=c0&&(typeof c0.toHTMLString==='function')?c0.toHTMLString():String(c0==null?'':c0);
+    if(String(txt0).replace(/<!--[\s\S]*?-->/g,'').replace(/<[^>]*>/g,'').trim()!=='') return;
+    var store=rec.wpRegistry.select('core/block-editor');
+    if(store.getSelectedBlockClientId()) return;
+    var doc0=(typeof document!=='undefined')?document:null;
+    if(doc0&&doc0.activeElement&&doc0.activeElement!==doc0.body){
+      var tn=doc0.activeElement.tagName;
+      if(tn==='INPUT'||tn==='TEXTAREA'||tn==='SELECT') return;
+    }
+    if(b0.clientId) rec.wpRegistry.dispatch('core/block-editor').selectionChange(b0.clientId,'content',0,0);
+  }catch(e){}
+}
 function hossamRichNotice(){
   try{showToast(t('richEditorUnavailable','Rich editor unavailable — using the plain text field.'),'error');}catch(e){}
 }
@@ -1278,7 +1324,6 @@ function hossamRichInitEditor(containerId){
        at mousedown, detach on unmount, and only act on a ready record. */
         /* [v1.1.12] the block types whose last text field can receive the caret
        through selectBlock(-1) — structural, state-independent. */
-    var HOSSAM_CLICK_TEXT_TYPES=['core/paragraph','core/heading','core/quote','core/list','core/table','core/details'];
     function HossamClickBridge(props){
       if(!wp0.data||typeof wp0.data.useRegistry!=='function') return null;
       var useRef=el.useRef, useEffect=el.useEffect;
@@ -1339,16 +1384,36 @@ function hossamRichInitEditor(containerId){
           mouse.x=ev.clientX||0;
           mouse.y=ev.clientY||0;
           try{ mouse.count=registry.select('core/block-editor').getBlockCount(); }catch(e0){ mouse.count=-1; }
+          /* [v1.1.15 item 4 - focus lift 1] any canvas interaction cancels the at-readiness caret so it never competes with a real click. */
+          var recM=hossamRichState.inited[containerId];
+          if(recM) recM.canvasTouched=true;
         }
         function onClick(ev){
           try{
             if(ev.detail>1) return;
             if(Math.abs((ev.clientX||0)-mouse.x)>4||Math.abs((ev.clientY||0)-mouse.y)>4) return;
-            if(excluded(ev.target)||!isSurface(ev.target)) return;
-            if(countRef.current===0) return;
             var rec=hossamRichState.inited[containerId];
             if(!rec||rec.phase!=='ready'||!rec.wpRegistry) return;
             var store=registry.select('core/block-editor');
+            /* [v1.1.15 item 4 - focus lift 2] a real click on an unfocused
+               text-type block selects the block (the caret lands at the
+               block start - documented as better than dead) instead of the
+               silent exclusion. The focused rich text stays native: its
+               contenteditable surface is excluded below and the browser
+               places the caret exactly where the user clicked. */
+            var bw=ev.target&&ev.target.closest?ev.target.closest('.block-editor-block-list__block'):null;
+            if(bw){
+              var btype=bw.getAttribute('data-type')||'';
+              var bcid=bw.getAttribute('data-block')||'';
+              if(bcid&&HOSSAM_CLICK_TEXT_TYPES.indexOf(btype)!==-1
+                &&!(ev.target.closest&&ev.target.closest('[contenteditable="true"]'))
+                &&store.getSelectedBlockClientId()!==bcid){
+                registry.dispatch('core/block-editor').selectBlock(bcid,0);
+                return;
+              }
+            }
+            if(excluded(ev.target)||!isSurface(ev.target)) return;
+            if(countRef.current===0) return;
             if(mouse.count>=0&&store.getBlockCount()!==mouse.count) return;
             /* [v1.1.11 item 1 — consensus] region branching: the empty surface
                no longer mounts a floating paragraph below the content. Below
@@ -1536,12 +1601,16 @@ function hossamRichInitEditor(containerId){
            interface + a notice + a latched fallback, and no further sync. */
         if(textarea.value!==initialHtml){
           record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='dirty-textarea';record.latch=true;
+          hossamVaultApplyNotify(containerId);
           try{container.setAttribute('hidden','');}catch(e){}
           hossamRichNotice();
           return;
         }
         confirmed=true;
         record.ready=true;record.phase='ready';record.confirmed=true;record.probe='iframe-ready';
+        hossamVaultApplyNotify(containerId);
+        /* [v1.1.15 item 4 - focus lift 1] the programmatic caret at readiness (the three-way gate lives inside). */
+        hossamRichFocusAtReady(containerId);
         textarea.classList.add('hossam-rich-hidden');
         /* [R21-a] the ready iframe document is the actual paste target inside
            the official canvas — bind the paste handler on it after the ready
@@ -1555,6 +1624,7 @@ function hossamRichInitEditor(containerId){
          fallback: hide the dead interface, keep the textarea visible, no sync. */
       try{console.warn('[HAL] rich probe: no ready iframe within '+(probeEvery*probeLimit/1000)+'s - fallback (not a clean finish)');}catch(e){}
       record.ready=false;record.phase='fallback';record.confirmed=false;record.blocks=null;record.probe='timeout';record.latch=true;
+      hossamVaultApplyNotify(containerId);
       textarea.classList.remove('hossam-rich-hidden');
       try{container.setAttribute('hidden','');}catch(e){}
       hossamRichNotice();
@@ -1569,6 +1639,7 @@ function hossamRichInitEditor(containerId){
     try{if(host&&host.parentNode) host.parentNode.removeChild(host);}catch(e){}
     try{delete hossamRichState.roots[containerId];}catch(e){}
     hossamRichState.inited[containerId]={ready:false,phase:'error',confirmed:false,blocks:null,initialHtml:textarea.value||'',textareaId:textareaId,root:null,probe:'error',latch:true};
+    hossamVaultApplyNotify(containerId);
     try{container.setAttribute('hidden','');}catch(e){}
     try{textarea.classList.remove('hossam-rich-hidden');}catch(e){}
     hossamRichNotice();
@@ -1636,6 +1707,24 @@ function hossamSyncRichEditorToTextarea(form){
     st.initialHtml=out;
   }catch(e){}
 }
+/* [v1.1.15 item 3] the server-rendered refusal leg: the bound edit form
+   carries the meta stamp at load (the refusal now survives a reload). The
+   leg applies ONLY to a bound vault whose bound id matches the rendered
+   edit form's post - an unbound vault keeps the exact previous behavior
+   (the create form's contract is unchanged). Within a live page the JS
+   stamp on the form governs: the effective comparison reads the newer of
+   the two legs. */
+function hossamWriteServerSavedAt(boundId){
+  try{
+    if(!boundId||boundId==='') return 0;
+    var ef=document.getElementById('hossam-post-edit-form');
+    if(!ef) return 0;
+    var pid=ef.querySelector('[name="post_id"]');
+    if(!pid||String(pid.value)!==String(boundId)) return 0;
+    var n=parseInt(ef.getAttribute('data-hossam-last-saved')||'0',10);
+    return (n&&n>0)?n:0;
+  }catch(e){ return 0; }
+}
 /* [v1.1.14 item 1] restore banner: never silent. Shown when a fresh vault
    exists on load; refused over newer saved content (timestamp comparison);
    Restore re-applies the captured fields, Discard drops the vault. */
@@ -1651,6 +1740,9 @@ function hossamWriteRestoreBanner(form){
       return;
     }
     var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    /* [v1.1.15 item 3] the server-rendered leg joins the comparison (the newer leg wins - the refusal survives a reload, the live-page JS stamp stays authoritative). */
+    var serverAt=hossamWriteServerSavedAt(payload.bound?String(payload.bound):'');
+    if(serverAt>savedAt) savedAt=serverAt;
     if(savedAt&&payload.ts<=savedAt){sessionStorage.removeItem(hossamWriteVaultKey());return;}
     var old=form.querySelector('[data-hossam-vault-banner]');
     if(old&&old.parentNode) old.parentNode.removeChild(old);
@@ -1684,7 +1776,36 @@ function hossamWriteRestoreBanner(form){
    the live vault (timestamp equality) and must not be older than the last
    saved content — both re-checked at click time. The tags[] mirror values
    are restored as data (the chips UI rebuilds on the next tag interaction —
-   the honest limitation: saved tags beat lost tags). */
+   the honest limitation: saved tags beat lost tags).
+   [v1.1.15 item 1] the measured AR corruption fix (defect 1): the apply
+   gates on the strict editor readiness the rest of the editor uses — a
+   still-mounting editor DEFERS the whole apply until the record reaches
+   phase==='ready' (the canvas keep() path) or a terminal latch (the
+   textarea fallback stays allowed there so a fallback environment can never
+   deadlock the restore). Every field writes through its own explicit
+   target, a post-apply verification pass reads each landing back, and the
+   debounced capture is suppressed for the whole window so a corrupted
+   intermediate state is never re-captured. The identical chain runs on
+   every locale — no language branch anywhere in the apply path. */
+/* [v1.1.15 item 1a] the strict classifier: ready is the exact gate
+   hossamSyncRichEditorToTextarea uses; latched terminal records and
+   record-less surfaces take the textarea fallback; anything else alive is
+   still mounting and defers. */
+function hossamVaultEditorState(rec){
+  if(!rec) return 'none';
+  if(rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks) return 'ready';
+  if(rec.phase==='fallback'||rec.phase==='error'||rec.latch) return 'terminal';
+  return 'mounting';
+}
+/* [v1.1.15 item 1a] the transition notifier: fired at every editor record
+   transition (ready / the fallback latches / error) so a deferred restore
+   lands the moment the gate resolves instead of racing the mount. */
+function hossamVaultApplyNotify(containerId){
+  try{
+    var w=hossamVaultApplyWaiters[containerId];
+    if(typeof w==='function'){hossamVaultApplyWaiters[containerId]=null;w();}
+  }catch(e){}
+}
 function hossamWriteVaultApply(form,payload){
   try{
     var raw=sessionStorage.getItem(hossamWriteVaultKey());
@@ -1693,7 +1814,75 @@ function hossamWriteVaultApply(form,payload){
     try{live=JSON.parse(raw);}catch(eP2){return;}
     if(!live||!live.ts||live.ts!==payload.ts) return;
     var savedAt=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+    /* [v1.1.15 item 3] the server-rendered leg joins the comparison (the newer leg wins). */
+    var serverAt=hossamWriteServerSavedAt(live.bound?String(live.bound):'');
+    if(serverAt>savedAt) savedAt=serverAt;
     if(savedAt&&live.ts<=savedAt) return;
+    var holder=form.querySelector('.hossam-rich-editor');
+    var containerId=(holder&&holder.id)?holder.id:null;
+    var rec=containerId?hossamRichState.inited[containerId]:null;
+    var state=hossamVaultEditorState(rec);
+    if(state==='mounting'&&containerId){
+      /* [v1.1.15 item 1a] defer: the suppression window opens now and the
+         apply reruns when the record resolves — ready takes the canvas
+         path, a terminal latch takes the textarea fallback. The payload
+         identity is the attempt token: a newer attempt replaces the waiter
+         and an old ceiling can never fire a stale apply. The capture-
+         suppression window keeps the vault intact through the whole wait (a
+         real user input marks the form dirty but its debounced capture is
+         refused while the window is open), and the timestamp re-check at
+         completion still guards the residual edges - any vault rewrite from
+         outside the suppressed capture drops the stale apply honestly. */
+      form.setAttribute('data-hossam-apply-pending','1');
+      if(hossamVaultApplyTimeouts[containerId]){clearTimeout(hossamVaultApplyTimeouts[containerId]);}
+      hossamVaultApplyTimeouts[containerId]=setTimeout(function(){
+        try{
+          delete hossamVaultApplyTimeouts[containerId];
+          if(hossamVaultApplyWaiters[containerId]===owner){
+            hossamVaultApplyWaiters[containerId]=null;
+            try{hossamDiagLogError('vault-apply-waiter-ceiling: the deferred restore took the textarea fallback');}catch(eD1){}
+            hossamWriteVaultApplyRun(form,live,'textarea');
+          }
+        }catch(eD2){}
+      },HOSSAM_VAULT_APPLY_WAIT_CEILING);
+      var owner=function(){
+        try{
+          if(hossamVaultApplyTimeouts[containerId]){clearTimeout(hossamVaultApplyTimeouts[containerId]);delete hossamVaultApplyTimeouts[containerId];}
+          delete hossamVaultApplyWaiters[containerId];
+          var rawNow=sessionStorage.getItem(hossamWriteVaultKey());
+          if(!rawNow){form.removeAttribute('data-hossam-apply-pending');return;}
+          var liveNow=null;
+          try{liveNow=JSON.parse(rawNow);}catch(eP4){form.removeAttribute('data-hossam-apply-pending');return;}
+          if(!liveNow||!liveNow.ts||liveNow.ts!==live.ts){form.removeAttribute('data-hossam-apply-pending');return;}
+          var savedNow=parseInt(form.getAttribute('data-hossam-last-saved')||'0',10);
+          /* [v1.1.15 item 3] the server-rendered leg joins the deferred re-check too. */
+          var serverNow=hossamWriteServerSavedAt(liveNow.bound?String(liveNow.bound):'');
+          if(serverNow>savedNow) savedNow=serverNow;
+          if(savedNow&&liveNow.ts<=savedNow){form.removeAttribute('data-hossam-apply-pending');return;}
+          var recNow=hossamRichState.inited[containerId]||null;
+          var stateNow=hossamVaultEditorState(recNow);
+          hossamWriteVaultApplyRun(form,liveNow,stateNow==='ready'?'canvas':'textarea');
+        }catch(eW){
+          try{form.removeAttribute('data-hossam-apply-pending');}catch(eW2){}
+        }
+      };
+      hossamVaultApplyWaiters[containerId]=owner;
+      return;
+    }
+    hossamWriteVaultApplyRun(form,live,state==='ready'?'canvas':'textarea');
+  }catch(e){}
+}
+/* [v1.1.15 item 1b] the apply body: every field through its own explicit
+   target (title → the title input, excerpt/status/thumbnail_id → their
+   fields, content → the canvas keep() path behind the strict gate or the
+   textarea on a terminal/record-less surface, categories → the checked
+   boxes, tags → the hidden mirrors), then the post-apply verification
+   pass. A canvas-gated apply whose keep() failed while the editor is
+   verified-ready never re-routes the content into the hidden textarea —
+   that silent re-route is the desync family the measured defect lives in. */
+function hossamWriteVaultApplyRun(form,live,surface){
+  try{
+    form.setAttribute('data-hossam-apply-pending','1');
     var f=live.fields||{};
     function setVal(name,val){var fld=form.querySelector('[name="'+name+'"]');if(fld) fld.value=(val==null?'':val);}
     setVal('title',f.title);
@@ -1715,16 +1904,23 @@ function hossamWriteVaultApply(form,payload){
       form.appendChild(mi);
     }
     var content=String(f.content==null?'':f.content);
-    var holder=form.querySelector('.hossam-rich-editor');
-    var rec=(holder&&holder.id)?hossamRichState.inited[holder.id]:null;
-    var wp0=hossamRichWp();
-    var applied=false;
-    if(rec&&rec.ready&&rec.api&&typeof rec.api.keep==='function'&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function'){
-      try{var parsed=wp0.blocks.parse(content)||[];rec.api.keep(parsed);applied=true;}catch(eK){applied=false;}
+    var recApplied=null,parsedApplied=null;
+    if(surface==='canvas'){
+      var holder=form.querySelector('.hossam-rich-editor');
+      var rec=(holder&&holder.id)?hossamRichState.inited[holder.id]:null;
+      var wp0=hossamRichWp();
+      var ok=rec&&rec.phase==='ready'&&rec.confirmed&&rec.ready&&rec.blocks&&rec.api&&typeof rec.api.keep==='function'&&wp0&&wp0.blocks&&typeof wp0.blocks.parse==='function';
+      if(ok){
+        try{var parsed=wp0.blocks.parse(content)||[];rec.api.keep(parsed);recApplied=rec;parsedApplied=parsed;}catch(eK){recApplied=null;parsedApplied=null;}
+      }
     }
-    if(!applied){
-      var ta=form.querySelector('[name="content"]');
-      if(ta) ta.value=content;
+    if(!recApplied){
+      if(surface==='canvas'){
+        try{hossamDiagLogError('vault-apply-canvas-keep-failed');}catch(eK2){}
+      }else{
+        var ta=form.querySelector('[name="content"]');
+        if(ta) ta.value=content;
+      }
     }
     /* [v1.1.14 - the independent audit correction 2] the binding survives the
        reload through the vault: a bound restore re-binds the form so the next
@@ -1737,7 +1933,62 @@ function hossamWriteVaultApply(form,payload){
       form.setAttribute('data-hossam-bound-post',String(live.bound));
     }
     hossamWriteMarkDirty();
-  }catch(e){}
+    /* [v1.1.15 item 1b] the post-apply verification pass: every restored
+       field is read back from its own target — the title equality is the
+       measured glue detector (defect 1: canvas content landing in the
+       title). */
+    var verified=hossamWriteVaultVerify(form,f,recApplied?'canvas':'textarea',recApplied,parsedApplied?parsedApplied.length:null);
+    if(verified){
+      form.removeAttribute('data-hossam-apply-pending');
+    }else{
+      /* [v1.1.15 item 1c] a failed verify keeps the suppression window open
+         and the original vault intact — the corrupted intermediate state is
+         never re-captured; the latch clears on the next real user input. */
+      form.setAttribute('data-hossam-apply-failed','1');
+      try{hossamDiagLogError('vault-apply-verify-failed: surface='+(recApplied?'canvas':'textarea')+' the restored fields did not all land');}catch(eV2){}
+    }
+  }catch(e){
+    try{form.setAttribute('data-hossam-apply-failed','1');}catch(e2){}
+  }
+}
+/* [v1.1.15 item 1b] the verification pass: title/excerpt/status/thumbnail_id
+   read back exactly from their targets, categories and tags re-read from
+   their targets, and the content surface checked structurally — the strict
+   ready record holding exactly the applied block count on the canvas, the
+   exact payload string in the textarea. */
+function hossamWriteVaultVerify(form,fields,surface,rec,wantLen){
+  try{
+    function appliedVal(name){var fld=form.querySelector('[name="'+name+'"]');return fld?String(fld.value==null?'':fld.value):null;}
+    function fieldMatches(name){
+      var want=fields?fields[name]:undefined;
+      want=(want==null?'':String(want));
+      var got=appliedVal(name);
+      return got!==null&&got===want;
+    }
+    if(!fieldMatches('title')) return false;
+    if(!fieldMatches('excerpt')) return false;
+    if(!fieldMatches('status')) return false;
+    if(!fieldMatches('thumbnail_id')) return false;
+    function listOf(v){return Object.prototype.toString.call(v)==='[object Array]'?v.map(String):[];}
+    function setKey(arr){return arr.slice().sort().join('|');}
+    var gotCats=[];
+    var catBoxes=form.querySelectorAll('input[name="categories[]"]:checked');
+    for(var ci=0;ci<catBoxes.length;ci++){gotCats.push(String(catBoxes[ci].value));}
+    if(setKey(gotCats)!==setKey(listOf(fields?fields['categories[]']:[]))) return false;
+    var gotTags=[];
+    var tagMirrors=form.querySelectorAll('input[name="tags[]"]');
+    for(var ti=0;ti<tagMirrors.length;ti++){gotTags.push(String(tagMirrors[ti].value));}
+    if(setKey(gotTags)!==setKey(listOf(fields?fields['tags[]']:[]))) return false;
+    var wantContent=String((fields&&fields.content)==null?'':(fields&&fields.content));
+    if(surface==='canvas'){
+      if(!rec||rec.phase!=='ready'||!rec.confirmed||!rec.ready||!rec.blocks) return false;
+      if(wantLen!==null&&(!rec.blocks||rec.blocks.length!==wantLen)) return false;
+    }else{
+      var ta=form.querySelector('[name="content"]');
+      if(!ta||String(ta.value==null?'':ta.value)!==wantContent) return false;
+    }
+    return true;
+  }catch(eV){return false;}
 }
 /* [v1.1.14 item 1] the edit-context rescue: the official autosaves endpoint
    through wp.apiFetch with the official wp_rest nonce (issued server-side
@@ -1817,8 +2068,30 @@ function hossamDiagInstall(){
     var createForm=document.getElementById('hossam-post-create-form');
     var editForm=document.getElementById('hossam-post-edit-form');
     if(createForm){
-      createForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW1){}});
+      createForm.addEventListener('input',function(){try{
+        /* [v1.1.15 item 1c] a real user input clears a latched verify failure:
+           the user's own next words start an honest capture again. */
+        if(createForm.getAttribute('data-hossam-apply-failed')==='1'){createForm.removeAttribute('data-hossam-apply-failed');createForm.removeAttribute('data-hossam-apply-pending');}
+        hossamWriteMarkDirty();
+      }catch(eW1){}});
       hossamWriteRestoreBanner(createForm);
+      var titleIn=createForm.querySelector('[name="title"]');
+      if(titleIn){
+        titleIn.addEventListener('keydown',function(ev){
+          try{
+            if((ev.key||'')!=='Enter'||ev.shiftKey) return;
+            ev.preventDefault();
+            /* [v1.1.15 item 4 - focus lift 3] Enter in the title moves the writing focus into the canvas (write context only) through the deposited sub-registry. */
+            var holder3=createForm.querySelector('.hossam-rich-editor');
+            var rec3=(holder3&&holder3.id)?hossamRichState.inited[holder3.id]:null;
+            if(!rec3||rec3.phase!=='ready'||!rec3.wpRegistry) return;
+            var blocks3=rec3.wpRegistry.select('core/block-editor').getBlocks();
+            if(blocks3&&blocks3.length){
+              rec3.wpRegistry.dispatch('core/block-editor').selectBlock(blocks3[0].clientId,0);
+            }
+          }catch(eTL){}
+        });
+      }
     }
     if(editForm){
       editForm.addEventListener('input',function(){try{hossamWriteMarkDirty();}catch(eW2){}});
@@ -2096,7 +2369,42 @@ function hossamToolbarRegistry(containerId){
     return rec&&rec.wpRegistry?rec.wpRegistry:null;
   }catch(e){ return null; }
 }
+/* [v1.1.15 item 4 - the F-1 core] the unified failure path: a silent false
+   is never the whole answer - the self-dismissing toast names the missing
+   precondition, one automatic selection recovery (selectBlock on the last
+   text-type block, -1) re-arms the operation, and a single retry runs
+   before giving up. The three official families (transform / richEdit /
+   alignment) ride the same wrapper. */
+function hossamToolbarToast(key,fallback){
+  try{ showToast(t(key,fallback),'error'); }catch(e){}
+}
+function hossamToolbarRecoverSelection(containerId){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var blocksR=reg.select('core/block-editor').getBlocks();
+    if(!blocksR||!blocksR.length) return false;
+    for(var i=blocksR.length-1;i>=0;i--){
+      if(blocksR[i]&&HOSSAM_CLICK_TEXT_TYPES.indexOf(blocksR[i].name)!==-1){
+        reg.dispatch('core/block-editor').selectBlock(blocksR[i].clientId,-1);
+        return true;
+      }
+    }
+    return false;
+  }catch(e){ return false; }
+}
+function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){
+  var ok=run();
+  if(ok) return true;
+  hossamToolbarToast(toastKey,toastText);
+  if(hossamToolbarRecoverSelection(containerId)) ok=run();
+  return ok;
+}
 function hossamToolbarTransformBlock(containerId,blockName,attributes){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarTransformBlockRun(containerId,blockName,attributes);},'toolbarNoBlock','No editable block selected');
+}
+/* [v1.1.15 item 4 - D5 documentation, owner decision 2026-11-22 (option A): the shipped list semantics are SINGLE-BLOCK - switchToBlockType on one block yields a one-item list. Documented as the official behavior; the multi-paragraph replaceBlocks extension stays deferred per the v1.1.14 deferral chain. */
+function hossamToolbarTransformBlockRun(containerId,blockName,attributes){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2133,6 +2441,9 @@ function hossamToolbarInsertBlock(containerId,blockName,attributes){
    four-argument selectionChange. Store-level writes are outside the reach
    of the legacy text-level undo — the documented limitation extends here. */
 function hossamToolbarRichEdit(containerId,fn){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarRichEditRun(containerId,fn);},'toolbarSelectFirst','Select text first');
+}
+function hossamToolbarRichEditRun(containerId,fn){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2173,7 +2484,8 @@ function hossamToolbarRemoveFormat(containerId){
   return hossamToolbarRichEdit(containerId,function(rt,value,start,end){
     var removed=value;
     for(var i=0;i<HOSSAM_TOOLBAR_CLEAR_TYPES.length;i++){
-      removed=rt.removeFormat(removed,start,end,HOSSAM_TOOLBAR_CLEAR_TYPES[i]);
+      /* [v1.1.15 item 2] the official signature is removeFormat(value, formatType, start, end) - the previous argument order passed the numeric start into the formatType slot, so every pinned removal was a silent no-op (the measured clear-formatting defect). */
+      removed=rt.removeFormat(removed,HOSSAM_TOOLBAR_CLEAR_TYPES[i],start,end);
     }
     return removed;
   });
@@ -2196,6 +2508,9 @@ function hossamToolbarSetCase(containerId,mode){
    style.typography.textAlign on this core version (the align attribute is
    layout-width-only — writing to it would produce an invalid block). */
 function hossamToolbarSetAlignment(containerId,value){
+  return hossamToolbarWithRecovery(containerId,function(){return hossamToolbarSetAlignmentRun(containerId,value);},'toolbarNoBlock','No editable block selected');
+}
+function hossamToolbarSetAlignmentRun(containerId,value){
   try{
     var reg=hossamToolbarRegistry(containerId);
     if(!reg) return false;
@@ -2248,14 +2563,35 @@ function hossamToolbarBuild(containerId,container,cfg){
   }
   function menu(triggerSym,triggerTitle,menuTitleKey,menuTitleText,buildBody){
     var wrap=el('div','hossam-pt-dropdown');
+    /* [v1.1.15 item 2] the popover discipline: the trigger carries the open state (aria-expanded), an opening menu closes its open siblings, and the state moves as one synchronized pair. */
     var trig=btn(triggerSym,triggerTitle,function(){toggle();});
+    trig.setAttribute('aria-expanded','false');
     trig.appendChild(el('span','hossam-pt-caret','▾'));
     var m=el('div','hossam-pt-menu');
     m.appendChild(el('div','hossam-pt-menu-title',t(menuTitleKey,menuTitleText)));
     buildBody(m);
     m.style.display='none';
+    function closeSiblings(){
+      try{
+        var rootEl=wrap.closest?wrap.closest('.hossam-pro-toolbar-container'):null;
+        if(!rootEl||!rootEl.querySelectorAll) return;
+        var dds=rootEl.querySelectorAll('.hossam-pt-dropdown');
+        for(var i=0;i<dds.length;i++){
+          if(dds[i]===wrap) continue;
+          var mm=dds[i].querySelector('.hossam-pt-menu');
+          var tt=dds[i].querySelector('.hossam-pt-btn');
+          if(mm&&mm.style.display!=='none'){mm.style.display='none';}
+          if(tt&&tt.setAttribute) tt.setAttribute('aria-expanded','false');
+        }
+      }catch(e){}
+    }
     function toggle(){
-      try{ m.style.display=(m.style.display!=='none')?'none':'block'; }catch(e){}
+      try{
+        var open=(m.style.display!=='none');
+        if(!open) closeSiblings();
+        m.style.display=open?'none':'block';
+        trig.setAttribute('aria-expanded',open?'false':'true');
+      }catch(e){}
     }
     wrap.appendChild(trig); wrap.appendChild(m);
     return wrap;
@@ -2270,13 +2606,26 @@ function hossamToolbarBuild(containerId,container,cfg){
     }
     m.appendChild(row);
   }
-  function freeRow(m,pickId,apply){
+  function freeRow(m,pickId,apply,sel){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7FreePicker','Free color picker:')));
     var row=el('div','hossam-pt-free-row');
     var pick=el('input'); pick.type='color'; pick.id=pickId;
+    /* [v1.1.15 item 2] the measured Apply-lands-black defect: the Apply button sent the untouched picker default over the selected swatch. The selection state rides the menu: a picker touch marks it, a swatch click clears the mark and syncs the visible picker - the free-input Apply stays intact (a picked color always wins; no selection at all keeps the exact previous behavior). */
+    if(sel){
+      sel.syncPick=function(v){try{pick.value=v;}catch(e){}};
+      pick.addEventListener('input',function(){try{sel.pickTouched=true;}catch(e){}});
+      pick.addEventListener('change',function(){try{sel.pickTouched=true;}catch(e){}});
+    }
     var ap=el('button','btn btn-sm',t('aiApply','Apply'));
     ap.type='button';
-    ap.addEventListener('click',function(){try{apply(pick.value);}catch(e){}});
+    ap.addEventListener('click',function(){
+      try{
+        var v=pick.value;
+        if(sel&&sel.pickTouched){v=pick.value;}
+        else if(sel&&sel.swatch){v=sel.swatch;}
+        apply(v);
+      }catch(e){}
+    });
     row.appendChild(pick); row.appendChild(ap);
     m.appendChild(row);
   }
@@ -2353,13 +2702,15 @@ function hossamToolbarBuild(containerId,container,cfg){
      the unified channel. */
   g6.appendChild(menu('A',['w7TextColor','Text color'],'w7TextColor','Text color',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
-    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
+    var sel={swatch:null,pickTouched:false};
+    swatchRow(m,[['#171825','w7ColorNavy','Navy'],['#C5A028','w7ColorGold','Gold'],['#C0392B','w7ColorRed','Red'],['#1A5FAB','w7ColorBlue','Blue'],['#2E7D4F','w7ColorGreen','Green'],['#5C5B6B','w7ColorGray','Gray'],['#000000','w7ColorBlack','Black']],function(c){try{sel.swatch=c;sel.pickTouched=false;if(typeof sel.syncPick==='function'){sel.syncPick(c);}}catch(e){}hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});});
+    freeRow(m,'hossamFreeTextColor',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'color: '+c});},sel);
   }));
   g6.appendChild(menu('🖍️',['w7Highlight','Highlight'],'w7Highlight','Highlight',function(m){
     m.appendChild(el('div','hossam-pt-menu-title',t('w7Suggested','Suggested colors:')));
-    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
-    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
+    var sel={swatch:null,pickTouched:false};
+    swatchRow(m,[['#FDF6B2','w7ColorYellow','Yellow'],['#E1EFFE','w7ColorBlue','Blue'],['#EAF5EE','w7ColorGreen','Green'],['#FDECEB','w7ColorRed','Red'],['#F2E7C0','w7ColorGoldPale','Gold Pale']],function(c){try{sel.swatch=c;sel.pickTouched=false;if(typeof sel.syncPick==='function'){sel.syncPick(c);}}catch(e){}hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});});
+    freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
@@ -2398,6 +2749,22 @@ function hossamToolbarBuild(containerId,container,cfg){
     try{
       var d=hossamToolbarDoc(container);
       var s=d&&d.getSelection&&d.getSelection();
+      /* [v1.1.15 item 4 - D2 per the owner's resolved kickoff decision (v1114 ledger S-D)] the official paragraph-direction path behind the getBlockSupport probe: when the live core supports the direction attribute, the switcher migrates off the legacy funnel and writes the official attribute through the sub-registry; when the probe fails, the tool stays deferred exactly like justify-full and this documented canvas-level fallback remains the shipped behavior (a separate owner decision if it ever migrates). The direction-chain bytes stay byte-preserved either way. */
+      var wpD=hossamRichWp();
+      if(wpD&&wpD.blocks&&typeof wpD.blocks.getBlockSupport==='function'&&wpD.blocks.getBlockSupport('core/paragraph','direction')){
+        var regD=hossamToolbarRegistry(containerId);
+        if(regD){
+          var selD=regD.select('core/block-editor');
+          var cidD=selD.getSelectedBlockClientId();
+          var blkD=cidD?selD.getBlock(cidD):null;
+          if(blkD&&blkD.attributes&&blkD.attributes.direction!==undefined){
+            regD.dispatch('core/block-editor').updateBlockAttributes(cidD,{direction:(blkD.attributes.direction==='rtl'?'ltr':'rtl')});
+            return;
+          }
+        }
+        return;
+      }
+      /* [v1.1.15 corrections C-1] the two legacy lines restored: the declaration and the body walk feed the final write below (the advisory corrections commit). */
       var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
       while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
       if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
@@ -2484,6 +2851,8 @@ function hossamToolbarBuild(containerId,container,cfg){
   if(cfg&&cfg.adminExtend){
     var moreBtn=el('button','hossam-pt-btn hossam-pt-more-toggle');
     moreBtn.type='button';
+    /* [v1.1.15 item 2] the fold state machine carries its aria state (the measured More defect: aria-expanded never mounted). */
+    moreBtn.setAttribute('aria-expanded','false');
     moreBtn.title=t('w7MoreTitle','More tools');
     moreBtn.appendChild(el('span',undefined,t('w7More','More')));
     moreBtn.appendChild(el('span','hossam-pt-caret','▾'));
@@ -2609,6 +2978,9 @@ function hossamToolbarMount(containerId,container){
         bar.classList.remove('hossam-pt-more-open');
         backdrop.classList.remove('hossam-pt-open');
         trigger.setAttribute('aria-expanded','false');
+        /* [v1.1.15 item 2] the More fold's aria state rides the same close path. */
+        var mt=bar.querySelector('.hossam-pt-more-toggle');
+        if(mt&&mt.setAttribute) mt.setAttribute('aria-expanded','false');
         if(refocus&&trigger.focus) trigger.focus();
       }catch(e){}
     };
@@ -2649,6 +3021,8 @@ function hossamToolbarMount(containerId,container){
           try{ drawerBand=!!(window.matchMedia&&window.matchMedia('(max-width: 768px)').matches); }catch(eM){ drawerBand=false; }
           if(drawerBand&&bar.classList.contains('hossam-pt-more-open')){ drawerClose(true); return; }
           bar.classList.toggle('hossam-pt-more-open');
+          /* [v1.1.15 item 2] the aria state is part of the fold state machine. */
+          moreSync.setAttribute('aria-expanded',bar.classList.contains('hossam-pt-more-open')?'true':'false');
         }catch(e){}
       });
     }

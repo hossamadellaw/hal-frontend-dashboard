@@ -168,7 +168,11 @@ if ( ! function_exists( 'hossam_create_article' ) ) {
 			);
 		}
 
-		return $post_id;
+		/* [v1.1.15 item 3] the server-rendered refusal anchor: epoch milliseconds
+	   matching Date.now() - written after the full create succeeded. */
+	update_post_meta( $post_id, 'hossam_last_saved', (int) round( microtime( true ) * 1000 ) );
+
+	return $post_id;
 	}
 }
 
@@ -302,7 +306,12 @@ if ( ! function_exists( 'hossam_update_article' ) ) {
 			);
 		}
 
-		return true;
+		/* [v1.1.15 item 3] the server-rendered refusal anchor: epoch milliseconds
+	   matching Date.now() - written after the full update succeeded (the
+	   compensation path above never reaches this stamp). */
+	update_post_meta( $post_id, 'hossam_last_saved', (int) round( microtime( true ) * 1000 ) );
+
+	return true;
 	}
 }
 

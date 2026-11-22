@@ -95,10 +95,11 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* The writing form now rescues unsaved work on its own: every field of the article form is captured to a session vault as you type, an explicit banner offers restoring it after any page loss, and a single dirty indicator warns before leaving with unsaved changes - including the in-panel navigation.'
-'* After the first save a decision card offers continuing in place or opening the editor, the automatic redirect cancels on the first input (for saves and translations), and a second save is intercepted instead of creating a duplicate.'
-'* The edit panel now autosaves through the official autosaves endpoint, with the REST nonce issued to every writer role.'
-'* The writing-critical interface strings (the title placeholder, the heading-policy lines, the official-editor gateway, and the Media toolbar label) moved to the registered translation channel.'
+'* Restoring unsaved work is now integrity-checked: the restore waits for the editor to finish loading, every field is written to its own target and verified after the restore, and the vault can never re-capture a corrupted intermediate state.'
+'* The writing tools that failed silently were fixed: clear formatting removes every pinned inline format again (including strikethrough), the highlight and text-color Apply buttons respect the selected suggested color while the free picker stays intact, and the More fold plus every dropdown carries a real open/close state.'
+'* The restore refusal now survives a page reload: the last-saved time is kept with the article server-side and compared against the vault, so an older injected draft can no longer overwrite newer saved content.'
+'* Writing focus is now deterministic: the canvas receives the caret once the editor is ready, a click on an unfocused text block selects it, Enter in the title jumps into the content, and failed tool actions announce themselves and recover the selection instead of failing silently.'
+'* Paragraph direction switched through the direction button now uses the official paragraph attribute when the WordPress core supports it, and the single-block list behavior is documented as shipped.'
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"
