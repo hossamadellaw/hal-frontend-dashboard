@@ -4,7 +4,7 @@ Tags: dashboard, frontend, administration
 Requires at least: 7.0
 Requires PHP: 8.3
 Tested up to: 7.1
-Stable tag: 1.1.15
+Stable tag: 1.1.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -16,7 +16,7 @@ HAL Frontend Dashboard ships as a small WordPress Carrier with an independently 
 
 == Installation ==
 
-1. Download the official `hal-frontend-dashboard-1.1.15.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
+1. Download the official `hal-frontend-dashboard-1.1.16.zip` Carrier from the Releases section of the project repository (https://github.com/hossamadellaw/hal-frontend-dashboard).
 2. In the WordPress admin dashboard, upload the ZIP under Plugins → Add New → Upload Plugin, then activate it.
 3. Activation runs the installer, which provisions the signed Runtime release. The release publishes the ZIP SHA256 alongside the asset for verification before uploading.
 
@@ -29,6 +29,14 @@ Requires WordPress 7.0 or higher and PHP 8.3. Does not require the sodium extens
 No. Its main file only defines identity and registers an activation callback. Installer code is loaded only if WordPress invokes that callback.
 
 == Changelog ==
+
+= 1.1.16 =
+* The Change case menu applies its four transforms again: the menu wiring passed an undefined mode on every click, so the items only announced a missing selection.
+* List tools handle existing lists properly: the bullet and numbered buttons switch an existing list between ordered and unordered through the official attribute instead of doing nothing.
+* Justify full now works through the same alignment channel as left, center, and right, and line spacing applies to the selected paragraph and survives saving (it previously shifted every block and was lost on save).
+* Reference links, footnotes, and the legal callout insert real elements again: links carry the official link format, footnotes become superscript citations, and the callout lands as a paragraph with a yellow background.
+* The direction switch flips on the first click on Arabic canvases, and the four font tools announce a missing selection instead of failing silently; multilevel list and the indent tools are honestly disabled with their documented reasons.
+* Version identity 1.1.16 across the plugin header, version constant, stable tag, and installation ZIP name; release sequence 24.
 
 = 1.1.15 =
 * Restoring unsaved work is now integrity-checked: the restore waits for the editor to finish loading, every field is written to its own target and verified after the restore, and the vault can never re-capture a corrupted intermediate state.
