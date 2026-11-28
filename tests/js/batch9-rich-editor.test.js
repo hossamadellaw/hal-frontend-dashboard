@@ -1523,6 +1523,23 @@ function testNestDeferred() {
 
 testNestDeferred();
 
+/* v1.1.16 item 9 - the direction fallback toggle reads the computed
+   direction (the inline-only read seeded a measured visual no-op first
+   click on RTL canvases) with the probe-first official path byte-intact. */
+function testDirComputed() {
+  const computed = source.indexOf("computedD=d.defaultView.getComputedStyle(blk).direction||'ltr';") !== -1
+    && source.indexOf("blk.style.direction=(computedD==='rtl'?'ltr':'rtl');") !== -1
+    && source.indexOf("blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');") === -1;
+  const officialPathIntact = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
+    && source.indexOf('updateBlockAttributes(cidD,{direction:') !== -1;
+  check('B9R-W8-DIR-COMPUTED',
+    computed && officialPathIntact,
+    'the direction fallback toggle reads the computed direction with the probe-first official path byte-intact',
+    'the computed-read fallback is missing or the official probe path drifted');
+}
+
+testDirComputed();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

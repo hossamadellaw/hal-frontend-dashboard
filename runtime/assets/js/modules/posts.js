@@ -2818,7 +2818,15 @@ function hossamToolbarBuild(containerId,container,cfg){
       /* [v1.1.15 corrections C-1] the two legacy lines restored: the declaration and the body walk feed the final write below (the advisory corrections commit). */
       var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
       while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
-      if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
+      if(blk){
+        /* [v1.1.16 item 9 - consensus] the toggle reads the COMPUTED direction:
+           the inline style starts empty, so the previous inline-only read
+           seeded rtl-on-rtl (a measured visual no-op first click on RTL
+           canvases). */
+        var computedD='ltr';
+        try{ computedD=d.defaultView.getComputedStyle(blk).direction||'ltr'; }catch(e2){}
+        blk.style.direction=(computedD==='rtl'?'ltr':'rtl');
+      }
     }catch(e){}
   }));
   root.appendChild(g7); root.appendChild(divider());
