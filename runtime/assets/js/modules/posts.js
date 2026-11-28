@@ -2768,15 +2768,15 @@ function hossamToolbarBuild(containerId,container,cfg){
   root.appendChild(g6); root.appendChild(divider());
   /* G7 — alignment & directionality */
   var g7=group(true);
-  /* [v1.1.11 item 3 — consensus wave 2] left/center/right write the official
-     style.typography.textAlign through the sub-registry. Justify full stays
-     deferred (no official per-paragraph text-justify value on this core
-     version — the align:'full' value means layout width, not text
-     alignment). */
+  /* [v1.1.11 item 3 — consensus wave 2] text alignment lives in
+     style.typography.textAlign through the sub-registry.
+     [v1.1.16 item 3 — consensus] justify full migrates off the dead legacy funnel
+     into this same official alignment family (the funnel was a
+     measured dead-silent no-op live). */
   g7.appendChild(btn('⫷',['w7AlignLeft','Align left'],function(){hossamToolbarSetAlignment(containerId,'left');}));
   g7.appendChild(btn('≡',['w7AlignCenter','Center align'],function(){hossamToolbarSetAlignment(containerId,'center');}));
   g7.appendChild(btn('⫸',['w7AlignRight','Align right'],function(){hossamToolbarSetAlignment(containerId,'right');}));
-  g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarCmd(container,'justifyFull');}));
+  g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarSetAlignment(containerId,'justify');}));
   g7.appendChild(btn('⇄',['w7Direction','Switch paragraph direction'],function(){
     try{
       var d=hossamToolbarDoc(container);

@@ -1424,6 +1424,23 @@ function testListToggle() {
 
 testListToggle();
 
+/* v1.1.16 item 3 - the justify migration: the button rides the official
+   alignment family (style.typography.textAlign through the sub-registry)
+   and the v1.1.11 deferral comment is renewed in the same commit. */
+function testJustifyMigration() {
+  const migrated = source.indexOf("hossamToolbarSetAlignment(containerId,'justify')") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'justifyFull')") === -1;
+  const commentRenewed = source.indexOf('[v1.1.16 item 3') !== -1
+    && source.indexOf('Justify full stays') === -1
+    && source.indexOf('justify full migrates off the dead legacy funnel') !== -1;
+  check('B9R-W8-JUSTIFY-MIGRATION',
+    migrated && commentRenewed,
+    'justify full rides the official alignment family and the v1.1.11 deferral comment is renewed in the same commit',
+    'the justify migration or its comment renewal is missing');
+}
+
+testJustifyMigration();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
