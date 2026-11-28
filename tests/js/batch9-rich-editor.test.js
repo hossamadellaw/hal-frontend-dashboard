@@ -1094,17 +1094,18 @@ function testWave1Handlers() {
   const listsOk = source.indexOf("hossamToolbarTransformBlock(containerId,'core/list')") !== -1
     && source.indexOf("hossamToolbarTransformBlock(containerId,'core/list',{ordered:true})") !== -1
     && source.indexOf("hossamToolbarCmd(container,'insertOrderedList')") === -1;
-  // the multilevel button stays deferred (consensus) and keeps its legacy
-  // call — the bullet/numbered handlers are the only ones migrated, so the
-  // unordered-list legacy target must appear exactly once (multilevel only).
+  // [v1.1.16 item 8 - consensus] the multilevel button ships honest-disabled
+  // with no legacy call (the live core keeps list content in inner blocks;
+  // the values round-trip is unstable) - the unordered-list legacy target
+  // must be gone entirely.
   const legacyUnordered = source.split("hossamToolbarCmd(container,'insertUnorderedList')").length - 1;
   const insertsOk = source.indexOf("hossamToolbarInsertBlock(containerId,'core/table')") !== -1
     && source.indexOf("hossamToolbarInsertBlock(containerId,'core/details')") !== -1
     && source.indexOf("hossamToolbarInsertBlock(containerId,'core/separator')") !== -1;
   check('B9R-W1-OFFICIAL-HANDLERS',
-    listsOk && insertsOk && legacyUnordered === 1 && source.indexOf('function hossamToolbarTransformBlock(') !== -1
+    listsOk && insertsOk && legacyUnordered === 0 && source.indexOf('function hossamToolbarTransformBlock(') !== -1
       && source.indexOf('function hossamToolbarInsertBlock(') !== -1,
-    'wave-1 handlers (bullet/numbered lists, table, collapsible, divider) run on the official store path through the deposited registry; the deferred multilevel button alone keeps its legacy target',
+    'wave-1 handlers (bullet/numbered lists, table, collapsible, divider) run on the official store path through the deposited registry; the multilevel button ships honest-disabled with no legacy target (v1.1.16 item 8)',
     'a migrated wave-1 handler still targets the legacy funnel or an official handler is missing');
 }
 
@@ -1501,6 +1502,26 @@ function testCallout() {
 }
 
 testCallout();
+
+/* v1.1.16 item 8 - multilevel and the indents ship honest-disabled with
+   their documented reasons (the live core keeps list content in inner
+   blocks while the legacy values attribute reads empty) - no dead silent
+   tools; the checklist funnel stays byte-identical. */
+function testNestDeferred() {
+  const helper = source.indexOf('function btnDeferred(sym,title,reason){') !== -1
+    && source.indexOf('d.disabled=true;') !== -1;
+  const wired = (source.match(/btnDeferred\('/g) || []).length === 3
+    && source.indexOf("hossamToolbarCmd(container,'insertUnorderedList')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'outdent')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'indent')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'insertHTML','☑ ')") !== -1;
+  check('B9R-W8-NEST-DEFERRED',
+    helper && wired,
+    'multilevel and the two indents ship honest-disabled with their documented reasons while the checklist funnel stays byte-identical',
+    'the honest-disable is missing or a dead funnel call remains');
+}
+
+testNestDeferred();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

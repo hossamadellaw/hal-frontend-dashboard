@@ -2575,6 +2575,15 @@ function hossamToolbarBuild(containerId,container,cfg){
     b.addEventListener('click',function(ev){try{ev.preventDefault();onClick(b);}catch(e){}});
     return b;
   }
+  /* [v1.1.16 item 8 - consensus] the honest-disable: a deferred tool renders
+     disabled with its documented reason in the tooltip - never a dead
+     silent button. */
+  function btnDeferred(sym,title,reason){
+    var d=btn(sym,title,function(){});
+    d.disabled=true;
+    try{ d.title=t(title[0],title[1])+' - '+reason; }catch(e){}
+    return d;
+  }
   function group(extra){
     return el('div','hossam-pt-group'+(extra?' hossam-pt-extra':''));
   }
@@ -2828,10 +2837,15 @@ function hossamToolbarBuild(containerId,container,cfg){
     if(hossamToolbarListOrdered(containerId,true)) return;
     hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});
   }));
-  g8.appendChild(btn('⫶≡',['w7Multilevel','Multilevel list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
+  /* [v1.1.16 item 8 - consensus] multilevel and the indents ship honest-disabled:
+     the live core keeps the list content in core/list-item inner blocks while
+     the legacy values attribute reads empty, so there is no official
+     nested-list write this cycle (measured live; the owner decision
+     documented in the contract). No dead silent tools. */
+  g8.appendChild(btnDeferred('⫶≡',['w7Multilevel','Multilevel list'],'deferred - no official nested-list write on this core (measured live)'));
   g8.appendChild(btn('☑≡',['w7Checklist','Checklist'],function(){hossamToolbarCmd(container,'insertHTML','☑ ');}));
-  g8.appendChild(btn('⇤',['w7Outdent','Decrease indent'],function(){hossamToolbarCmd(container,'outdent');}));
-  g8.appendChild(btn('⇥',['w7Indent','Increase indent'],function(){hossamToolbarCmd(container,'indent');}));
+  g8.appendChild(btnDeferred('⇤',['w7Outdent','Decrease indent'],'deferred - no official paragraph indent semantics on this core (measured live)'));
+  g8.appendChild(btnDeferred('⇥',['w7Indent','Increase indent'],'deferred - no official paragraph indent semantics on this core (measured live)'));
   root.appendChild(g8); root.appendChild(divider());
   /* G9 — legal specialized elements (insert HTML into the editable body) */
   var g9=group(true);
