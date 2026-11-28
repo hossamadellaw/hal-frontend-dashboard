@@ -1441,6 +1441,21 @@ function testJustifyMigration() {
 
 testJustifyMigration();
 
+/* v1.1.16 item 4 - line spacing writes the official lineHeight attribute
+   on the selected block through the sub-registry merge pattern (the legacy
+   root-container DOM walk measured live is removed). */
+function testLineHeight() {
+  const official = source.indexOf('typography:Object.assign({},typH,{lineHeight:v})') !== -1
+    && source.indexOf('if(blk) blk.style.lineHeight=v;') === -1
+    && source.indexOf('the shared root container measured live') !== -1;
+  check('B9R-W8-LINEHEIGHT',
+    official,
+    'line spacing writes the official lineHeight attribute on the selected block through the sub-registry merge pattern (the legacy root-container DOM walk removed)',
+    'the line-spacing official path is missing or the legacy walk remains');
+}
+
+testLineHeight();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

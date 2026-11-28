@@ -2693,7 +2693,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['6','w7SizeLarge','22px (Large)']
   ],function(v){hossamToolbarCmd(container,'fontSize',v);}));
   root.appendChild(g3);
-  /* G4 — line spacing (inline style on the enclosing block) */
+  /* G4 — line spacing (the official lineHeight attribute on the selected block) */
   var g4=group(true);
   g4.appendChild(select(['w7LineHeightLabel','Line spacing'],[
     ['1.4','w7LhCompact','↕ 1.4 (Compact)'],
@@ -2701,13 +2701,23 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['1.8','w7LhRelaxed','↕ 1.8 (Relaxed)'],
     ['2.0','w7LhDouble','↕ 2.0 (Double)']
   ],function(v){
+    /* [v1.1.16 item 4 - consensus] the official lineHeight attribute on the
+       SELECTED block through the sub-registry (the same merge pattern the
+       alignment family uses). The legacy DOM walk landed on the iframe
+       body's direct child - the shared root container measured live -
+       shifting every block and persisting nothing. */
     try{
-      var d=hossamToolbarDoc(container);
-      var s=d&&d.getSelection&&d.getSelection();
-      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
-      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
-      if(blk) blk.style.lineHeight=v;
-    }catch(e){}
+      var reg=hossamToolbarRegistry(containerId);
+      if(!reg) return;
+      var selH=reg.select('core/block-editor');
+      var cidH=selH.getSelectedBlockClientId();
+      var blkH=cidH?selH.getBlock(cidH):null;
+      if(!blkH||!blkH.attributes) return;
+      var stH=blkH.attributes.style?blkH.attributes.style:{};
+      var typH=stH.typography?stH.typography:{};
+      var mergedH=Object.assign({},stH,{typography:Object.assign({},typH,{lineHeight:v})});
+      reg.dispatch('core/block-editor').updateBlockAttributes(cidH,{style:mergedH});
+    }catch(eH){}
   }));
   root.appendChild(g4); root.appendChild(divider());
   /* G5 — inline formatting. [v1.1.11 item 3 — consensus wave 2] the
