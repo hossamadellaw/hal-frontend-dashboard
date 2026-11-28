@@ -2713,10 +2713,14 @@ function hossamToolbarBuild(containerId,container,cfg){
     freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
+    /* [v1.1.16 item 1 - consensus] the case items are [key, default, mode]: the
+       label reads the registered key with its default and the click passes the
+       mode (the shifted indexing passed an undefined mode and rendered the raw
+       mode strings as labels - the measured case defect). */
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
     for(var i=0;i<items.length;i++){
       (function(item){
-        var mi=el('button','hossam-pt-menu-item',t(item[1],item[2]));
+        var mi=el('button','hossam-pt-menu-item',t(item[0],item[1]));
         mi.type='button';
         mi.addEventListener('click',function(){
           try{
@@ -2724,7 +2728,7 @@ function hossamToolbarBuild(containerId,container,cfg){
                insert replaces the legacy funnel (whose DOM change was
                reverted by the controlled re-render). Title mode is Latin-only
                by regex; Arabic passes through unchanged. */
-            hossamToolbarSetCase(containerId,item[3]);
+            hossamToolbarSetCase(containerId,item[2]);
           }catch(e){}
         });
         m.appendChild(mi);

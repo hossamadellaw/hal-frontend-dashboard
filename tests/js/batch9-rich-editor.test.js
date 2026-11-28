@@ -1390,6 +1390,23 @@ function testFocusF1D2() {
 
 testFocusF1D2();
 
+/* v1.1.16 item 1 - the case menu indexing: the items are [key, default, mode]
+   and both consumers read their own slot - the label renders the registered
+   key with its default and the click passes the mode (the shifted indexing
+   passed an undefined mode and rendered the raw mode strings as labels). */
+function testCaseIndexing() {
+  const itemsOk = source.indexOf("var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];") !== -1;
+  const labelOk = source.indexOf("el('button','hossam-pt-menu-item',t(item[0],item[1]))") !== -1;
+  const modeOk = source.indexOf('hossamToolbarSetCase(containerId,item[2]);') !== -1
+    && source.indexOf('hossamToolbarSetCase(containerId,item[3]);') === -1;
+  check('B9R-W8-CASE-INDEXING',
+    itemsOk && labelOk && modeOk,
+    'the case menu items are consumed at their own slots: the label renders the registered key with its default and the click passes the mode from the third element',
+    'the case menu indexing is missing or shifted');
+}
+
+testCaseIndexing();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
