@@ -1407,6 +1407,23 @@ function testCaseIndexing() {
 
 testCaseIndexing();
 
+/* v1.1.16 item 2 - the list attribute toggle: an existing list (or its
+   inner list item through the parent walk) toggles the official ordered
+   attribute through the sub-registry before the paragraph transform runs. */
+function testListToggle() {
+  const helperOk = source.indexOf('function hossamToolbarListOrdered(containerId,ordered){') !== -1
+    && source.indexOf("reg.dispatch('core/block-editor').updateBlockAttributes(targetL,{ordered:ordered});") !== -1
+    && source.indexOf("else if(blockL.name==='core/list-item'&&selL.getBlockParents){") !== -1;
+  const wiredOk = source.indexOf('if(hossamToolbarListOrdered(containerId,false)) return;') !== -1
+    && source.indexOf('if(hossamToolbarListOrdered(containerId,true)) return;') !== -1;
+  check('B9R-W8-LIST-TOGGLE',
+    helperOk && wiredOk,
+    'the bullet and numbered buttons toggle the official ordered attribute on an existing list (or its inner list item through the parent walk) before falling through to the paragraph transform',
+    'the list attribute toggle is missing or incomplete');
+}
+
+testListToggle();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {

@@ -2433,6 +2433,34 @@ function hossamToolbarInsertBlock(containerId,blockName,attributes){
     return true;
   }catch(e){ return false; }
 }
+/* [v1.1.16 item 2 - consensus] the list-context attribute toggle: when the
+   selection already sits on a list block (or its inner list item), the
+   official ordered attribute writes directly through the sub-registry - the
+   same-type block switch has no transform on this core, so the funnel was a
+   measured no-op. The paragraph transform path stays byte-unchanged. */
+function hossamToolbarListOrdered(containerId,ordered){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var selL=reg.select('core/block-editor');
+    var cidL=selL.getSelectedBlockClientId();
+    if(!cidL) return false;
+    var blockL=selL.getBlock(cidL);
+    if(!blockL) return false;
+    var targetL=null;
+    if(blockL.name==='core/list') targetL=cidL;
+    else if(blockL.name==='core/list-item'&&selL.getBlockParents){
+      var parentsL=selL.getBlockParents(cidL);
+      for(var iL=parentsL.length-1;iL>=0;iL--){
+        var pL=selL.getBlock(parentsL[iL]);
+        if(pL&&pL.name==='core/list'){ targetL=parentsL[iL]; break; }
+      }
+    }
+    if(!targetL) return false;
+    reg.dispatch('core/block-editor').updateBlockAttributes(targetL,{ordered:ordered});
+    return true;
+  }catch(eL){ return false; }
+}
 /* [v1.1.11 item 3 — consensus wave 2] the unified official formatting
    channel: the selection is read from the sub-registry store (the only
    registry carrying this editor's block store), the value is transformed
@@ -2781,8 +2809,15 @@ function hossamToolbarBuild(containerId,container,cfg){
      could not survive Gutenberg's controlled re-render. Multilevel and the
      indents stay deferred unchanged (consensus). */
   var g8=group(true);
-  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){hossamToolbarTransformBlock(containerId,'core/list');}));
-  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});}));
+  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){
+    /* [v1.1.16 item 2 - consensus] an existing list toggles its official ordered attribute through the sub-registry first; the paragraph transform path stays unchanged. */
+    if(hossamToolbarListOrdered(containerId,false)) return;
+    hossamToolbarTransformBlock(containerId,'core/list');
+  }));
+  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){
+    if(hossamToolbarListOrdered(containerId,true)) return;
+    hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});
+  }));
   g8.appendChild(btn('⫶≡',['w7Multilevel','Multilevel list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
   g8.appendChild(btn('☑≡',['w7Checklist','Checklist'],function(){hossamToolbarCmd(container,'insertHTML','☑ ');}));
   g8.appendChild(btn('⇤',['w7Outdent','Decrease indent'],function(){hossamToolbarCmd(container,'outdent');}));
