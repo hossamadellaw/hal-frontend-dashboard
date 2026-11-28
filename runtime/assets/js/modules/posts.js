@@ -2843,7 +2843,18 @@ function hossamToolbarBuild(containerId,container,cfg){
   g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){hossamToolbarCmd(container,'insertHTML','<div style="border-inline-start:3px solid #C5A028;background:#FDF6B2;padding:8px 10px;">⚠️ </div>');}));
   g9.appendChild(btn('🔖',['w7Footnote','Insert footnote and citation'],function(){
     var txt=hossamToolbarPrompt(t('w7PromptFootnote','Footnote text:'));
-    if(txt) hossamToolbarCmd(container,'insertHTML','<sup>['+String(txt).replace(/</g,'&lt;')+']</sup>');
+    /* [v1.1.16 item 6 - consensus] the official two-step citation: the
+       bracketed text inserts through the wave-2 channel at the caret and
+       the registered superscript format wraps the SAME explicit start/end
+       pair (the insertHTML sup was stripped live by the RichText input
+       rules - text-only landing measured). */
+    if(!txt) return;
+    var label='['+String(txt)+']';
+    hossamToolbarRichEdit(containerId,function(rt,value,start,end){
+      var out=rt.insert(value,label,start,end);
+      if(out===null||out===undefined) return null;
+      return rt.applyFormat(out,{type:'core/superscript'},start,start+label.length);
+    });
   }));
   g9.appendChild(btn('⊞',['w7ComparisonTable','Insert legal comparison table'],function(){
     /* [v1.1.9 item 1 — consensus wave 1] the official core/table block

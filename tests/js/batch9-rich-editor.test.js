@@ -1471,6 +1471,22 @@ function testLinkFormat() {
 
 testLinkFormat();
 
+/* v1.1.16 item 6 - the footnote two-step citation: the bracketed text
+   inserts at the caret and the registered superscript format wraps the
+   SAME explicit start/end pair across both legs (the pin asserts the
+   identical pair, never derived offsets). */
+function testFootnote() {
+  const explicitPair = source.indexOf("var out=rt.insert(value,label,start,end);") !== -1
+    && source.indexOf("return rt.applyFormat(out,{type:'core/superscript'},start,start+label.length);") !== -1;
+  const legacyGone = source.indexOf("hossamToolbarCmd(container,'insertHTML','<sup>") === -1;
+  check('B9R-W8-FOOTNOTE',
+    explicitPair && legacyGone,
+    'the footnote inserts the bracketed text at the caret and wraps the same explicit start/end pair with the registered superscript format (the stripped insertHTML path removed)',
+    'the footnote two-step with its explicit pair is missing or the legacy insertHTML sup remains');
+}
+
+testFootnote();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
