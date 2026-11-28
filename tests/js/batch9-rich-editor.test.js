@@ -1377,7 +1377,7 @@ function testFocusF1D2() {
     && source.indexOf("if((ev.key||'')!=='Enter'||ev.shiftKey) return;") !== -1;
   const f1Ok = source.indexOf('function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){') !== -1
     && source.indexOf('function hossamToolbarRecoverSelection(containerId){') !== -1
-    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 3
+    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 4
     && source.indexOf(",'toolbarSelectFirst','Select text first')") !== -1
     && (source.match(/'toolbarNoBlock','No editable block selected'/g) || []).length === 2;
   const d2Ok = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
@@ -1385,7 +1385,7 @@ function testFocusF1D2() {
   const d5Ok = source.indexOf('the shipped list semantics are SINGLE-BLOCK') !== -1;
   check('B9R-W7-FOCUS-F1-D2',
     lift1Ok && lift2Ok && lift3Ok && f1Ok && d2Ok && d5Ok,
-    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
+    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families and the font funnel (v1.1.16 item 10) with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
     'the Wave B focus and tools core is missing or incomplete');
 }
 
@@ -1539,6 +1539,28 @@ function testDirComputed() {
 }
 
 testDirComputed();
+
+/* v1.1.16 item 10 - the four font paths ride the F-1 wrapper whose run
+   gates on the registry selection only (never the funnel return - the
+   collapsed-caret no-op returns true): a collapsed caret toasts, a real
+   selection applies silently. */
+function testFontGate() {
+  const wrapper = source.indexOf('function hossamToolbarFontCmd(containerId,container,cmd,arg){') !== -1
+    && source.indexOf('if(!sF||!eF||sF.offset===eF.offset) return false;') !== -1
+    && source.indexOf('hossamToolbarCmd(container,cmd,arg);') !== -1;
+  const wired = source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',5)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',3)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontName',v)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',v)") !== -1
+    && source.indexOf("],function(v){hossamToolbarCmd(container,'fontSize',v);}));") === -1
+    && source.indexOf("],function(v){hossamToolbarCmd(container,'fontName',v);}));") === -1;
+  check('B9R-W8-FONT-GATE',
+    wrapper && wired,
+    'the four font paths ride the F-1 wrapper whose run gates on the registry selection only (never the funnel return - the collapsed-caret no-op returns true): collapsed caret toasts, real selection applies silently',
+    'the font gate wrapper is missing or a call site still rides the raw funnel');
+}
+
+testFontGate();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

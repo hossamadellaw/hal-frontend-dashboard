@@ -2560,6 +2560,24 @@ function hossamToolbarSelectedText(doc){
 function hossamToolbarPrompt(label){
   try{ return window.prompt(label)||''; }catch(e){ return ''; }
 }
+/* [v1.1.16 item 10 - consensus] the F-1 wrapper over the legacy font
+   funnel. The run gates on the REGISTRY selection only - the funnel
+   returns true even on the collapsed-caret no-op (the measured C1 trap),
+   so the funnel return never gates. A collapsed caret or no selection =
+   the honest 'Select text first' toast with the one recovery retry. */
+function hossamToolbarFontCmd(containerId,container,cmd,arg){
+  return hossamToolbarWithRecovery(containerId,function(){
+    try{
+      var reg=hossamToolbarRegistry(containerId);
+      if(!reg) return false;
+      var selF=reg.select('core/block-editor');
+      var sF=selF.getSelectionStart(),eF=selF.getSelectionEnd();
+      if(!sF||!eF||sF.offset===eF.offset) return false;
+      hossamToolbarCmd(container,cmd,arg);
+      return true;
+    }catch(eF){ return false; }
+  },'toolbarSelectFirst','Select text first');
+}
 function hossamToolbarBuild(containerId,container,cfg){
   var doc=document;
   function el(tag,cls,text,title){
@@ -2691,7 +2709,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     ["'Merriweather', serif",'w7FontSerif','Legal Serif (Merriweather)'],
     ["'Cairo', sans-serif",'w7FontCairo','Arabic Corporate (Cairo)'],
     ["'Cormorant Garamond', serif",'w7FontCormorant','Classical Serif (Cormorant)']
-  ],function(v){hossamToolbarCmd(container,'fontName',v);}));
+  ],function(v){hossamToolbarFontCmd(containerId,container,'fontName',v);}));
   root.appendChild(g2);
   /* G3 — font size (execCommand sizes 3-6) */
   var g3=group(true);
@@ -2700,7 +2718,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['4','w7SizeBody','15px (Body)'],
     ['5','w7SizeMedium','18px (Medium)'],
     ['6','w7SizeLarge','22px (Large)']
-  ],function(v){hossamToolbarCmd(container,'fontSize',v);}));
+  ],function(v){hossamToolbarFontCmd(containerId,container,'fontSize',v);}));
   root.appendChild(g3);
   /* G4 — line spacing (the official lineHeight attribute on the selected block) */
   var g4=group(true);
@@ -2782,8 +2800,8 @@ function hossamToolbarBuild(containerId,container,cfg){
       })(items[i]);
     }
   }));
-  g6.appendChild(btn('A^',['w7Grow','Grow font'],function(){hossamToolbarCmd(container,'fontSize',5);}));
-  g6.appendChild(btn('A⌄',['w7Shrink','Shrink font'],function(){hossamToolbarCmd(container,'fontSize',3);}));
+  g6.appendChild(btn('A^',['w7Grow','Grow font'],function(){hossamToolbarFontCmd(containerId,container,'fontSize',5);}));
+  g6.appendChild(btn('A⌄',['w7Shrink','Shrink font'],function(){hossamToolbarFontCmd(containerId,container,'fontSize',3);}));
   root.appendChild(g6); root.appendChild(divider());
   /* G7 — alignment & directionality */
   var g7=group(true);
