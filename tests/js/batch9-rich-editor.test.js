@@ -1094,17 +1094,18 @@ function testWave1Handlers() {
   const listsOk = source.indexOf("hossamToolbarTransformBlock(containerId,'core/list')") !== -1
     && source.indexOf("hossamToolbarTransformBlock(containerId,'core/list',{ordered:true})") !== -1
     && source.indexOf("hossamToolbarCmd(container,'insertOrderedList')") === -1;
-  // the multilevel button stays deferred (consensus) and keeps its legacy
-  // call — the bullet/numbered handlers are the only ones migrated, so the
-  // unordered-list legacy target must appear exactly once (multilevel only).
+  // [v1.1.16 item 8 - consensus] the multilevel button ships honest-disabled
+  // with no legacy call (the live core keeps list content in inner blocks;
+  // the values round-trip is unstable) - the unordered-list legacy target
+  // must be gone entirely.
   const legacyUnordered = source.split("hossamToolbarCmd(container,'insertUnorderedList')").length - 1;
   const insertsOk = source.indexOf("hossamToolbarInsertBlock(containerId,'core/table')") !== -1
     && source.indexOf("hossamToolbarInsertBlock(containerId,'core/details')") !== -1
     && source.indexOf("hossamToolbarInsertBlock(containerId,'core/separator')") !== -1;
   check('B9R-W1-OFFICIAL-HANDLERS',
-    listsOk && insertsOk && legacyUnordered === 1 && source.indexOf('function hossamToolbarTransformBlock(') !== -1
+    listsOk && insertsOk && legacyUnordered === 0 && source.indexOf('function hossamToolbarTransformBlock(') !== -1
       && source.indexOf('function hossamToolbarInsertBlock(') !== -1,
-    'wave-1 handlers (bullet/numbered lists, table, collapsible, divider) run on the official store path through the deposited registry; the deferred multilevel button alone keeps its legacy target',
+    'wave-1 handlers (bullet/numbered lists, table, collapsible, divider) run on the official store path through the deposited registry; the multilevel button ships honest-disabled with no legacy target (v1.1.16 item 8)',
     'a migrated wave-1 handler still targets the legacy funnel or an official handler is missing');
 }
 
@@ -1376,7 +1377,7 @@ function testFocusF1D2() {
     && source.indexOf("if((ev.key||'')!=='Enter'||ev.shiftKey) return;") !== -1;
   const f1Ok = source.indexOf('function hossamToolbarWithRecovery(containerId,run,toastKey,toastText){') !== -1
     && source.indexOf('function hossamToolbarRecoverSelection(containerId){') !== -1
-    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 3
+    && (source.match(/hossamToolbarWithRecovery\(containerId,function/g) || []).length === 4
     && source.indexOf(",'toolbarSelectFirst','Select text first')") !== -1
     && (source.match(/'toolbarNoBlock','No editable block selected'/g) || []).length === 2;
   const d2Ok = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
@@ -1384,11 +1385,182 @@ function testFocusF1D2() {
   const d5Ok = source.indexOf('the shipped list semantics are SINGLE-BLOCK') !== -1;
   check('B9R-W7-FOCUS-F1-D2',
     lift1Ok && lift2Ok && lift3Ok && f1Ok && d2Ok && d5Ok,
-    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
+    'the Wave B focus and tools core is wired: the gated at-readiness caret, the click-bridge text-block selection, the Enter-in-title canvas focus, the F-1 toast/recovery/retry wrapper over the three official families and the font funnel (v1.1.16 item 10) with the registered pairs, the D2 probed direction path, and the documented single-block list semantics',
     'the Wave B focus and tools core is missing or incomplete');
 }
 
 testFocusF1D2();
+
+/* v1.1.16 item 1 - the case menu indexing: the items are [key, default, mode]
+   and both consumers read their own slot - the label renders the registered
+   key with its default and the click passes the mode (the shifted indexing
+   passed an undefined mode and rendered the raw mode strings as labels). */
+function testCaseIndexing() {
+  const itemsOk = source.indexOf("var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];") !== -1;
+  const labelOk = source.indexOf("el('button','hossam-pt-menu-item',t(item[0],item[1]))") !== -1;
+  const modeOk = source.indexOf('hossamToolbarSetCase(containerId,item[2]);') !== -1
+    && source.indexOf('hossamToolbarSetCase(containerId,item[3]);') === -1;
+  check('B9R-W8-CASE-INDEXING',
+    itemsOk && labelOk && modeOk,
+    'the case menu items are consumed at their own slots: the label renders the registered key with its default and the click passes the mode from the third element',
+    'the case menu indexing is missing or shifted');
+}
+
+testCaseIndexing();
+
+/* v1.1.16 item 2 - the list attribute toggle: an existing list (or its
+   inner list item through the parent walk) toggles the official ordered
+   attribute through the sub-registry before the paragraph transform runs. */
+function testListToggle() {
+  const helperOk = source.indexOf('function hossamToolbarListOrdered(containerId,ordered){') !== -1
+    && source.indexOf("reg.dispatch('core/block-editor').updateBlockAttributes(targetL,{ordered:ordered});") !== -1
+    && source.indexOf("else if(blockL.name==='core/list-item'&&selL.getBlockParents){") !== -1;
+  const wiredOk = source.indexOf('if(hossamToolbarListOrdered(containerId,false)) return;') !== -1
+    && source.indexOf('if(hossamToolbarListOrdered(containerId,true)) return;') !== -1;
+  check('B9R-W8-LIST-TOGGLE',
+    helperOk && wiredOk,
+    'the bullet and numbered buttons toggle the official ordered attribute on an existing list (or its inner list item through the parent walk) before falling through to the paragraph transform',
+    'the list attribute toggle is missing or incomplete');
+}
+
+testListToggle();
+
+/* v1.1.16 item 3 - the justify migration: the button rides the official
+   alignment family (style.typography.textAlign through the sub-registry)
+   and the v1.1.11 deferral comment is renewed in the same commit. */
+function testJustifyMigration() {
+  const migrated = source.indexOf("hossamToolbarSetAlignment(containerId,'justify')") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'justifyFull')") === -1;
+  const commentRenewed = source.indexOf('[v1.1.16 item 3') !== -1
+    && source.indexOf('Justify full stays') === -1
+    && source.indexOf('justify full migrates off the dead legacy funnel') !== -1;
+  check('B9R-W8-JUSTIFY-MIGRATION',
+    migrated && commentRenewed,
+    'justify full rides the official alignment family and the v1.1.11 deferral comment is renewed in the same commit',
+    'the justify migration or its comment renewal is missing');
+}
+
+testJustifyMigration();
+
+/* v1.1.16 item 4 - line spacing writes the official lineHeight attribute
+   on the selected block through the sub-registry merge pattern (the legacy
+   root-container DOM walk measured live is removed). */
+function testLineHeight() {
+  const official = source.indexOf('typography:Object.assign({},typH,{lineHeight:v})') !== -1
+    && source.indexOf('if(blk) blk.style.lineHeight=v;') === -1
+    && source.indexOf('the shared root container measured live') !== -1;
+  check('B9R-W8-LINEHEIGHT',
+    official,
+    'line spacing writes the official lineHeight attribute on the selected block through the sub-registry merge pattern (the legacy root-container DOM walk removed)',
+    'the line-spacing official path is missing or the legacy walk remains');
+}
+
+testLineHeight();
+
+/* v1.1.16 item 5 - the reference link applies the official core/link
+   format through the wave-2 channel and the clear-exceptions list stays
+   byte-exact. */
+function testLinkFormat() {
+  const official = source.indexOf("hossamToolbarApplyFormat(containerId,'core/link',{url:url})") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'createLink',url)") === -1;
+  const exceptionsIntact = source.indexOf("var HOSSAM_TOOLBAR_CLEAR_EXCEPTIONS=['core/link','core/image','core/footnote','core/math','core/language','core/keyboard','core/non-breaking-space','core/unknown','core/note'];") !== -1;
+  check('B9R-W8-LINK',
+    official && exceptionsIntact,
+    'the reference link applies the official core/link format through the wave-2 channel and the clear-exceptions list stays byte-exact (clear formatting never strips links)',
+    'the link official path is missing or the clear-exceptions list drifted');
+}
+
+testLinkFormat();
+
+/* v1.1.16 item 6 - the footnote two-step citation: the bracketed text
+   inserts at the caret and the registered superscript format wraps the
+   SAME explicit start/end pair across both legs (the pin asserts the
+   identical pair, never derived offsets). */
+function testFootnote() {
+  const explicitPair = source.indexOf("var out=rt.insert(value,label,start,end);") !== -1
+    && source.indexOf("return rt.applyFormat(out,{type:'core/superscript'},start,start+label.length);") !== -1;
+  const legacyGone = source.indexOf("hossamToolbarCmd(container,'insertHTML','<sup>") === -1;
+  check('B9R-W8-FOOTNOTE',
+    explicitPair && legacyGone,
+    'the footnote inserts the bracketed text at the caret and wraps the same explicit start/end pair with the registered superscript format (the stripped insertHTML path removed)',
+    'the footnote two-step with its explicit pair is missing or the legacy insertHTML sup remains');
+}
+
+testFootnote();
+
+/* v1.1.16 item 7 - the legal callout inserts an official paragraph block
+   with a background color through the store (the stripped insertHTML div
+   removed). */
+function testCallout() {
+  const official = source.indexOf("hossamToolbarInsertBlock(containerId,'core/paragraph',{content:'") !== -1
+    && source.indexOf("style:{color:{background:'#FDF6B2'}}") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'insertHTML','<div style=") === -1;
+  check('B9R-W8-CALLOUT',
+    official,
+    'the legal callout inserts an official paragraph block with a background color through the store (the stripped insertHTML div removed)',
+    'the callout official block path is missing or the legacy div remains');
+}
+
+testCallout();
+
+/* v1.1.16 item 8 - multilevel and the indents ship honest-disabled with
+   their documented reasons (the live core keeps list content in inner
+   blocks while the legacy values attribute reads empty) - no dead silent
+   tools; the checklist funnel stays byte-identical. */
+function testNestDeferred() {
+  const helper = source.indexOf('function btnDeferred(sym,title,reason){') !== -1
+    && source.indexOf('d.disabled=true;') !== -1;
+  const wired = (source.match(/btnDeferred\('/g) || []).length === 3
+    && source.indexOf("hossamToolbarCmd(container,'insertUnorderedList')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'outdent')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'indent')") === -1
+    && source.indexOf("hossamToolbarCmd(container,'insertHTML','☑ ')") !== -1;
+  check('B9R-W8-NEST-DEFERRED',
+    helper && wired,
+    'multilevel and the two indents ship honest-disabled with their documented reasons while the checklist funnel stays byte-identical',
+    'the honest-disable is missing or a dead funnel call remains');
+}
+
+testNestDeferred();
+
+/* v1.1.16 item 9 - the direction fallback toggle reads the computed
+   direction (the inline-only read seeded a measured visual no-op first
+   click on RTL canvases) with the probe-first official path byte-intact. */
+function testDirComputed() {
+  const computed = source.indexOf("computedD=d.defaultView.getComputedStyle(blk).direction||'ltr';") !== -1
+    && source.indexOf("blk.style.direction=(computedD==='rtl'?'ltr':'rtl');") !== -1
+    && source.indexOf("blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');") === -1;
+  const officialPathIntact = source.indexOf("wpD.blocks.getBlockSupport('core/paragraph','direction')") !== -1
+    && source.indexOf('updateBlockAttributes(cidD,{direction:') !== -1;
+  check('B9R-W8-DIR-COMPUTED',
+    computed && officialPathIntact,
+    'the direction fallback toggle reads the computed direction with the probe-first official path byte-intact',
+    'the computed-read fallback is missing or the official probe path drifted');
+}
+
+testDirComputed();
+
+/* v1.1.16 item 10 - the four font paths ride the F-1 wrapper whose run
+   gates on the registry selection only (never the funnel return - the
+   collapsed-caret no-op returns true): a collapsed caret toasts, a real
+   selection applies silently. */
+function testFontGate() {
+  const wrapper = source.indexOf('function hossamToolbarFontCmd(containerId,container,cmd,arg){') !== -1
+    && source.indexOf('if(!sF||!eF||sF.offset===eF.offset) return false;') !== -1
+    && source.indexOf('hossamToolbarCmd(container,cmd,arg);') !== -1;
+  const wired = source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',5)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',3)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontName',v)") !== -1
+    && source.indexOf("hossamToolbarFontCmd(containerId,container,'fontSize',v)") !== -1
+    && source.indexOf("],function(v){hossamToolbarCmd(container,'fontSize',v);}));") === -1
+    && source.indexOf("],function(v){hossamToolbarCmd(container,'fontName',v);}));") === -1;
+  check('B9R-W8-FONT-GATE',
+    wrapper && wired,
+    'the four font paths ride the F-1 wrapper whose run gates on the registry selection only (never the funnel return - the collapsed-caret no-op returns true): collapsed caret toasts, real selection applies silently',
+    'the font gate wrapper is missing or a call site still rides the raw funnel');
+}
+
+testFontGate();
 
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);

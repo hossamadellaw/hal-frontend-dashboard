@@ -95,11 +95,12 @@ if tr -d '\r' < "$README" | grep -qxF "= $VERSION ="; then
 fi
 if command grep -q $'\r' "$README"; then NL=$'\r\n'; else NL=$'\n'; fi
 CHANGELOG_BODY=(
-'* Restoring unsaved work is now integrity-checked: the restore waits for the editor to finish loading, every field is written to its own target and verified after the restore, and the vault can never re-capture a corrupted intermediate state.'
-'* The writing tools that failed silently were fixed: clear formatting removes every pinned inline format again (including strikethrough), the highlight and text-color Apply buttons respect the selected suggested color while the free picker stays intact, and the More fold plus every dropdown carries a real open/close state.'
-'* The restore refusal now survives a page reload: the last-saved time is kept with the article server-side and compared against the vault, so an older injected draft can no longer overwrite newer saved content.'
-'* Writing focus is now deterministic: the canvas receives the caret once the editor is ready, a click on an unfocused text block selects it, Enter in the title jumps into the content, and failed tool actions announce themselves and recover the selection instead of failing silently.'
-'* Paragraph direction switched through the direction button now uses the official paragraph attribute when the WordPress core supports it, and the single-block list behavior is documented as shipped.'
+'* The Change case menu applies its four transforms again: the menu wiring passed an undefined mode on every click, so the items only announced a missing selection.'
+'* List tools handle existing lists properly: the bullet and numbered buttons switch an existing list between ordered and unordered through the official attribute instead of doing nothing.'
+'* Justify full now works through the same alignment channel as left, center, and right, and line spacing applies to the selected paragraph and survives saving (it previously shifted every block and was lost on save).'
+'* Reference links, footnotes, and the legal callout insert real elements again: links carry the official link format, footnotes become superscript citations, and the callout lands as a paragraph with a yellow background.'
+'* The direction switch flips on the first click on Arabic canvases, and the four font tools announce a missing selection instead of failing silently; multilevel list and the indent tools are honestly disabled with their documented reasons.'
+
 )
 ENTRY_FILE="$(mktemp "$ROOT/.bump-entry.XXXXXX")"
 TMP_README="$(mktemp "$ROOT/.bump-readme.XXXXXX")"

@@ -2433,6 +2433,34 @@ function hossamToolbarInsertBlock(containerId,blockName,attributes){
     return true;
   }catch(e){ return false; }
 }
+/* [v1.1.16 item 2 - consensus] the list-context attribute toggle: when the
+   selection already sits on a list block (or its inner list item), the
+   official ordered attribute writes directly through the sub-registry - the
+   same-type block switch has no transform on this core, so the funnel was a
+   measured no-op. The paragraph transform path stays byte-unchanged. */
+function hossamToolbarListOrdered(containerId,ordered){
+  try{
+    var reg=hossamToolbarRegistry(containerId);
+    if(!reg) return false;
+    var selL=reg.select('core/block-editor');
+    var cidL=selL.getSelectedBlockClientId();
+    if(!cidL) return false;
+    var blockL=selL.getBlock(cidL);
+    if(!blockL) return false;
+    var targetL=null;
+    if(blockL.name==='core/list') targetL=cidL;
+    else if(blockL.name==='core/list-item'&&selL.getBlockParents){
+      var parentsL=selL.getBlockParents(cidL);
+      for(var iL=parentsL.length-1;iL>=0;iL--){
+        var pL=selL.getBlock(parentsL[iL]);
+        if(pL&&pL.name==='core/list'){ targetL=parentsL[iL]; break; }
+      }
+    }
+    if(!targetL) return false;
+    reg.dispatch('core/block-editor').updateBlockAttributes(targetL,{ordered:ordered});
+    return true;
+  }catch(eL){ return false; }
+}
 /* [v1.1.11 item 3 — consensus wave 2] the unified official formatting
    channel: the selection is read from the sub-registry store (the only
    registry carrying this editor's block store), the value is transformed
@@ -2532,6 +2560,24 @@ function hossamToolbarSelectedText(doc){
 function hossamToolbarPrompt(label){
   try{ return window.prompt(label)||''; }catch(e){ return ''; }
 }
+/* [v1.1.16 item 10 - consensus] the F-1 wrapper over the legacy font
+   funnel. The run gates on the REGISTRY selection only - the funnel
+   returns true even on the collapsed-caret no-op (the measured C1 trap),
+   so the funnel return never gates. A collapsed caret or no selection =
+   the honest 'Select text first' toast with the one recovery retry. */
+function hossamToolbarFontCmd(containerId,container,cmd,arg){
+  return hossamToolbarWithRecovery(containerId,function(){
+    try{
+      var reg=hossamToolbarRegistry(containerId);
+      if(!reg) return false;
+      var selF=reg.select('core/block-editor');
+      var sF=selF.getSelectionStart(),eF=selF.getSelectionEnd();
+      if(!sF||!eF||sF.offset===eF.offset) return false;
+      hossamToolbarCmd(container,cmd,arg);
+      return true;
+    }catch(eF){ return false; }
+  },'toolbarSelectFirst','Select text first');
+}
 function hossamToolbarBuild(containerId,container,cfg){
   var doc=document;
   function el(tag,cls,text,title){
@@ -2546,6 +2592,15 @@ function hossamToolbarBuild(containerId,container,cfg){
     b.type='button';
     b.addEventListener('click',function(ev){try{ev.preventDefault();onClick(b);}catch(e){}});
     return b;
+  }
+  /* [v1.1.16 item 8 - consensus] the honest-disable: a deferred tool renders
+     disabled with its documented reason in the tooltip - never a dead
+     silent button. */
+  function btnDeferred(sym,title,reason){
+    var d=btn(sym,title,function(){});
+    d.disabled=true;
+    try{ d.title=t(title[0],title[1])+' - '+reason; }catch(e){}
+    return d;
   }
   function group(extra){
     return el('div','hossam-pt-group'+(extra?' hossam-pt-extra':''));
@@ -2654,7 +2709,7 @@ function hossamToolbarBuild(containerId,container,cfg){
     ["'Merriweather', serif",'w7FontSerif','Legal Serif (Merriweather)'],
     ["'Cairo', sans-serif",'w7FontCairo','Arabic Corporate (Cairo)'],
     ["'Cormorant Garamond', serif",'w7FontCormorant','Classical Serif (Cormorant)']
-  ],function(v){hossamToolbarCmd(container,'fontName',v);}));
+  ],function(v){hossamToolbarFontCmd(containerId,container,'fontName',v);}));
   root.appendChild(g2);
   /* G3 — font size (execCommand sizes 3-6) */
   var g3=group(true);
@@ -2663,9 +2718,9 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['4','w7SizeBody','15px (Body)'],
     ['5','w7SizeMedium','18px (Medium)'],
     ['6','w7SizeLarge','22px (Large)']
-  ],function(v){hossamToolbarCmd(container,'fontSize',v);}));
+  ],function(v){hossamToolbarFontCmd(containerId,container,'fontSize',v);}));
   root.appendChild(g3);
-  /* G4 — line spacing (inline style on the enclosing block) */
+  /* G4 — line spacing (the official lineHeight attribute on the selected block) */
   var g4=group(true);
   g4.appendChild(select(['w7LineHeightLabel','Line spacing'],[
     ['1.4','w7LhCompact','↕ 1.4 (Compact)'],
@@ -2673,13 +2728,23 @@ function hossamToolbarBuild(containerId,container,cfg){
     ['1.8','w7LhRelaxed','↕ 1.8 (Relaxed)'],
     ['2.0','w7LhDouble','↕ 2.0 (Double)']
   ],function(v){
+    /* [v1.1.16 item 4 - consensus] the official lineHeight attribute on the
+       SELECTED block through the sub-registry (the same merge pattern the
+       alignment family uses). The legacy DOM walk landed on the iframe
+       body's direct child - the shared root container measured live -
+       shifting every block and persisting nothing. */
     try{
-      var d=hossamToolbarDoc(container);
-      var s=d&&d.getSelection&&d.getSelection();
-      var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
-      while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
-      if(blk) blk.style.lineHeight=v;
-    }catch(e){}
+      var reg=hossamToolbarRegistry(containerId);
+      if(!reg) return;
+      var selH=reg.select('core/block-editor');
+      var cidH=selH.getSelectedBlockClientId();
+      var blkH=cidH?selH.getBlock(cidH):null;
+      if(!blkH||!blkH.attributes) return;
+      var stH=blkH.attributes.style?blkH.attributes.style:{};
+      var typH=stH.typography?stH.typography:{};
+      var mergedH=Object.assign({},stH,{typography:Object.assign({},typH,{lineHeight:v})});
+      reg.dispatch('core/block-editor').updateBlockAttributes(cidH,{style:mergedH});
+    }catch(eH){}
   }));
   root.appendChild(g4); root.appendChild(divider());
   /* G5 — inline formatting. [v1.1.11 item 3 — consensus wave 2] the
@@ -2713,10 +2778,14 @@ function hossamToolbarBuild(containerId,container,cfg){
     freeRow(m,'hossamFreeHighlight',function(c){hossamToolbarApplyFormat(containerId,'core/text-color',{style:'background-color: '+c});},sel);
   }));
   g6.appendChild(menu('Aa',['w7Case','Change case'],'w7Case','Change case',function(m){
+    /* [v1.1.16 item 1 - consensus] the case items are [key, default, mode]: the
+       label reads the registered key with its default and the click passes the
+       mode (the shifted indexing passed an undefined mode and rendered the raw
+       mode strings as labels - the measured case defect). */
     var items=[['w7CaseSentence','Sentence case.','sentence'],['w7CaseLower','lowercase','lower'],['w7CaseUpper','UPPERCASE','upper'],['w7CaseTitle','Title Case','title']];
     for(var i=0;i<items.length;i++){
       (function(item){
-        var mi=el('button','hossam-pt-menu-item',t(item[1],item[2]));
+        var mi=el('button','hossam-pt-menu-item',t(item[0],item[1]));
         mi.type='button';
         mi.addEventListener('click',function(){
           try{
@@ -2724,27 +2793,27 @@ function hossamToolbarBuild(containerId,container,cfg){
                insert replaces the legacy funnel (whose DOM change was
                reverted by the controlled re-render). Title mode is Latin-only
                by regex; Arabic passes through unchanged. */
-            hossamToolbarSetCase(containerId,item[3]);
+            hossamToolbarSetCase(containerId,item[2]);
           }catch(e){}
         });
         m.appendChild(mi);
       })(items[i]);
     }
   }));
-  g6.appendChild(btn('A^',['w7Grow','Grow font'],function(){hossamToolbarCmd(container,'fontSize',5);}));
-  g6.appendChild(btn('A⌄',['w7Shrink','Shrink font'],function(){hossamToolbarCmd(container,'fontSize',3);}));
+  g6.appendChild(btn('A^',['w7Grow','Grow font'],function(){hossamToolbarFontCmd(containerId,container,'fontSize',5);}));
+  g6.appendChild(btn('A⌄',['w7Shrink','Shrink font'],function(){hossamToolbarFontCmd(containerId,container,'fontSize',3);}));
   root.appendChild(g6); root.appendChild(divider());
   /* G7 — alignment & directionality */
   var g7=group(true);
-  /* [v1.1.11 item 3 — consensus wave 2] left/center/right write the official
-     style.typography.textAlign through the sub-registry. Justify full stays
-     deferred (no official per-paragraph text-justify value on this core
-     version — the align:'full' value means layout width, not text
-     alignment). */
+  /* [v1.1.11 item 3 — consensus wave 2] text alignment lives in
+     style.typography.textAlign through the sub-registry.
+     [v1.1.16 item 3 — consensus] justify full migrates off the dead legacy funnel
+     into this same official alignment family (the funnel was a
+     measured dead-silent no-op live). */
   g7.appendChild(btn('⫷',['w7AlignLeft','Align left'],function(){hossamToolbarSetAlignment(containerId,'left');}));
   g7.appendChild(btn('≡',['w7AlignCenter','Center align'],function(){hossamToolbarSetAlignment(containerId,'center');}));
   g7.appendChild(btn('⫸',['w7AlignRight','Align right'],function(){hossamToolbarSetAlignment(containerId,'right');}));
-  g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarCmd(container,'justifyFull');}));
+  g7.appendChild(btn('≣',['w7Justify','Justify full'],function(){hossamToolbarSetAlignment(containerId,'justify');}));
   g7.appendChild(btn('⇄',['w7Direction','Switch paragraph direction'],function(){
     try{
       var d=hossamToolbarDoc(container);
@@ -2767,7 +2836,15 @@ function hossamToolbarBuild(containerId,container,cfg){
       /* [v1.1.15 corrections C-1] the two legacy lines restored: the declaration and the body walk feed the final write below (the advisory corrections commit). */
       var blk=s&&s.anchorNode?(s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentNode):null;
       while(blk&&blk.parentNode&&blk.parentNode!==d.body) blk=blk.parentNode;
-      if(blk) blk.style.direction=(blk.style.direction==='rtl'?'ltr':'rtl');
+      if(blk){
+        /* [v1.1.16 item 9 - consensus] the toggle reads the COMPUTED direction:
+           the inline style starts empty, so the previous inline-only read
+           seeded rtl-on-rtl (a measured visual no-op first click on RTL
+           canvases). */
+        var computedD='ltr';
+        try{ computedD=d.defaultView.getComputedStyle(blk).direction||'ltr'; }catch(e2){}
+        blk.style.direction=(computedD==='rtl'?'ltr':'rtl');
+      }
     }catch(e){}
   }));
   root.appendChild(g7); root.appendChild(divider());
@@ -2777,12 +2854,24 @@ function hossamToolbarBuild(containerId,container,cfg){
      could not survive Gutenberg's controlled re-render. Multilevel and the
      indents stay deferred unchanged (consensus). */
   var g8=group(true);
-  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){hossamToolbarTransformBlock(containerId,'core/list');}));
-  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});}));
-  g8.appendChild(btn('⫶≡',['w7Multilevel','Multilevel list'],function(){hossamToolbarCmd(container,'insertUnorderedList');}));
+  g8.appendChild(btn('•≡',['w7BulletList','Bullet list'],function(){
+    /* [v1.1.16 item 2 - consensus] an existing list toggles its official ordered attribute through the sub-registry first; the paragraph transform path stays unchanged. */
+    if(hossamToolbarListOrdered(containerId,false)) return;
+    hossamToolbarTransformBlock(containerId,'core/list');
+  }));
+  g8.appendChild(btn('1≡',['w7NumberedList','Numbered list'],function(){
+    if(hossamToolbarListOrdered(containerId,true)) return;
+    hossamToolbarTransformBlock(containerId,'core/list',{ordered:true});
+  }));
+  /* [v1.1.16 item 8 - consensus] multilevel and the indents ship honest-disabled:
+     the live core keeps the list content in core/list-item inner blocks while
+     the legacy values attribute reads empty, so there is no official
+     nested-list write this cycle (measured live; the owner decision
+     documented in the contract). No dead silent tools. */
+  g8.appendChild(btnDeferred('⫶≡',['w7Multilevel','Multilevel list'],'deferred - no official nested-list write on this core (measured live)'));
   g8.appendChild(btn('☑≡',['w7Checklist','Checklist'],function(){hossamToolbarCmd(container,'insertHTML','☑ ');}));
-  g8.appendChild(btn('⇤',['w7Outdent','Decrease indent'],function(){hossamToolbarCmd(container,'outdent');}));
-  g8.appendChild(btn('⇥',['w7Indent','Increase indent'],function(){hossamToolbarCmd(container,'indent');}));
+  g8.appendChild(btnDeferred('⇤',['w7Outdent','Decrease indent'],'deferred - no official paragraph indent semantics on this core (measured live)'));
+  g8.appendChild(btnDeferred('⇥',['w7Indent','Increase indent'],'deferred - no official paragraph indent semantics on this core (measured live)'));
   root.appendChild(g8); root.appendChild(divider());
   /* G9 — legal specialized elements (insert HTML into the editable body) */
   var g9=group(true);
@@ -2791,10 +2880,28 @@ function hossamToolbarBuild(containerId,container,cfg){
        real quote block like the heading path above. */
     hossamToolbarTransformBlock(containerId,'core/quote');
   }));
-  g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){hossamToolbarCmd(container,'insertHTML','<div style="border-inline-start:3px solid #C5A028;background:#FDF6B2;padding:8px 10px;">⚠️ </div>');}));
+  g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){
+    /* [v1.1.16 item 7 - consensus] an official paragraph block with a
+       background color through the store (the same insertBlocks path the
+       table/details buttons use) - the insertHTML div was stripped live by
+       the RichText input rules (text-only landing measured). The border
+       decoration drops this item (its survival unmeasured). */
+    hossamToolbarInsertBlock(containerId,'core/paragraph',{content:'⚠️ ',style:{color:{background:'#FDF6B2'}}});
+  }));
   g9.appendChild(btn('🔖',['w7Footnote','Insert footnote and citation'],function(){
     var txt=hossamToolbarPrompt(t('w7PromptFootnote','Footnote text:'));
-    if(txt) hossamToolbarCmd(container,'insertHTML','<sup>['+String(txt).replace(/</g,'&lt;')+']</sup>');
+    /* [v1.1.16 item 6 - consensus] the official two-step citation: the
+       bracketed text inserts through the wave-2 channel at the caret and
+       the registered superscript format wraps the SAME explicit start/end
+       pair (the insertHTML sup was stripped live by the RichText input
+       rules - text-only landing measured). */
+    if(!txt) return;
+    var label='['+String(txt)+']';
+    hossamToolbarRichEdit(containerId,function(rt,value,start,end){
+      var out=rt.insert(value,label,start,end);
+      if(out===null||out===undefined) return null;
+      return rt.applyFormat(out,{type:'core/superscript'},start,start+label.length);
+    });
   }));
   g9.appendChild(btn('⊞',['w7ComparisonTable','Insert legal comparison table'],function(){
     /* [v1.1.9 item 1 — consensus wave 1] the official core/table block
@@ -2819,7 +2926,11 @@ function hossamToolbarBuild(containerId,container,cfg){
   }));
   g9.appendChild(btn('🔗',['w7RefLink','Insert reference link'],function(){
     var url=hossamToolbarPrompt(t('w7PromptLink','Link URL:'));
-    if(url) hossamToolbarCmd(container,'createLink',url);
+    /* [v1.1.16 item 5 - consensus] the official core/link format through the
+       wave-2 channel (the legacy funnel was measured dead-silent live with a
+       valid selection and an answered prompt). The clear-exceptions list
+       keeps core/link byte-exact - clear formatting never strips links. */
+    if(url) hossamToolbarApplyFormat(containerId,'core/link',{url:url});
   }));
   g9.appendChild(btn('📷',['w7Media','Insert image or document'],function(){
     try{
