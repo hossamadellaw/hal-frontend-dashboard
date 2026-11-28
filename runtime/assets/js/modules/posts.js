@@ -2840,7 +2840,14 @@ function hossamToolbarBuild(containerId,container,cfg){
        real quote block like the heading path above. */
     hossamToolbarTransformBlock(containerId,'core/quote');
   }));
-  g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){hossamToolbarCmd(container,'insertHTML','<div style="border-inline-start:3px solid #C5A028;background:#FDF6B2;padding:8px 10px;">⚠️ </div>');}));
+  g9.appendChild(btn('⚠️',['w7Callout','Legal callout / notice box'],function(){
+    /* [v1.1.16 item 7 - consensus] an official paragraph block with a
+       background color through the store (the same insertBlocks path the
+       table/details buttons use) - the insertHTML div was stripped live by
+       the RichText input rules (text-only landing measured). The border
+       decoration drops this item (its survival unmeasured). */
+    hossamToolbarInsertBlock(containerId,'core/paragraph',{content:'⚠️ ',style:{color:{background:'#FDF6B2'}}});
+  }));
   g9.appendChild(btn('🔖',['w7Footnote','Insert footnote and citation'],function(){
     var txt=hossamToolbarPrompt(t('w7PromptFootnote','Footnote text:'));
     /* [v1.1.16 item 6 - consensus] the official two-step citation: the

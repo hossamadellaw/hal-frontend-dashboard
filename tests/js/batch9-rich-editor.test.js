@@ -1487,6 +1487,21 @@ function testFootnote() {
 
 testFootnote();
 
+/* v1.1.16 item 7 - the legal callout inserts an official paragraph block
+   with a background color through the store (the stripped insertHTML div
+   removed). */
+function testCallout() {
+  const official = source.indexOf("hossamToolbarInsertBlock(containerId,'core/paragraph',{content:'") !== -1
+    && source.indexOf("style:{color:{background:'#FDF6B2'}}") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'insertHTML','<div style=") === -1;
+  check('B9R-W8-CALLOUT',
+    official,
+    'the legal callout inserts an official paragraph block with a background color through the store (the stripped insertHTML div removed)',
+    'the callout official block path is missing or the legacy div remains');
+}
+
+testCallout();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
