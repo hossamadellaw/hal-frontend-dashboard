@@ -2868,7 +2868,11 @@ function hossamToolbarBuild(containerId,container,cfg){
   }));
   g9.appendChild(btn('🔗',['w7RefLink','Insert reference link'],function(){
     var url=hossamToolbarPrompt(t('w7PromptLink','Link URL:'));
-    if(url) hossamToolbarCmd(container,'createLink',url);
+    /* [v1.1.16 item 5 - consensus] the official core/link format through the
+       wave-2 channel (the legacy funnel was measured dead-silent live with a
+       valid selection and an answered prompt). The clear-exceptions list
+       keeps core/link byte-exact - clear formatting never strips links. */
+    if(url) hossamToolbarApplyFormat(containerId,'core/link',{url:url});
   }));
   g9.appendChild(btn('📷',['w7Media','Insert image or document'],function(){
     try{

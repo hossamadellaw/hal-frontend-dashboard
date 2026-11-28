@@ -1456,6 +1456,21 @@ function testLineHeight() {
 
 testLineHeight();
 
+/* v1.1.16 item 5 - the reference link applies the official core/link
+   format through the wave-2 channel and the clear-exceptions list stays
+   byte-exact. */
+function testLinkFormat() {
+  const official = source.indexOf("hossamToolbarApplyFormat(containerId,'core/link',{url:url})") !== -1
+    && source.indexOf("hossamToolbarCmd(container,'createLink',url)") === -1;
+  const exceptionsIntact = source.indexOf("var HOSSAM_TOOLBAR_CLEAR_EXCEPTIONS=['core/link','core/image','core/footnote','core/math','core/language','core/keyboard','core/non-breaking-space','core/unknown','core/note'];") !== -1;
+  check('B9R-W8-LINK',
+    official && exceptionsIntact,
+    'the reference link applies the official core/link format through the wave-2 channel and the clear-exceptions list stays byte-exact (clear formatting never strips links)',
+    'the link official path is missing or the clear-exceptions list drifted');
+}
+
+testLinkFormat();
+
 console.log('');
 console.log(`batch9-rich-editor: ${passCount} passed, ${failCount} failed`);
 if (failCount) {
